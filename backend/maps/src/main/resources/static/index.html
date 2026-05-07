@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Spring Boot App</title>
+
+    <!-- CSS -->
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            background: #f5f5f5;
+        }
+
+        h1 {
+            color: #333;
+        }
+
+        button {
+            padding: 10px 15px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🚀 Spring Boot is working!</h1>
+    <p>This page is served from <code>static/index.html</code></p>
+
+    <button onclick="callApi()">Call Backend</button>
+
+    <p id="result"></p>
+
+    <!-- JavaScript -->
+    <script>
+        function callApi() {
+            fetch('/hello')
+                .then(res => res.text())
+                .then(data => {
+                    document.getElementById('result').innerText = data;
+                })
+                .catch(err => console.error(err));
+        }
+    </script>
+
+</body>
+</html>
