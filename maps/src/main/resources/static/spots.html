@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Spots - Radach</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+    :root {
+      --paper:#F7F3EE; --ink:#1C1C1C; --muted:#756E66;
+      --line:#E8E2DA; --brand:#C4623A; --brand-dark:#A8502F;
+      --ok:#2D7A40; --bad:#C0392B; --card:#FFFFFF;
+    }
+    html, body { height:100%; margin:0; }
+    body { display:flex; flex-direction:column; font-family:'DM Sans',sans-serif; background:var(--paper); color:var(--ink); }
+    .page-container { display:flex; flex-direction:column; flex:1; min-height:0; }
+    .app-wrap { display:flex; flex-direction:column; flex:1; min-height:0; }
+    .topbar {
+      height:72px; padding:0 32px; display:flex; align-items:center; flex-shrink:0;
+      border-bottom:1px solid var(--line); background:rgba(247,243,238,0.96); position:sticky; top:0; z-index:100;
+    }
+    .topbar-left { display:flex; align-items:center; gap:16px; flex:1; }
+    .topbar h2 { font-family:'Playfair Display',serif; font-size:1.3rem; font-weight:900; }
+    .hamburger {
+      background:none; border:none; font-size:1.6rem; cursor:pointer; padding:4px; border-radius:8px;
+      display:flex; align-items:center; justify-content:center; width:40px; height:40px; transition:background 0.15s;
+    }
+    .hamburger:hover { background:var(--line); }
+    .topbar-actions { display:flex; gap:10px; align-items:center; }
+    button, .link-button {
+      border:1px solid var(--line); background:#fff; color:var(--ink); border-radius:8px; padding:10px 14px;
+      font:inherit; font-size:0.9rem; font-weight:700; cursor:pointer; text-decoration:none;
+    }
+    button:hover, .link-button:hover { border-color:var(--ink); }
+    .primary { background:var(--brand); border-color:var(--brand); color:#fff; }
+    .primary:hover { background:var(--brand-dark); border-color:var(--brand-dark); }
+    .primary:disabled { opacity:0.5; cursor:not-allowed; }
+
+    /* Hamburger dropdown menu - high z-index to stay above map */
+    .menu-overlay {
+      display:none; position:fixed; inset:0; z-index:10000;
+    }
+    .menu-overlay.open { display:block; }
+    .menu-dropdown {
+      position:fixed; top:72px; left:0; z-index:10001;
+      background:#fff; border-right:1px solid var(--line); border-bottom:1px solid var(--line);
+      border-radius:0 0 12px 0; box-shadow:4px 4px 20px rgba(0,0,0,0.1);
+      padding:12px 0; min-width:200px; display:none; flex-direction:column;
+    }
+    .menu-dropdown.open { display:flex; }
+    .menu-link {
+      display:flex; align-items:center; gap:12px; padding:14px 20px; text-decoration:none;
+      color:var(--muted); font-size:0.9rem; font-weight:600; transition:all 0.12s; border:none; background:none;
+      width:100%; text-align:left; font-family:'DM Sans',sans-serif; cursor:pointer;
+    }
+    .menu-link:hover { background:#f5f0ea; color:var(--ink); }
+    .menu-link.active { color:var(--brand); }
+    .menu-link .icon { font-size:1.1rem; }
+    .menu-divider { height:1px; background:var(--line); margin:6px 12px; }
+
+    .layout { display:flex; gap:24px; padding:24px 32px; flex:1; min-height:0; }
+    .map-col { flex:1; min-width:0; position:relative; border-radius:12px; overflow:hidden; border:1px solid var(--line); }
+    #map { width:100%; height:100%; min-height:400px; }
+    .list-col { width:380px; flex-shrink:0; display:flex; flex-direction:column; gap:12px; max-height:calc(100vh - 140px); }
+    .search-panel {
+      background:#fff; border:1px solid var(--line); border-radius:8px; padding:14px;
+      display:flex; flex-direction:column; gap:8px;
+    }
+    label { display:block; font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); margin-bottom:5px; }
+    input {
+      width:100%; border:1px solid var(--line); border-radius:8px; padding:9px 10px; font:inherit; font-size:0.85rem; background:#fff; color:var(--ink);
+      outline:none;
+    }
+    input:focus { border-color:var(--ink); box-shadow:0 0 0 3px rgba(28,28,28,0.07); }
+    .geo-row { display:flex; gap:8px; align-items:center; }
+    .geo-row input { flex:1; }
+    .geo-label { font-size:0.7rem; font-weight:700; text-transform:uppercase; color:var(--muted); white-space:nowrap; }
+    .search-btn-row { display:flex; gap:8px; }
+    .search-btn-row button { flex:1; }
+    .status { font-size:0.85rem; color:var(--muted); }
+    .spots-list { flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:8px; }
+    .spot {
+      background:var(--card); border:1px solid var(--line); border-radius:8px; padding:12px;
+      cursor:pointer; transition:border-color 0.15s; flex-shrink:0;
+    }
+    .spot:hover { border-color:var(--brand); }
+    .spot-head { display:flex; justify-content:space-between; gap:8px; align-items:flex-start; }
+    .spot h3 { font-family:'Playfair Display',serif; font-size:0.95rem; line-height:1.2; }
+    .pill {
+      flex:0 0 auto; border-radius:999px; padding:3px 7px; font-size:0.65rem; font-weight:700; text-transform:uppercase;
+    }
+    .pill.active { border:1px solid #D7E9DB; color:var(--ok); background:#EFF9F0; }
+    .pill.pending { border:1px solid #FDE6CC; color:#E67E22; background:#FFF8E6; }
+    .pill.inactive { border:1px solid #F5C6C2; color:var(--bad); background:#FEF2F0; }
+    .pill:not(.active):not(.pending):not(.inactive) { border:1px solid #F5C6C2; color:var(--bad); background:#FEF2F0; }
+    .meta { color:var(--muted); font-size:0.82rem; line-height:1.4; }
+    .coords { font-size:0.75rem; color:var(--muted); margin-top:4px; }
+    .tags { display:flex; flex-wrap:wrap; gap:5px; margin-top:6px; }
+    .tag { border:1px solid var(--line); border-radius:999px; padding:3px 7px; font-size:0.7rem; color:var(--muted); }
+    .empty { border:1px dashed var(--line); border-radius:8px; padding:20px; text-align:center; color:var(--muted); font-size:0.85rem; background:rgba(255,255,255,0.55); }
+    .leaflet-popup-content { font-family:'DM Sans',sans-serif; font-size:0.85rem; }
+    .leaflet-popup-content strong { font-family:'Playfair Display',serif; }
+    .logo { display:flex; align-items:center; text-decoration:none; }
+    .logo-img { height:36px; width:auto; display:block; }
+    .logo span { color:var(--brand); }
+    @media (max-width:960px) {
+      .layout { flex-direction:column; padding:16px; }
+      .list-col { width:100%; max-height:none; }
+      .map-col { min-height:300px; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Hamburger overlay -->
+  <div class="menu-overlay" id="menuOverlay" onclick="closeMenu()"></div>
+
+  <!-- Hamburger dropdown -->
+  <nav class="menu-dropdown" id="menuDropdown">
+    <a href="/spots" class="menu-link active"><span class="icon">📍</span>All Spots</a>
+    <a href="/trending" class="menu-link"><span class="icon">🔥</span>Trending</a>
+    <a href="/search" class="menu-link"><span class="icon">🔍</span>Search</a>
+    <div class="menu-divider"></div>
+    <a href="/admin/dashboard" class="menu-link" id="menuAdminLink" style="display:none"><span class="icon">⚙️</span>Admin</a>
+    <a href="/admin/users" class="menu-link" id="menuSuperAdminLink" style="display:none"><span class="icon">👥</span>Manage Users</a>
+    <div class="menu-divider"></div>
+    <button class="menu-link" id="menuLogoutBtn"><span class="icon">🚪</span>Sign out</button>
+  </nav>
+
+  <div class="app-wrap">
+    <div class="topbar">
+      <div class="topbar-left">
+        <button class="hamburger" id="hamburgerBtn" onclick="toggleMenu()">☰</button>
+        <a href="/" class="logo">
+          <img src="/images/radach_logo.jpg" alt="Radach Logo" class="logo-img">
+        </a>
+      </div>
+      <div class="topbar-actions">
+        <span id="roleBadge" style="font-size:0.78rem; padding:4px 10px; border-radius:999px; background:var(--line); font-weight:700; display:none;"></span>
+        <button type="button" class="primary" id="refreshBtn">Refresh</button>
+      </div>
+    </div>
+
+    <div class="layout">
+      <div class="map-col">
+        <div id="map"></div>
+      </div>
+
+      <div class="list-col">
+        <div class="search-panel">
+          <div style="position:relative;">
+            <label for="placeSearch">Search place</label>
+            <input id="placeSearch" type="text" placeholder="e.g. Central Park, Bangkok" autocomplete="off" />
+            <div id="placeSuggestions" style="display:none; position:absolute; top:100%; left:0; right:0; z-index:1000; background:#fff; border:1px solid var(--line); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,0.12); max-height:240px; overflow-y:auto;"></div>
+          </div>
+          <div class="geo-row">
+            <span class="geo-label">📍</span>
+            <span id="latDisplay" style="flex:1; border:1px solid var(--line); border-radius:8px; padding:9px 10px; font-size:0.85rem; background:#f5f0ea; color:#756E66; cursor:default;">Latitude</span>
+            <span id="lngDisplay" style="flex:1; border:1px solid var(--line); border-radius:8px; padding:9px 10px; font-size:0.85rem; background:#f5f0ea; color:#756E66; cursor:default;">Longitude</span>
+          </div>
+          <div>
+            <label for="radiusKm">Radius (km)</label>
+            <input id="radiusKm" type="number" min="0.1" step="0.1" placeholder="5" />
+          </div>
+          <div class="search-btn-row">
+            <button type="button" class="primary" id="searchNearbyBtn">🔍 Search nearby</button>
+            <button type="button" id="clearSearchBtn">Clear</button>
+          </div>
+        </div>
+
+        <p class="status" id="status">Loading spots...</p>
+        <div class="spots-list" id="spotsGrid"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const token = localStorage.getItem('token');
+    const statusEl = document.getElementById('status');
+    const gridEl = document.getElementById('spotsGrid');
+    const placeInput = document.getElementById('placeSearch');
+    const latDisplay = document.getElementById('latDisplay');
+    const lngDisplay = document.getElementById('lngDisplay');
+    const radiusInput = document.getElementById('radiusKm');
+
+    if (!token) {
+      window.location.replace('/login');
+    }
+
+    // --- Hamburger menu ---
+    function toggleMenu() {
+      document.getElementById('menuDropdown').classList.toggle('open');
+      document.getElementById('menuOverlay').classList.toggle('open');
+    }
+    function closeMenu() {
+      document.getElementById('menuDropdown').classList.remove('open');
+      document.getElementById('menuOverlay').classList.remove('open');
+    }
+    document.getElementById('menuLogoutBtn').addEventListener('click', () => {
+      localStorage.removeItem('token');
+      localStorage.removeItem('userId');
+      localStorage.removeItem('role');
+      document.cookie = 'token=; path=/; max-age=0; SameSite=Strict';
+      window.location.replace('/login');
+    });
+
+    // --- Role-based menu links ---
+    (function() {
+      let role = (localStorage.getItem('role') || '').toUpperCase();
+      if (role !== 'ADMIN' && role !== 'SUPER_ADMIN') {
+        try {
+          const parts = token.split('.');
+          const payload = JSON.parse(atob(parts[1]));
+          role = (payload.role || '').toUpperCase();
+        } catch (e) {}
+      }
+      if (role === 'ADMIN' || role === 'SUPER_ADMIN') {
+        document.getElementById('menuAdminLink').style.display = '';
+        localStorage.setItem('role', role);
+      }
+      if (role === 'SUPER_ADMIN') {
+        document.getElementById('menuSuperAdminLink').style.display = '';
+      }
+      if (role) {
+        const badge = document.getElementById('roleBadge');
+        badge.textContent = '🔑 ' + role;
+        badge.style.display = '';
+      }
+    })();
+
+    // --- Map ---
+    const map = L.map('map').setView([13.7563, 100.5018], 11);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors',
+      maxZoom: 18
+    }).addTo(map);
+
+    let markers = [];
+    let circle = null;
+    let searchPin = null;
+
+    const suggestionsEl = document.getElementById('placeSuggestions');
+    let geocodeTimer = null;
+    let selectedSuggestion = false;
+
+    placeInput.addEventListener('input', function() {
+      clearTimeout(geocodeTimer);
+      selectedSuggestion = false;
+      const q = this.value.trim();
+      if (q.length < 3) { suggestionsEl.style.display = 'none'; return; }
+      geocodeTimer = setTimeout(() => fetchPlaceSuggestions(q), 300);
+    });
+
+    placeInput.addEventListener('blur', () => {
+      setTimeout(() => { suggestionsEl.style.display = 'none'; }, 200);
+    });
+
+    placeInput.addEventListener('focus', function() {
+      if (suggestionsEl.children.length > 0) suggestionsEl.style.display = 'block';
+    });
+
+    placeInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault(); suggestionsEl.style.display = 'none';
+        const q = this.value.trim();
+        if (q) selectPlace(q);
+      }
+    });
+
+    async function fetchPlaceSuggestions(query) {
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5`, {
+          headers: { 'Accept-Language': 'en' }
+        });
+        const data = await res.json();
+        if (!data || data.length === 0) { suggestionsEl.style.display = 'none'; return; }
+        suggestionsEl.innerHTML = data.map((place, i) => `
+          <div style="padding:10px 12px; cursor:pointer; border-bottom:1px solid #f0ece6; font-size:0.85rem; transition:background 0.1s;"
+               onmouseover="this.style.background='#f5f0ea'" onmouseout="this.style.background=''"
+               onclick="selectSuggestion(${i})">
+            <div style="font-weight:600;">${escapeHtml(place.display_name.split(',')[0])}</div>
+            <div style="font-size:0.75rem; color:#756E66; margin-top:2px;">${escapeHtml(place.display_name)}</div>
+          </div>
+        `).join('');
+        suggestionsEl.style.display = 'block';
+        suggestionsEl._data = data;
+      } catch (e) { suggestionsEl.style.display = 'none'; }
+    }
+
+    function selectSuggestion(index) {
+      const data = suggestionsEl._data;
+      if (!data || !data[index]) return;
+      const place = data[index];
+      placeInput.value = place.display_name;
+      suggestionsEl.style.display = 'none';
+      selectedSuggestion = true;
+      selectPlace(place.display_name, place.lat, place.lon);
+    }
+
+    function selectPlace(name, lat, lng) {
+      if (lat && lng) { updateMapPin(parseFloat(lat), parseFloat(lng), name); return; }
+      geocodeTimer = setTimeout(() => {
+        fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(name)}&format=json&limit=1`, { headers: { 'Accept-Language': 'en' } })
+          .then(r => r.json())
+          .then(data => { if (data && data.length > 0) updateMapPin(parseFloat(data[0].lat), parseFloat(data[0].lon), data[0].display_name); })
+          .catch(() => {});
+      }, 100);
+    }
+
+    function updateMapPin(lat, lng, displayName) {
+      latDisplay.textContent = lat.toFixed(6);
+      lngDisplay.textContent = lng.toFixed(6);
+      if (searchPin) map.removeLayer(searchPin);
+      searchPin = L.marker([lat, lng], {
+        icon: L.divIcon({
+          className: '',
+          html: '<div style="background:#C4623A;color:white;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);">📍</div>',
+          iconSize: [28, 28], iconAnchor: [14, 14]
+        })
+      }).addTo(map).bindPopup(`<strong>${escapeHtml(displayName)}</strong>`).openPopup();
+      map.setView([lat, lng], 13);
+    }
+
+    document.getElementById('searchNearbyBtn').addEventListener('click', function() {
+      const lat = latDisplay.textContent.trim();
+      const lng = lngDisplay.textContent.trim();
+      const radiusKm = radiusInput.value.trim();
+      if (!lat || !lng || !radiusKm) {
+        statusEl.className = 'status error';
+        statusEl.textContent = 'Search for a place first, then set a radius.';
+        return;
+      }
+      loadSpots({ lat, lng, radiusKm });
+    });
+
+    function drawSearchRadius() {
+      if (circle) { map.removeLayer(circle); circle = null; }
+      const lat = latDisplay.textContent.trim();
+      const lng = lngDisplay.textContent.trim();
+      const radiusKm = radiusInput.value.trim();
+      if (lat && lng && radiusKm && !isNaN(lat) && !isNaN(lng) && !isNaN(radiusKm)) {
+        circle = L.circle([parseFloat(lat), parseFloat(lng)], {
+          radius: parseFloat(radiusKm) * 1000,
+          color: '#C4623A', fillColor: '#C4623A', fillOpacity: 0.1, weight: 2
+        }).addTo(map);
+        map.setView([parseFloat(lat), parseFloat(lng)], 12);
+      }
+    }
+
+    document.getElementById('clearSearchBtn').addEventListener('click', function() {
+      placeInput.value = ''; latDisplay.textContent = 'Latitude'; lngDisplay.textContent = 'Longitude'; radiusInput.value = '';
+      if (searchPin) { map.removeLayer(searchPin); searchPin = null; }
+      if (circle) { map.removeLayer(circle); circle = null; }
+      loadSpots();
+    });
+
+    function formatRating(rating) {
+      if (!rating || rating <= 0) return 'No ratings yet';
+      const display = Number.isInteger(rating) ? rating : rating.toFixed(1);
+      return '★ ' + display + '/5';
+    }
+
+    function updateMapMarkers(spots) {
+      markers.forEach(m => map.removeLayer(m));
+      markers = [];
+      if (!spots.length) return;
+      const bounds = [];
+      spots.forEach(spot => {
+        const rating = formatRating(spot.averageRating);
+        const marker = L.marker([spot.latitude, spot.longitude])
+          .addTo(map)
+          .bindPopup(`<strong>${escapeHtml(spot.name)}</strong><br/><span style="color:#F5A623;">${rating}</span><br/>${escapeHtml(spot.type)} · ${escapeHtml(spot.address)}<br/><a href="/spot?id=${spot.id}" style="color:#C4623A;font-weight:700;">View details →</a>`);
+        markers.push(marker);
+        bounds.push([spot.latitude, spot.longitude]);
+      });
+      if (searchPin) {
+        const pinLatLng = searchPin.getLatLng();
+        bounds.push([pinLatLng.lat, pinLatLng.lng]);
+      }
+      if (bounds.length > 0) map.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 });
+    }
+
+    document.getElementById('refreshBtn').addEventListener('click', () => loadSpots());
+
+    async function loadSpots(filters) {
+      statusEl.className = 'status';
+      statusEl.textContent = 'Loading spots...';
+      gridEl.innerHTML = '';
+      const params = new URLSearchParams();
+      if (filters && filters.lat && filters.lng && filters.radiusKm) {
+        params.set('lat', filters.lat); params.set('lng', filters.lng); params.set('radiusKm', filters.radiusKm);
+        drawSearchRadius();
+      } else { if (circle) { map.removeLayer(circle); circle = null; } }
+      try {
+        const path = params.toString() ? `/api/v1/spots?${params}` : '/api/v1/spots';
+        const response = await fetch(path, { headers: { Authorization: `Bearer ${token}` } });
+        if (response.status === 401 || response.status === 403) { localStorage.removeItem('token'); window.location.replace('/login'); return; }
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Could not load spots.');
+        renderSpots(data);
+        updateMapMarkers(data);
+      } catch (error) { statusEl.className = 'status error'; statusEl.textContent = error.message; }
+    }
+
+    function renderSpots(spots) {
+      if (!spots.length) { statusEl.textContent = ''; gridEl.innerHTML = '<div class="empty">No spots found.</div>'; return; }
+      statusEl.textContent = `${spots.length} spot${spots.length === 1 ? '' : 's'} found.`;
+      gridEl.innerHTML = spots.map(spot => `
+        <div class="spot" onclick="window.location='/spot?id=${spot.id}'">
+          <div class="spot-head">
+            <div><h3>${escapeHtml(spot.name)}</h3><p class="meta">${escapeHtml(spot.type)} · ${escapeHtml(spot.address)}</p></div>
+            <span class="pill ${escapeHtml(spot.status).toLowerCase()}">${escapeHtml(spot.status)}</span>
+          </div>
+          <p class="coords">${spot.latitude}, ${spot.longitude}</p>
+          <div class="tags">${(spot.tags || []).map(tag => `<span class="tag">${escapeHtml(tag)}</span>`).join('')}</div>
+        </div>
+      `).join('');
+    }
+
+    function escapeHtml(value) { return String(value ?? '').replaceAll('&','&').replaceAll('<','<').replaceAll('>','>').replaceAll('"','"').replaceAll("'",'&#039;'); }
+
+    // Check URL params for "View on map" navigation from spot page
+    (function() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const lat = urlParams.get('lat');
+      const lng = urlParams.get('lng');
+      const radiusKm = urlParams.get('radiusKm');
+      if (lat && lng && radiusKm) {
+        latDisplay.textContent = lat;
+        lngDisplay.textContent = lng;
+        radiusInput.value = radiusKm;
+        loadSpots({ lat, lng, radiusKm });
+      } else {
+        loadSpots();
+      }
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,1 @@
+alter table spots add column if not exists rank_score int not null default 0;

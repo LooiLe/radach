@@ -1,0 +1,92 @@
+.friends-page {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.friends-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2rem;
+  margin-top: 2rem;
+}
+
+@media (min-width: 768px) {
+  .friends-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.friends-section {
+  background: var(--bg-card);
+  padding: 1.5rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-md);
+}
+
+.friends-section h2 {
+  font-size: 1.25rem;
+  margin-bottom: 1rem;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.friend-item, .request-item, .search-result-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  background: var(--bg-default);
+  border-radius: var(--radius-md);
+  margin-bottom: 0.75rem;
+  border: 1px solid var(--border-color);
+  transition: transform var(--transition-fast);
+}
+
+.friend-item:hover, .request-item:hover, .search-result-item:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent-primary);
+}
+
+.friend-info h3 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--text-primary);
+}
+
+.friend-info p {
+  margin: 0.25rem 0 0 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.friend-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.friend-actions .btn {
+  padding: 0.4rem 0.8rem;
+  font-size: 0.85rem;
+}
+
+.search-box {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.search-box input {
+  flex: 1;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 2rem;
+  color: var(--text-secondary);
+  background: var(--bg-default);
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--border-color);
+}

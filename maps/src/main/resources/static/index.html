@@ -1,49 +1,188 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Spring Boot App</title>
-
-    <!-- CSS -->
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 40px;
-            background: #f5f5f5;
-        }
-
-        h1 {
-            color: #333;
-        }
-
-        button {
-            padding: 10px 15px;
-            font-size: 16px;
-            cursor: pointer;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Radach — Discover Popular Spots</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --cream:#F7F3EE; --charcoal:#1C1C1C; --terracotta:#C4623A; --warm-gray:#8A8278; --border:#E8E2DA; }
+    body { font-family:'DM Sans',sans-serif; background:var(--cream); color:var(--charcoal); min-height:100vh; overflow-x:hidden; }
+    nav { display:flex; justify-content:space-between; align-items:center; padding:1.5rem 3rem; border-bottom:1px solid var(--border); background:var(--cream); position:sticky; top:0; z-index:100; }
+    .logo { font-family:'Playfair Display',serif; font-size:1.6rem; font-weight:900; letter-spacing:-0.02em; color:var(--charcoal); text-decoration:none; }
+    .logo span { color:var(--terracotta); }
+    .nav-links { display:flex; gap:0.75rem; align-items:center; }
+    .btn-ghost { text-decoration:none; font-size:0.9rem; font-weight:500; padding:0.55rem 1.25rem; border-radius:100px; color:var(--charcoal); border:1.5px solid var(--border); transition:all 0.2s; }
+    .btn-ghost:hover { border-color:var(--charcoal); }
+    .btn-solid { text-decoration:none; font-size:0.9rem; font-weight:500; padding:0.55rem 1.25rem; border-radius:100px; background:var(--charcoal); color:var(--cream); transition:all 0.2s; }
+    .btn-solid:hover { background:var(--terracotta); }
+    .hero { display:grid; grid-template-columns:1fr 1fr; min-height:88vh; padding:0 3rem; }
+    .hero-left { display:flex; flex-direction:column; justify-content:center; padding:4rem 4rem 4rem 0; animation:fadeUp 0.8s ease both; }
+    .hero-eyebrow { font-size:0.78rem; font-weight:500; letter-spacing:0.15em; text-transform:uppercase; color:var(--terracotta); margin-bottom:1.5rem; display:flex; align-items:center; gap:0.6rem; }
+    .hero-eyebrow::before { content:''; display:block; width:2rem; height:1.5px; background:var(--terracotta); }
+    .hero-title { font-family:'Playfair Display',serif; font-size:clamp(2.8rem,5vw,4.5rem); font-weight:900; line-height:1.08; letter-spacing:-0.03em; margin-bottom:1.75rem; }
+    .hero-title em { font-style:italic; color:var(--terracotta); }
+    .hero-sub { font-size:1.05rem; color:var(--warm-gray); line-height:1.7; max-width:420px; margin-bottom:2.5rem; }
+    .hero-cta { display:flex; gap:1rem; align-items:center; }
+    .cta-primary { display:inline-flex; align-items:center; gap:0.5rem; background:var(--terracotta); color:white; text-decoration:none; padding:0.9rem 2rem; border-radius:100px; font-weight:500; font-size:0.95rem; transition:all 0.2s; }
+    .cta-primary:hover { background:#a8502f; transform:translateY(-1px); }
+    .cta-secondary { font-size:0.9rem; color:var(--warm-gray); text-decoration:none; font-weight:500; }
+    .cta-secondary:hover { color:var(--charcoal); }
+    .hero-right { display:flex; align-items:center; justify-content:center; padding:3rem 0 3rem 3rem; animation:fadeUp 0.8s 0.15s ease both; }
+    .spot-cards { display:grid; grid-template-columns:1fr 1fr; gap:1rem; max-width:460px; width:100%; }
+    .spot-card { background:white; border-radius:16px; overflow:hidden; border:1px solid var(--border); transition:transform 0.25s,box-shadow 0.25s; }
+    .spot-card:hover { transform:translateY(-4px); box-shadow:0 20px 40px rgba(0,0,0,0.08); }
+    .spot-card.tall { grid-row:span 2; }
+    .card-img { width:100%; background:#F0EBE3; display:flex; align-items:center; justify-content:center; font-size:2.5rem; height:120px; }
+    .spot-card.tall .card-img { height:220px; }
+    .card-body { padding:0.9rem 1rem; }
+    .card-tag { font-size:0.7rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; color:var(--terracotta); margin-bottom:0.3rem; }
+    .card-name { font-family:'Playfair Display',serif; font-size:0.95rem; font-weight:700; line-height:1.3; margin-bottom:0.3rem; }
+    .card-meta { font-size:0.75rem; color:var(--warm-gray); display:flex; align-items:center; gap:0.3rem; }
+    .card-stars { color:#F5A623; font-size:0.7rem; }
+    .stats-bar { border-top:1px solid var(--border); border-bottom:1px solid var(--border); display:flex; justify-content:center; gap:5rem; padding:2.5rem 3rem; background:white; }
+    .stat { text-align:center; }
+    .stat-number { font-family:'Playfair Display',serif; font-size:2rem; font-weight:900; }
+    .stat-label { font-size:0.8rem; color:var(--warm-gray); margin-top:0.2rem; }
+    .features { padding:6rem 3rem; max-width:1100px; margin:0 auto; }
+    .section-label { font-size:0.78rem; font-weight:600; letter-spacing:0.15em; text-transform:uppercase; color:var(--terracotta); margin-bottom:1rem; }
+    .section-title { font-family:'Playfair Display',serif; font-size:clamp(1.8rem,3vw,2.8rem); font-weight:900; line-height:1.15; letter-spacing:-0.02em; margin-bottom:3.5rem; }
+    .features-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:2rem; }
+    .feature { padding:2rem; border:1px solid var(--border); border-radius:16px; background:white; transition:border-color 0.2s,transform 0.2s; }
+    .feature:hover { border-color:var(--terracotta); transform:translateY(-2px); }
+    .feature-icon { font-size:1.8rem; margin-bottom:1.2rem; }
+    .feature-title { font-family:'Playfair Display',serif; font-size:1.15rem; font-weight:700; margin-bottom:0.6rem; }
+    .feature-desc { font-size:0.88rem; color:var(--warm-gray); line-height:1.7; }
+    footer { border-top:1px solid var(--border); padding:2rem 3rem; display:flex; justify-content:space-between; align-items:center; color:var(--warm-gray); font-size:0.83rem; }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(24px)} to{opacity:1;transform:translateY(0)} }
+    #api-status { display:inline-flex; align-items:center; gap:0.4rem; font-size:0.78rem; padding:0.35rem 0.8rem; border-radius:100px; background:#EFF9F0; color:#2D7A40; font-weight:500; border:1px solid #C5E8CA; }
+    .dot { width:6px; height:6px; border-radius:50%; background:#2D7A40; animation:pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  </style>
 </head>
 <body>
+  <nav>
+    <a href="/" class="logo">rad<span>ach</span></a>
+    <div class="nav-links" id="navLinks">
+      <a href="/trending" class="btn-ghost">Trending</a>
+      <a href="/spots" class="btn-ghost">Spots</a>
+      <span id="roleBadge" style="display:none; font-size:0.75rem; font-weight:600; padding:0.3rem 0.8rem; border-radius:100px; background:#C4623A; color:white;"></span>
+      <a href="/login" class="btn-ghost" id="authBtn">Sign in</a>
+    </div>
+  </nav>
 
-    <h1>🚀 Spring Boot is working!</h1>
-    <p>This page is served from <code>static/index.html</code></p>
+  <section class="hero">
+    <div class="hero-left">
+      <p class="hero-eyebrow">discoveries</p>
+      <h1 class="hero-title">Find the spots<br />worth <em>talking</em><br />about.</h1>
+      <p class="hero-sub">Real reviews from verified experts. No sponsored posts. No algorithms. Just the best food halls, restaurants, and hidden gems.</p>
+      <div class="hero-cta">
+        <a href="/register" class="cta-primary">Start exploring →</a>
+        <a href="/login" class="cta-secondary">Already a member?</a>
+      </div>
+    </div>
+    <div class="hero-right">
+      <div class="spot-cards">
+        <div class="spot-card tall">
+          <div class="card-img">🍜</div>
+          <div class="card-body">
+            <div class="card-tag">Food Hall</div>
+            <div class="card-name">Central Market Bangkok</div>
+            <div class="card-meta"><span class="card-stars">★★★★★</span> Chef reviewed</div>
+          </div>
+        </div>
+        <div class="spot-card">
+          <div class="card-img" style="height:90px">🥘</div>
+          <div class="card-body">
+            <div class="card-tag">Restaurant</div>
+            <div class="card-name">Baan Ying</div>
+            <div class="card-meta"><span class="card-stars">★★★★</span> Trending</div>
+          </div>
+        </div>
+        <div class="spot-card">
+          <div class="card-img" style="height:90px">☕</div>
+          <div class="card-body">
+            <div class="card-tag">Café</div>
+            <div class="card-name">Roots Coffee</div>
+            <div class="card-meta"><span class="card-stars">★★★★★</span> Popular</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
 
-    <button onclick="callApi()">Call Backend</button>
+  <div class="stats-bar">
+    <div class="stat"><div class="stat-number">200+</div><div class="stat-label">Verified spots</div></div>
+    <div class="stat"><div class="stat-number">50+</div><div class="stat-label">Expert chefs</div></div>
+    <div class="stat"><div class="stat-number">1,000+</div><div class="stat-label">Reviews written</div></div>
+    <div class="stat"><div class="stat-number">5k+</div><div class="stat-label">Monthly visitors</div></div>
+  </div>
 
-    <p id="result"></p>
+  <section class="features">
+    <p class="section-label">Why Radach</p>
+    <h2 class="section-title">Trusted by everyone,<br />curated by the pros.</h2>
+    <div class="features-grid">
+      <div class="feature"><div class="feature-icon">👨‍🍳</div><div class="feature-title">Verified reviews</div><div class="feature-desc">Every expert review is written by a verified culinary professional. No fake accounts. No paid promotions.</div></div>
+      <div class="feature"><div class="feature-icon">📍</div><div class="feature-title">Discover near you</div><div class="feature-desc">Find the best spots within any radius. Our geo-search surfaces hidden gems close to wherever you are.</div></div>
+      <div class="feature"><div class="feature-icon">🔥</div><div class="feature-title">Trending spots</div><div class="feature-desc">Our ranking engine tracks real engagement — views, saves, and review quality — so trending means actually trending.</div></div>
+    </div>
+  </section>
 
-    <!-- JavaScript -->
-    <script>
-        function callApi() {
-            fetch('/hello')
-                .then(res => res.text())
-                .then(data => {
-                    document.getElementById('result').innerText = data;
-                })
-                .catch(err => console.error(err));
+  <footer>
+    <span>© 2026 Radach.</span>
+  </footer>
+
+  <script>
+    (function() {
+      const token = localStorage.getItem('token');
+      const authBtn = document.getElementById('authBtn');
+      const roleBadge = document.getElementById('roleBadge');
+
+      function decodeRole() {
+        if (!token) return localStorage.getItem('role') || '';
+        try {
+          const parts = token.split('.');
+          const payload = JSON.parse(atob(parts[1]));
+          return (payload.role || localStorage.getItem('role') || '').toUpperCase();
+        } catch (e) {
+          return (localStorage.getItem('role') || '').toUpperCase();
         }
-    </script>
+      }
 
+      if (token) {
+        const role = decodeRole();
+        if (role) {
+          roleBadge.textContent = '🔑 ' + role;
+          roleBadge.style.display = '';
+        }
+
+        // Nav: swap Sign in → Sign out
+        authBtn.textContent = 'Sign out';
+        authBtn.href = '#';
+        authBtn.addEventListener('click', function(e) {
+          e.preventDefault();
+          localStorage.removeItem('token');
+          localStorage.removeItem('userId');
+          localStorage.removeItem('role');
+          document.cookie = 'token=; path=/; max-age=0; SameSite=Strict';
+          window.location.reload();
+        });
+
+        // Hero: redirect "Start exploring" to /spots
+        const ctaPrimary = document.querySelector('.cta-primary');
+        if (ctaPrimary) {
+          ctaPrimary.href = '/spots';
+          ctaPrimary.textContent = 'Explore spots →';
+        }
+
+        // Hero: hide "Already a member?"
+        const ctaSecondary = document.querySelector('.cta-secondary');
+        if (ctaSecondary) {
+          ctaSecondary.style.display = 'none';
+        }
+      }
+    })();
+  </script>
 </body>
 </html>

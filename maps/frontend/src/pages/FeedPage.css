@@ -1,0 +1,145 @@
+.feed-page {
+  max-width: 700px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+}
+
+.feed-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.feed-header .page-title {
+  font-size: 2rem;
+  margin-bottom: 0.25rem;
+}
+
+.feed-header .page-subtitle {
+  color: var(--text-muted);
+  font-size: 1rem;
+}
+
+.feed-loading {
+  text-align: center;
+  padding: 4rem 0;
+  color: var(--text-muted);
+}
+
+.feed-empty {
+  text-align: center;
+  padding: 4rem 2rem;
+  border-radius: var(--radius-xl);
+}
+
+.feed-empty-icon {
+  font-size: 3rem;
+  display: block;
+  margin-bottom: 1rem;
+}
+
+.feed-empty h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.5rem;
+}
+
+.feed-empty p {
+  color: var(--text-muted);
+  margin: 0 0 1.5rem;
+}
+
+.feed-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.feed-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.25rem 1.5rem;
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.feed-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+.feed-item-icon {
+  font-size: 1.75rem;
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.feed-item-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.feed-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.25rem;
+}
+
+.feed-item-user {
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.feed-item-time {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.feed-item-desc {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+}
+
+.feed-item-spot-name {
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.feed-item-location {
+  margin: 0.25rem 0 0;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.location-pin {
+  font-size: 0.75rem;
+}
+
+.feed-item-arrow {
+  font-size: 1.25rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.feed-item:hover .feed-item-arrow {
+  opacity: 1;
+}
+
+@media (max-width: 600px) {
+  .feed-page { padding: 1rem 1rem 4rem; }
+  .feed-item { padding: 1rem; }
+}

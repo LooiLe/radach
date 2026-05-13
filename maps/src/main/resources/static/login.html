@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign in — Radach</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+    :root { --cream:#F7F3EE; --charcoal:#1C1C1C; --terracotta:#C4623A; --warm-gray:#8A8278; --border:#E8E2DA; --error:#C0392B; --success:#2D7A40; }
+    body { font-family:'DM Sans',sans-serif; background:var(--cream); color:var(--charcoal); min-height:100vh; display:grid; grid-template-columns:1fr 1fr; }
+
+    /* LEFT PANEL */
+    .panel-left {
+      background:var(--charcoal);
+      display:flex; flex-direction:column; justify-content:space-between;
+      padding:3rem;
+      position:relative;
+      overflow:hidden;
+    }
+    .panel-left::before {
+      content:'';
+      position:absolute; inset:0;
+      background:radial-gradient(ellipse at 20% 80%, rgba(196,98,58,0.3) 0%, transparent 60%),
+                 radial-gradient(ellipse at 80% 20%, rgba(196,98,58,0.15) 0%, transparent 50%);
+    }
+    .panel-logo { font-family:'Playfair Display',serif; font-size:1.6rem; font-weight:900; color:white; text-decoration:none; position:relative; }
+    .panel-logo span { color:var(--terracotta); }
+    .panel-quote { position:relative; }
+    .panel-quote blockquote {
+      font-family:'Playfair Display',serif;
+      font-size:1.6rem; font-weight:700;
+      color:white; line-height:1.35;
+      margin-bottom:1.5rem;
+    }
+    .panel-quote blockquote em { color:var(--terracotta); font-style:italic; }
+    .panel-spots { display:flex; flex-direction:column; gap:0.75rem; }
+    .mini-spot { display:flex; align-items:center; gap:0.75rem; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); border-radius:12px; padding:0.75rem 1rem; }
+    .mini-spot-icon { font-size:1.2rem; }
+    .mini-spot-info { flex:1; }
+    .mini-spot-name { font-size:0.85rem; font-weight:500; color:white; }
+    .mini-spot-tag { font-size:0.72rem; color:rgba(255,255,255,0.45); }
+    .mini-spot-score { font-size:0.72rem; color:#F5A623; }
+
+    /* RIGHT PANEL */
+    .panel-right {
+      display:flex; flex-direction:column; justify-content:center; align-items:center;
+      padding:3rem;
+    }
+    .form-box { width:100%; max-width:400px; animation:fadeUp 0.6s ease both; }
+    .form-eyebrow { font-size:0.78rem; font-weight:600; letter-spacing:0.12em; text-transform:uppercase; color:var(--terracotta); margin-bottom:0.6rem; }
+    .form-title { font-family:'Playfair Display',serif; font-size:2rem; font-weight:900; letter-spacing:-0.02em; margin-bottom:0.4rem; }
+    .form-sub { font-size:0.88rem; color:var(--warm-gray); margin-bottom:2.5rem; }
+    .form-sub a { color:var(--charcoal); font-weight:500; }
+
+    .field { margin-bottom:1.25rem; }
+    .field label { display:block; font-size:0.82rem; font-weight:500; margin-bottom:0.4rem; color:var(--charcoal); }
+    .field input {
+      width:100%; padding:0.8rem 1rem;
+      border:1.5px solid var(--border);
+      border-radius:10px;
+      font-family:'DM Sans',sans-serif;
+      font-size:0.93rem;
+      background:white;
+      color:var(--charcoal);
+      transition:border-color 0.2s, box-shadow 0.2s;
+      outline:none;
+    }
+    .field input:focus { border-color:var(--charcoal); box-shadow:0 0 0 3px rgba(28,28,28,0.07); }
+    .field input.error-field { border-color:var(--error); }
+
+    .btn-submit {
+      width:100%; padding:0.9rem;
+      background:var(--terracotta); color:white;
+      border:none; border-radius:10px;
+      font-family:'DM Sans',sans-serif; font-size:0.95rem; font-weight:500;
+      cursor:pointer; transition:all 0.2s;
+      margin-top:0.5rem;
+    }
+    .btn-submit:hover { background:#a8502f; transform:translateY(-1px); }
+    .btn-submit:disabled { opacity:0.6; cursor:not-allowed; transform:none; }
+
+    .msg {
+      margin-top:1rem; padding:0.75rem 1rem;
+      border-radius:8px; font-size:0.85rem; font-weight:500;
+      display:none;
+    }
+    .msg.error { background:#FEF2F0; color:var(--error); border:1px solid #F5C6C2; display:block; }
+    .msg.success { background:#EFF9F0; color:var(--success); border:1px solid #C5E8CA; display:block; }
+
+    .divider { display:flex; align-items:center; gap:0.75rem; margin:1.5rem 0; }
+    .divider::before, .divider::after { content:''; flex:1; height:1px; background:var(--border); }
+    .divider span { font-size:0.78rem; color:var(--warm-gray); }
+
+    .token-preview {
+      background:#F0F4FF; border:1px solid #C7D4F5; border-radius:8px;
+      padding:0.75rem 1rem; font-size:0.75rem; color:#3B5BDB;
+      word-break:break-all; display:none; margin-top:0.75rem;
+    }
+    .token-preview strong { display:block; margin-bottom:0.3rem; font-size:0.7rem; text-transform:uppercase; letter-spacing:0.08em; }
+
+    @keyframes fadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+  </style>
+</head>
+<body>
+
+  <div class="panel-left">
+    <a href="/" class="panel-logo">rad<span>ach</span></a>
+    <div class="panel-quote">
+      <blockquote>"The best spots are the ones <em>the chefs</em> actually go to."</blockquote>
+      <div class="panel-spots">
+        <div class="mini-spot">
+          <div class="mini-spot-icon">🍜</div>
+          <div class="mini-spot-info">
+            <div class="mini-spot-name">Central Market Bangkok</div>
+            <div class="mini-spot-tag">Food Hall · Chef reviewed</div>
+          </div>
+          <div class="mini-spot-score">★ 4.9</div>
+        </div>
+        <div class="mini-spot">
+          <div class="mini-spot-icon">☕</div>
+          <div class="mini-spot-info">
+            <div class="mini-spot-name">Roots Coffee Roaster</div>
+            <div class="mini-spot-tag">Café · Trending</div>
+          </div>
+          <div class="mini-spot-score">★ 4.8</div>
+        </div>
+        <div class="mini-spot">
+          <div class="mini-spot-icon">🥘</div>
+          <div class="mini-spot-info">
+            <div class="mini-spot-name">Baan Ying</div>
+            <div class="mini-spot-tag">Restaurant · Popular</div>
+          </div>
+          <div class="mini-spot-score">★ 4.7</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel-right">
+    <div class="form-box">
+      <p class="form-eyebrow">Welcome back</p>
+      <h1 class="form-title">Sign in</h1>
+      <p class="form-sub">No account yet? <a href="/register">Create one free</a></p>
+
+      <div class="field">
+        <label for="email">Email address</label>
+        <input type="email" id="email" placeholder="you@example.com" autocomplete="email" />
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input type="password" id="password" placeholder="••••••••" autocomplete="current-password" />
+      </div>
+
+      <button class="btn-submit" id="loginBtn" onclick="doLogin()">Sign in</button>
+
+      <div class="msg" id="msg"></div>
+      <!-- <div class="token-preview" id="tokenBox">
+        <strong>🔑 JWT Token (dev preview)</strong>
+        <span id="tokenVal"></span>
+      </div> -->
+    </div>
+  </div>
+
+  <script>
+    async function doLogin() {
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      const btn = document.getElementById('loginBtn');
+      const msg = document.getElementById('msg');
+      const tokenBox = document.getElementById('tokenBox');
+
+      msg.className = 'msg'; msg.textContent = '';
+      if (tokenBox) {
+        tokenBox.style.display = 'none';
+      }
+
+      if (!email || !password) {
+        msg.className = 'msg error'; msg.textContent = 'Please fill in all fields.'; return;
+      }
+
+      btn.disabled = true; btn.textContent = 'Signing in…';
+
+      try {
+        const res = await fetch('/api/v1/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+
+        const data = await res.json();
+
+        if (res.ok) {
+          localStorage.setItem('token', data.token);
+          localStorage.setItem('userId', data.userId);
+          localStorage.setItem('role', data.role || 'USER');
+          // Also set cookie so server-side page requests (like /admin/dashboard) include the token
+          document.cookie = 'token=' + encodeURIComponent(data.token) + '; path=/; max-age=86400; SameSite=Strict';
+          msg.className = 'msg success'; msg.textContent = '✓ Signed in successfully! Redirecting…';
+          if (tokenBox) {
+            tokenBox.style.display = 'block';
+            document.getElementById('tokenVal').textContent = data.token;
+          }
+          setTimeout(() => window.location.href = '/spots', 800);
+        } else {
+          msg.className = 'msg error'; msg.textContent = data.error || 'Invalid email or password.';
+          btn.disabled = false; btn.textContent = 'Sign in';
+        }
+      } catch (e) {
+        msg.className = 'msg error'; msg.textContent = 'Could not reach the server. Is it running?';
+        btn.disabled = false; btn.textContent = 'Sign in';
+      }
+    }
+
+    document.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+  </script>
+</body>
+</html>

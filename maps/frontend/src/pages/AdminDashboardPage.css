@@ -1,0 +1,18 @@
+.admin-page { padding: 2rem 2rem 4rem; max-width: 800px; }
+.admin-tabs { display: flex; gap: 0; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; width: fit-content; margin-bottom: 1.5rem; }
+.admin-tab { padding: 0.7rem 1.25rem; font-family: var(--font-body); font-size: 0.85rem; font-weight: 700; border: none; cursor: pointer; background: var(--bg-card); color: var(--text-secondary); transition: all 0.15s; display: flex; align-items: center; gap: 0.4rem; }
+.admin-tab.active { background: var(--accent); color: white; }
+.admin-tab:hover:not(.active) { background: var(--bg-glass); }
+.pending-badge { background: white; color: var(--accent); border-radius: var(--radius-pill); padding: 0.1rem 0.45rem; font-size: 0.68rem; font-weight: 700; }
+.admin-form { padding: 1.5rem; display: flex; flex-direction: column; gap: 0.9rem; max-width: 600px; }
+.admin-form-title { font-family: var(--font-display); font-size: 1.1rem; font-weight: 700; }
+.form-row { display: flex; gap: 0.75rem; }
+.form-row .field { flex: 1; }
+.admin-reviews { display: flex; flex-direction: column; gap: 0.75rem; }
+.pending-review { padding: 1rem; display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; }
+.pending-body { flex: 1; }
+.pending-meta { font-size: 0.78rem; color: var(--text-muted); margin-bottom: 0.3rem; }
+.pending-text { line-height: 1.5; margin-bottom: 0.4rem; }
+.pending-author { font-size: 0.75rem; color: var(--text-muted); }
+.pending-actions { display: flex; flex-direction: column; gap: 0.4rem; flex-shrink: 0; }
+@media (max-width: 640px) { .admin-page { padding: 1rem; } .form-row { flex-direction: column; } .pending-review { flex-direction: column; } .pending-actions { flex-direction: row; } }

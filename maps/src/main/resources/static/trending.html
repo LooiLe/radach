@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trending — Radach</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+    :root { --paper:#F7F3EE; --ink:#1C1C1C; --muted:#756E66; --line:#E8E2DA; --brand:#C4623A; --brand-dark:#A8502F; --ok:#2D7A40; --card:#FFFFFF; }
+    body { min-height:100vh; font-family:'DM Sans',sans-serif; background:var(--paper); color:var(--ink); }
+    .topbar { height:72px; padding:0 32px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--line); background:rgba(247,243,238,0.96); position:sticky; top:0; z-index:100; }
+    .topbar-left { display:flex; align-items:center; gap:16px; }
+    .topbar h2 { font-family:'Playfair Display',serif; font-size:1.3rem; font-weight:900; }
+    .hamburger { background:none; border:none; font-size:1.6rem; cursor:pointer; padding:4px; border-radius:8px; display:flex; align-items:center; justify-content:center; width:40px; height:40px; transition:background 0.15s; }
+    .hamburger:hover { background:var(--line); }
+    .topbar-actions { display:flex; gap:10px; align-items:center; }
+    button, .link-button { border:1px solid var(--line); background:#fff; color:var(--ink); border-radius:8px; padding:10px 14px; font:inherit; font-size:0.9rem; font-weight:700; cursor:pointer; text-decoration:none; }
+    button:hover, .link-button:hover { border-color:var(--ink); }
+    .primary { background:var(--brand); border-color:var(--brand); color:#fff; }
+    .primary:hover { background:var(--brand-dark); border-color:var(--brand-dark); }
+    .menu-overlay { display:none; position:fixed; inset:0; z-index:200; }
+    .menu-overlay.open { display:block; }
+    .menu-dropdown { position:fixed; top:72px; left:0; z-index:201; background:#fff; border-right:1px solid var(--line); border-bottom:1px solid var(--line); border-radius:0 0 12px 0; box-shadow:4px 4px 20px rgba(0,0,0,0.1); padding:12px 0; min-width:200px; display:none; flex-direction:column; }
+    .menu-dropdown.open { display:flex; }
+    .menu-link { display:flex; align-items:center; gap:12px; padding:14px 20px; text-decoration:none; color:var(--muted); font-size:0.9rem; font-weight:600; transition:all 0.12s; border:none; background:none; width:100%; text-align:left; font-family:'DM Sans',sans-serif; cursor:pointer; }
+    .menu-link:hover { background:#f5f0ea; color:var(--ink); }
+    .menu-link.active { color:var(--brand); }
+    .menu-link .icon { font-size:1.1rem; }
+    .menu-divider { height:1px; background:var(--line); margin:6px 12px; }
+    .logo { display:flex; align-items:center; text-decoration:none; }
+    .logo-img { height:36px; width:auto; display:block; }
+    main { max-width:1120px; margin:0; padding:36px 32px 64px; }
+    .status { min-height:22px; color:var(--muted); font-size:0.92rem; margin-bottom:16px; }
+    .grid { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:16px; }
+    .spot { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:18px; display:flex; flex-direction:column; gap:12px; min-height:190px; cursor:pointer; transition:border-color 0.2s, transform 0.15s; }
+    .spot:hover { border-color:var(--brand); transform:translateY(-2px); }
+    .spot-head { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
+    .spot h2 { font-family:'Playfair Display',serif; font-size:1.25rem; line-height:1.15; }
+    .rank-badge { flex:0 0 auto; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:0.85rem; font-weight:700; color:white; }
+    .rank-1 { background:#FF6B35; } .rank-2 { background:#E8542E; } .rank-3 { background:#CC4425; } .rank-other { background:var(--muted); }
+    .meta { color:var(--muted); line-height:1.45; font-size:0.92rem; }
+    .coords { font-size:0.82rem; color:var(--muted); }
+    .score { font-size:0.82rem; color:var(--brand); font-weight:700; }
+    .tags { display:flex; flex-wrap:wrap; gap:7px; margin-top:auto; }
+    .tag { border:1px solid var(--line); border-radius:999px; padding:5px 9px; font-size:0.78rem; color:var(--muted); }
+    .empty { border:1px dashed var(--line); border-radius:8px; padding:32px; text-align:center; color:var(--muted); background:rgba(255,255,255,0.55); }
+    @media (max-width:820px) { main { padding:24px 16px; } .grid { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+  <div class="menu-overlay" id="menuOverlay" onclick="closeMenu()"></div>
+  <nav class="menu-dropdown" id="menuDropdown">
+    <a href="/spots" class="menu-link"><span class="icon">📍</span>All Spots</a>
+    <a href="/trending" class="menu-link active"><span class="icon">🔥</span>Trending</a>
+    <a href="/search" class="menu-link"><span class="icon">🔍</span>Search</a>
+    <div class="menu-divider"></div>
+    <a href="/admin/dashboard" class="menu-link" id="menuAdminLink" style="display:none"><span class="icon">⚙️</span>Admin</a>
+    <a href="/admin/users" class="menu-link" id="menuSuperAdminLink" style="display:none"><span class="icon">👥</span>Manage Users</a>
+    <div class="menu-divider"></div>
+    <button class="menu-link" id="menuLogoutBtn"><span class="icon">🚪</span>Sign out</button>
+  </nav>
+
+  <div>
+    <div class="topbar">
+      <div class="topbar-left">
+        <button class="hamburger" onclick="toggleMenu()">☰</button>
+        <a href="/" class="logo">
+          <img src="/images/radach_logo.jpg" alt="Radach Logo" class="logo-img">
+        </a>
+      </div>
+      <div class="topbar-actions">
+        <span id="roleBadge" style="font-size:0.78rem; padding:4px 10px; border-radius:999px; background:var(--line); font-weight:700; display:none;"></span>
+        <button class="primary" id="refreshBtn">Refresh</button>
+      </div>
+    </div>
+
+    <main>
+      <p class="status" id="status">Loading trending spots...</p>
+      <section class="grid" id="spotsGrid"></section>
+    </main>
+  </div>
+
+  <script>
+    const token = localStorage.getItem('token');
+    const statusEl = document.getElementById('status');
+    const gridEl = document.getElementById('spotsGrid');
+
+    if (!token) { window.location.replace('/login'); }
+
+    function toggleMenu() { document.getElementById('menuDropdown').classList.toggle('open'); document.getElementById('menuOverlay').classList.toggle('open'); }
+    function closeMenu() { document.getElementById('menuDropdown').classList.remove('open'); document.getElementById('menuOverlay').classList.remove('open'); }
+
+    document.getElementById('menuLogoutBtn').addEventListener('click', () => {
+      localStorage.removeItem('token'); localStorage.removeItem('userId'); localStorage.removeItem('role');
+      document.cookie = 'token=; path=/; max-age=0; SameSite=Strict';
+      window.location.replace('/login');
+    });
+
+    (function() {
+      let role = (localStorage.getItem('role') || '').toUpperCase();
+      if (role !== 'ADMIN' && role !== 'SUPER_ADMIN') {
+        try { const p = token.split('.'); const pl = JSON.parse(atob(p[1])); role = (pl.role || '').toUpperCase(); } catch(e) {}
+      }
+      if (role === 'ADMIN' || role === 'SUPER_ADMIN') { document.getElementById('menuAdminLink').style.display = ''; localStorage.setItem('role', role); }
+      if (role === 'SUPER_ADMIN') { document.getElementById('menuSuperAdminLink').style.display = ''; }
+      if (role) { const b = document.getElementById('roleBadge'); b.textContent = '🔑 ' + role; b.style.display = ''; }
+    })();
+
+    document.getElementById('refreshBtn').addEventListener('click', () => loadTrending());
+
+    async function loadTrending() {
+      statusEl.className = 'status'; statusEl.textContent = 'Loading trending spots...'; gridEl.innerHTML = '';
+      try {
+        const r = await fetch('/api/v1/spots/trending', { headers: { Authorization: `Bearer ${token}` } });
+        if (r.status === 401 || r.status === 403) { localStorage.removeItem('token'); window.location.replace('/login'); return; }
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || 'Could not load trending spots.');
+        renderSpots(d);
+      } catch (e) { statusEl.className = 'status error'; statusEl.textContent = e.message; }
+    }
+
+    function formatRating(rating) {
+      if (!rating || rating <= 0) return 'No ratings yet';
+      const display = Number.isInteger(rating) ? rating : rating.toFixed(1);
+      return '★ ' + display + '/5';
+    }
+
+    function renderSpots(spots) {
+      if (!spots.length) { statusEl.textContent = ''; gridEl.innerHTML = '<div class="empty">No trending spots yet. Be the first to explore!</div>'; return; }
+      statusEl.textContent = `${spots.length} trending spot${spots.length === 1 ? '' : 's'}.`;
+      gridEl.innerHTML = spots.map((spot, i) => {
+        const rc = i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : 'rank-other';
+        return `<article class="spot" onclick="window.location='/spot?id=${spot.id}'"><div class="spot-head"><div><h2>${escapeHtml(spot.name)}</h2><p class="meta">${escapeHtml(spot.type)} · ${escapeHtml(spot.address)}</p></div><span class="rank-badge ${rc}">${i + 1}</span></div><p class="coords">${spot.latitude}, ${spot.longitude}</p><p class="score" style="color:#F5A623;">${formatRating(spot.averageRating)}</p><div class="tags">${(spot.tags || []).map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div></article>`;
+      }).join('');
+    }
+
+    function escapeHtml(v) { return String(v ?? '').replaceAll('&','&').replaceAll('<','<').replaceAll('>','>').replaceAll('"','"').replaceAll("'",'&#039;'); }
+    loadTrending();
+  </script>
+</body>
+</html>

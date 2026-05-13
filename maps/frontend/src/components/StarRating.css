@@ -1,0 +1,11 @@
+.star-rating { display: inline-flex; gap: 2px; }
+.star {
+  cursor: pointer;
+  color: var(--star-inactive);
+  transition: color 0.15s var(--ease), transform 0.15s var(--ease);
+  user-select: none;
+}
+.star:hover { transform: scale(1.2); }
+.star.active { color: var(--star); }
+.star.readonly { cursor: default; }
+.star.readonly:hover { transform: none; }

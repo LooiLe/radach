@@ -1,0 +1,103 @@
+.navbar {
+  position: sticky;
+  top: 0;
+  z-index: 2010;
+  height: 64px;
+  padding: 0 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(10, 14, 26, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border);
+}
+
+.navbar-left { display: flex; align-items: center; gap: 0.75rem; }
+.navbar-right { display: flex; align-items: center; gap: 0.5rem; }
+
+.navbar-logo { display: flex; align-items: center; }
+.navbar-logo-img { height: 32px; width: auto; border-radius: 6px; }
+
+/* Hamburger */
+.hamburger {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.hamburger:hover { background: var(--bg-glass); }
+.hamburger-icon {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 20px;
+}
+.hamburger-icon span {
+  display: block;
+  height: 2px;
+  background: var(--text-primary);
+  border-radius: 2px;
+  transition: all 0.3s var(--ease);
+  transform-origin: center;
+}
+.hamburger-icon.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+.hamburger-icon.open span:nth-child(2) { opacity: 0; transform: scaleX(0); }
+.hamburger-icon.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+/* Overlay */
+.menu-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 2000;
+  animation: fadeIn 0.2s var(--ease);
+}
+
+/* Drawer */
+.menu-drawer {
+  position: fixed;
+  top: 64px;
+  left: 0;
+  z-index: 2005;
+  width: 260px;
+  max-height: calc(100vh - 64px);
+  overflow-y: auto;
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  border-radius: 0 0 var(--radius-lg) 0;
+  box-shadow: var(--shadow-lg);
+  padding: 0.75rem 0;
+  transform: translateX(-100%);
+  transition: transform 0.3s var(--ease);
+}
+.menu-drawer.open { transform: translateX(0); }
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem 1.25rem;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.15s var(--ease);
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+.menu-item:hover { background: var(--bg-glass); color: var(--text-primary); }
+.menu-item.active { color: var(--accent); }
+.menu-icon { font-size: 1.1rem; }
+
+.menu-divider { height: 1px; background: var(--border); margin: 0.4rem 1rem; }

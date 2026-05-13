@@ -1,0 +1,56 @@
+.trending-page { padding: 2rem 2rem 4rem; max-width: 1120px; margin: 0 auto; }
+.trending-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+.page-title { font-family: var(--font-display); font-size: 1.6rem; font-weight: 900; }
+.page-status { color: var(--text-muted); font-size: 0.88rem; margin-bottom: 1.25rem; }
+.trending-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+.trending-grid .spot-card { animation: fadeUp 0.5s var(--ease) both; }
+
+@media (max-width: 860px) { .trending-grid { grid-template-columns: 1fr; } }
+
+.trending-controls {
+  margin-bottom: 2rem;
+  background: var(--bg-card);
+  padding: 1rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+}
+
+.trending-tabs {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.tab-btn {
+  background: var(--bg-default);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  padding: 0.6rem 1.2rem;
+  border-radius: var(--radius-full);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.tab-btn:hover {
+  border-color: var(--accent-primary);
+  color: var(--text-primary);
+}
+
+.tab-btn.active {
+  background: var(--accent-primary);
+  color: var(--bg-root);
+  border-color: var(--accent-primary);
+}
+
+.destination-search {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  animation: fadeDown 0.3s var(--ease) forwards;
+}
+
+.destination-search .input {
+  flex: 1;
+  max-width: 400px;
+}
