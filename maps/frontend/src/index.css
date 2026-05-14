@@ -1,6 +1,6 @@
 /* ============================================
    RADACH MAPS — DESIGN SYSTEM
-   Premium dark mode with glassmorphism
+   Soft modern theme with glassmorphism
    ============================================ */
 
 /* ---------- RESET ---------- */
@@ -9,46 +9,48 @@
 /* ---------- TOKENS ---------- */
 :root {
   /* Backgrounds */
-  --bg-deep: #0a0e1a;
-  --bg-surface: #111827;
-  --bg-card: rgba(255, 255, 255, 0.04);
-  --bg-card-hover: rgba(255, 255, 255, 0.07);
-  --bg-glass: rgba(255, 255, 255, 0.06);
-  --bg-input: rgba(255, 255, 255, 0.06);
-  --bg-input-focus: rgba(255, 255, 255, 0.1);
+  --bg-deep: #f3f8ff; /* cool sand/sky */
+  --bg-surface: #ffffff;
+  --bg-card: rgba(255, 255, 255, 0.66);
+  --bg-card-hover: rgba(255, 255, 255, 0.8);
+  --bg-glass: rgba(255, 255, 255, 0.55);
+  --bg-input: rgba(255, 255, 255, 0.72);
+  --bg-input-focus: rgba(255, 255, 255, 0.92);
 
   /* Accent */
-  --accent: #e8734a;
-  --accent-hover: #d4612e;
-  --accent-soft: rgba(232, 115, 74, 0.15);
-  --accent-glow: rgba(232, 115, 74, 0.4);
+  --accent: #0891b2; /* teal */
+  --accent-hover: #0e7490;
+  --accent-soft: rgba(8, 145, 178, 0.12);
+  --accent-glow: rgba(8, 145, 178, 0.22);
+  --accent-2: #3b82f6; /* blue */
+  --accent-2-soft: rgba(59, 130, 246, 0.12);
 
   /* Text */
-  --text-primary: #f1f5f9;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
-  --text-inverse: #0a0e1a;
+  --text-primary: #121826;
+  --text-secondary: #364152;
+  --text-muted: #6b7280;
+  --text-inverse: #ffffff;
 
   /* Borders */
-  --border: rgba(255, 255, 255, 0.08);
-  --border-hover: rgba(255, 255, 255, 0.15);
-  --border-accent: rgba(232, 115, 74, 0.3);
+  --border: rgba(17, 24, 39, 0.08);
+  --border-hover: rgba(17, 24, 39, 0.14);
+  --border-accent: rgba(8, 145, 178, 0.28);
 
   /* Status */
-  --success: #34d399;
-  --success-bg: rgba(52, 211, 153, 0.12);
-  --warning: #fbbf24;
-  --warning-bg: rgba(251, 191, 36, 0.12);
-  --error: #f87171;
-  --error-bg: rgba(248, 113, 113, 0.12);
+  --success: #16a34a;
+  --success-bg: rgba(22, 163, 74, 0.12);
+  --warning: #d97706;
+  --warning-bg: rgba(217, 119, 6, 0.12);
+  --error: #e11d48;
+  --error-bg: rgba(225, 29, 72, 0.11);
 
   /* Rating */
   --star: #fbbf24;
-  --star-inactive: #374151;
+  --star-inactive: rgba(17, 24, 39, 0.2);
 
   /* Typography */
-  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-display: 'Playfair Display', Georgia, serif;
+  --font-body: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-display: var(--font-body);
 
   /* Radii */
   --radius-sm: 8px;
@@ -58,10 +60,10 @@
   --radius-pill: 999px;
 
   /* Shadows */
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 8px 32px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 16px 64px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 0 20px var(--accent-glow);
+  --shadow-sm: 0 6px 18px rgba(17, 24, 39, 0.08);
+  --shadow-md: 0 14px 42px rgba(17, 24, 39, 0.1);
+  --shadow-lg: 0 24px 70px rgba(17, 24, 39, 0.12);
+  --shadow-glow: 0 0 26px var(--accent-glow);
 
   /* Transition */
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
@@ -72,7 +74,11 @@ html { scroll-behavior: smooth; }
 
 body {
   font-family: var(--font-body);
-  background: var(--bg-deep);
+  background:
+    radial-gradient(900px 600px at 12% 10%, rgba(14, 165, 233, 0.18), transparent 55%),
+    radial-gradient(900px 600px at 88% 18%, rgba(34, 211, 238, 0.16), transparent 55%),
+    radial-gradient(900px 600px at 55% 105%, rgba(2, 132, 199, 0.10), transparent 58%),
+    var(--bg-deep);
   color: var(--text-primary);
   min-height: 100vh;
   line-height: 1.6;
@@ -96,11 +102,13 @@ a:hover { color: var(--accent-hover); }
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  transition: border-color 0.25s var(--ease), box-shadow 0.25s var(--ease), transform 0.25s var(--ease);
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.25s var(--ease), box-shadow 0.25s var(--ease), transform 0.25s var(--ease), background 0.25s var(--ease);
 }
 .glass:hover {
   border-color: var(--border-accent);
-  box-shadow: var(--shadow-glow);
+  background: var(--bg-card-hover);
+  box-shadow: var(--shadow-md), var(--shadow-glow);
 }
 
 /* ---------- BUTTONS ---------- */
@@ -121,15 +129,19 @@ a:hover { color: var(--accent-hover); }
   transition: all 0.2s var(--ease);
   white-space: nowrap;
 }
-.btn:hover { border-color: var(--border-hover); background: var(--bg-card-hover); transform: translateY(-1px); }
+.btn:hover { border-color: var(--border-hover); background: var(--bg-card-hover); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
 .btn-primary {
   background: var(--accent);
-  border-color: var(--accent);
-  color: white;
+  border-color: rgba(2, 132, 199, 0.25);
+  color: var(--text-inverse);
 }
-.btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+.btn-primary:hover {
+  background: var(--accent-hover);
+  border-color: rgba(2, 132, 199, 0.35);
+  box-shadow: var(--shadow-md), var(--shadow-glow);
+}
 
 .btn-danger {
   background: var(--error-bg);

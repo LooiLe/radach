@@ -113,7 +113,7 @@ export default function SpotsPage() {
           ))}
           {lat && lng && radius && (
             <Circle center={[parseFloat(lat), parseFloat(lng)]} radius={parseFloat(radius) * 1000}
-              pathOptions={{ color: '#e8734a', fillColor: '#e8734a', fillOpacity: 0.1, weight: 2 }} />
+              pathOptions={{ color: 'var(--accent)', fillColor: 'var(--accent)', fillOpacity: 0.1, weight: 2 }} />
           )}
           <FitBounds bounds={bounds} />
         </MapContainer>
@@ -154,7 +154,7 @@ export default function SpotsPage() {
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem', marginBottom: '1rem' }}>
           <p className="spots-status" style={{ margin: 0 }}>{status}</p>
-          <select className="input select" style={{ width: 'auto', padding: '0.4rem 1rem' }} 
+          <select className="input select" style={{ width: 'auto', padding: '0.4rem 2.5rem 0.4rem 1rem' }} 
             value={sortBy} 
             onChange={e => {
               const newSort = e.target.value
