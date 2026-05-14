@@ -78,6 +78,7 @@ public class SecurityConfig {
                 // Public read-only API
                 .requestMatchers(HttpMethod.GET, "/api/v1/spots", "/api/v1/spots/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/tags", "/api/v1/tags/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/categories", "/api/v1/categories/**").permitAll()
                 // Authenticated interactions
                 .requestMatchers(HttpMethod.POST, "/api/v1/spots/*/view", "/api/v1/spots/*/save").authenticated()
                 .requestMatchers(HttpMethod.POST, "/api/v1/spots/*/reviews").authenticated()

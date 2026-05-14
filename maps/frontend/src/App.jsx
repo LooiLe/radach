@@ -2,6 +2,7 @@ import { Routes, Route } from 'react-router-dom'
 import Navbar from './components/Navbar'
 import ProtectedRoute from './components/ProtectedRoute'
 import AdminRoute from './components/AdminRoute'
+import FloatingAddButton from './components/FloatingAddButton'
 import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
@@ -10,11 +11,11 @@ import TrendingPage from './pages/TrendingPage'
 import SearchPage from './pages/SearchPage'
 import SpotDetailPage from './pages/SpotDetailPage'
 import AdminDashboardPage from './pages/AdminDashboardPage'
-import AdminUsersPage from './pages/AdminUsersPage'
 import FriendsPage from './pages/FriendsPage'
 import UserProfilePage from './pages/UserProfilePage'
 import SavedSpotsPage from './pages/SavedSpotsPage'
 import FeedPage from './pages/FeedPage'
+import AddSpotPage from './pages/AddSpotPage'
 
 export default function App() {
   return (
@@ -32,9 +33,10 @@ export default function App() {
         <Route path="/feed" element={<ProtectedRoute><FeedPage /></ProtectedRoute>} />
         <Route path="/user/:id" element={<ProtectedRoute><UserProfilePage /></ProtectedRoute>} />
         <Route path="/spot/:id" element={<ProtectedRoute><SpotDetailPage /></ProtectedRoute>} />
-        <Route path="/admin/dashboard" element={<AdminRoute><AdminDashboardPage /></AdminRoute>} />
-        <Route path="/admin/users" element={<AdminRoute superOnly><AdminUsersPage /></AdminRoute>} />
+        <Route path="/add-spot" element={<ProtectedRoute><AddSpotPage /></ProtectedRoute>} />
+        <Route path="/admin" element={<AdminRoute><AdminDashboardPage /></AdminRoute>} />
       </Routes>
+      <FloatingAddButton />
     </>
   )
 }

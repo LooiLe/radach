@@ -8,8 +8,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.radach.maps.dto.AuthResponse;
+import com.radach.maps.dto.OtpRequest;
+import com.radach.maps.dto.VerifyOtpRegisterRequest;
 import com.radach.maps.dto.LoginRequest;
-import com.radach.maps.dto.RegisterRequest;
 import com.radach.maps.service.AuthService;
 import com.radach.maps.service.RefreshTokenService;
 import jakarta.validation.Valid;
@@ -31,8 +32,22 @@ public class AuthController {
         return authService.login(request);
     }
 
-    @PostMapping("/register")
-    public AuthResponse register(@Valid @RequestBody RegisterRequest request) {
+    /**
+     * Step 1: Send a 6-digit OTP to the user's email.
+     * Validates that the email isn't already registered.
+     */
+    @PostMapping("/register/send-otp")
+    public Map<String, String> sendOtp(@Valid @RequestBody OtpRequest request) {
+        authService.sendRegistrationOtp(request.email());
+        return Map.of("message", "Verification code sent to your email.");
+    }
+
+    /**
+     * Step 2: Verify the OTP and create the account.
+     * Returns access + refresh tokens on success.
+     */
+    @PostMapping("/register/verify")
+    public AuthResponse verifyAndRegister(@Valid @RequestBody VerifyOtpRegisterRequest request) {
         return authService.register(request);
     }
 

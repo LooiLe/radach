@@ -78,8 +78,8 @@ public class SpotService {
                     : spotRepository.findWithinRadius(lat, lng, radiusKm);
         } else {
             spots = sortPopularity
-                    ? spotRepository.findAllByOrderByRankScoreDesc()
-                    : spotRepository.findAll();
+                    ? spotRepository.findAllByStatusOrderByRankScoreDesc(SpotStatus.ACTIVE)
+                    : spotRepository.findAllByStatus(SpotStatus.ACTIVE);
         }
 
         return withRatingsAndInteractions(spots, authenticatedUserId);
@@ -104,7 +104,7 @@ public class SpotService {
     }
 
     @Transactional
-    public SpotResponse create(SpotRequest request) {
+    public SpotResponse create(SpotRequest request, boolean isAdmin) {
         Spot spot = new Spot();
         spot.setName(request.name().trim());
         spot.setType(request.type().trim());
@@ -112,7 +112,11 @@ public class SpotService {
         spot.setLatitude(request.latitude());
         spot.setLongitude(request.longitude());
         spot.setTags(request.tags() == null ? List.of() : request.tags());
-        spot.setStatus(request.status());
+        if (isAdmin) {
+            spot.setStatus(request.status());
+        } else {
+            spot.setStatus(SpotStatus.PENDING);
+        }
 
         Spot saved = spotRepository.save(spot);
         return new SpotResponse(saved, 0.0, false, false);
@@ -145,6 +149,21 @@ public class SpotService {
         spotRepository.delete(spot);
     }
 
+    public List<SpotResponse> getPendingSpots() {
+        List<Spot> spots = spotRepository.findByStatusOrderByCreatedAtAsc(SpotStatus.PENDING);
+        return withRatingsAndInteractions(spots, null);
+    }
+
+    @Transactional
+    public SpotResponse updateStatus(Long id, SpotStatus status) {
+        Spot spot = spotRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Spot not found"));
+        spot.setStatus(status);
+        Spot saved = spotRepository.save(spot);
+        Double avg = reviewRepository.findAverageRatingBySpotId(saved.getId());
+        return new SpotResponse(saved, avg, false, false);
+    }
+
     public List<SpotResponse> getTrending(Long authenticatedUserId, Double lat, Double lng, Double radiusKm) {
         boolean geoSearch = lat != null && lng != null && radiusKm != null;
 
@@ -152,7 +171,7 @@ public class SpotService {
             // Unauthenticated ranking
             List<Spot> spots = geoSearch
                     ? spotRepository.findWithinRadius(lat, lng, radiusKm)
-                    : spotRepository.findTop20ByOrderByRankScoreDesc();
+                    : spotRepository.findTop20ByStatusOrderByRankScoreDesc(SpotStatus.ACTIVE);
             
             if (geoSearch) {
                 // Geo search returns all spots in radius ordered by distance, need to sort by global score and take top 20
@@ -209,7 +228,7 @@ public class SpotService {
 
         List<Spot> allSpots = geoSearch
                 ? spotRepository.findWithinRadius(lat, lng, radiusKm)
-                : spotRepository.findAll();
+                : spotRepository.findAllByStatus(SpotStatus.ACTIVE);
 
         List<Spot> sortedSpots = allSpots.stream()
                 .sorted((s1, s2) -> {

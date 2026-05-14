@@ -101,9 +101,10 @@ public class SpotController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
-    public SpotResponse createSpot(@Valid @RequestBody SpotRequest request) {
-        return spotService.create(request);
+    @PreAuthorize("isAuthenticated()")
+    public SpotResponse createSpot(@Valid @RequestBody SpotRequest request, org.springframework.security.core.Authentication auth) {
+        boolean isAdmin = auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_SUPER_ADMIN"));
+        return spotService.create(request, isAdmin);
     }
 
     @PutMapping("/{id}")

@@ -1,18 +1,134 @@
-.admin-page { padding: 2rem 2rem 4rem; max-width: 800px; }
-.admin-tabs { display: flex; gap: 0; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; width: fit-content; margin-bottom: 1.5rem; }
-.admin-tab { padding: 0.7rem 1.25rem; font-family: var(--font-body); font-size: 0.85rem; font-weight: 700; border: none; cursor: pointer; background: var(--bg-card); color: var(--text-secondary); transition: all 0.15s; display: flex; align-items: center; gap: 0.4rem; }
-.admin-tab.active { background: var(--accent); color: white; }
-.admin-tab:hover:not(.active) { background: var(--bg-glass); }
-.pending-badge { background: white; color: var(--accent); border-radius: var(--radius-pill); padding: 0.1rem 0.45rem; font-size: 0.68rem; font-weight: 700; }
-.admin-form { padding: 1.5rem; display: flex; flex-direction: column; gap: 0.9rem; max-width: 600px; }
-.admin-form-title { font-family: var(--font-display); font-size: 1.1rem; font-weight: 700; }
-.form-row { display: flex; gap: 0.75rem; }
-.form-row .field { flex: 1; }
-.admin-reviews { display: flex; flex-direction: column; gap: 0.75rem; }
-.pending-review { padding: 1rem; display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; }
-.pending-body { flex: 1; }
-.pending-meta { font-size: 0.78rem; color: var(--text-muted); margin-bottom: 0.3rem; }
-.pending-text { line-height: 1.5; margin-bottom: 0.4rem; }
-.pending-author { font-size: 0.75rem; color: var(--text-muted); }
-.pending-actions { display: flex; flex-direction: column; gap: 0.4rem; flex-shrink: 0; }
-@media (max-width: 640px) { .admin-page { padding: 1rem; } .form-row { flex-direction: column; } .pending-review { flex-direction: column; } .pending-actions { flex-direction: row; } }
+.admin-page {
+  padding: 3rem 1.5rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.admin-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+}
+
+.admin-tab {
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s var(--ease);
+  position: relative;
+}
+
+.admin-tab:hover {
+  background: var(--bg-glass);
+  border-color: var(--accent);
+}
+
+.admin-tab.active {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
+.pending-badge {
+  background: var(--error);
+  color: white;
+  border-radius: 12px;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  margin-left: 8px;
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  font-weight: bold;
+}
+
+/* Categories Tab */
+.admin-categories {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.add-category-row {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.add-category-row .input {
+  flex: 1;
+}
+
+.categories-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.category-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.category-name {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+/* Reviews Tab */
+.admin-reviews {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.pending-review {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.5rem;
+}
+
+.pending-meta {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+}
+
+.pending-text {
+  font-size: 1.05rem;
+  line-height: 1.6;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+}
+
+.pending-author {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.pending-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+@media (max-width: 768px) {
+  .admin-page { padding: 2rem 1rem; }
+  .pending-actions { flex-direction: column; }
+}

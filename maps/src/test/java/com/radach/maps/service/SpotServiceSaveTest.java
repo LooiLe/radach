@@ -38,7 +38,7 @@ public class SpotServiceSaveTest {
         // 2. Create a Spot
         SpotResponse spot = spotService.create(new SpotRequest(
             "Test Spot", "Park", "123 Test St", 40.0, -73.0, List.of("test"), com.radach.maps.model.SpotStatus.ACTIVE
-        ));
+        ), true);
 
         // 3. Save the spot
         SpotResponse response1 = spotService.toggleSave(spot.id(), user.getId());

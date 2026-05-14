@@ -24,6 +24,7 @@ public interface SpotRepository extends JpaRepository<Spot, Long> {
                     )
                 )
             ) <= :radiusKm
+            and status = 'ACTIVE'
             order by (
                 6371.0 * 2.0 * asin(
                     sqrt(
@@ -52,6 +53,7 @@ public interface SpotRepository extends JpaRepository<Spot, Long> {
                     )
                 )
             ) <= :radiusKm
+            and status = 'ACTIVE'
             order by rank_score desc
             """, nativeQuery = true)
     List<Spot> findWithinRadiusOrderByRankScoreDesc(
@@ -67,8 +69,9 @@ public interface SpotRepository extends JpaRepository<Spot, Long> {
      */
     @Query(value = """
             SELECT * FROM spots
-            WHERE search_vector @@ plainto_tsquery('english', :q)
-               OR lower(name) LIKE lower(concat('%', :q, '%'))
+            WHERE (search_vector @@ plainto_tsquery('english', :q)
+               OR lower(name) LIKE lower(concat('%', :q, '%')))
+              AND status = 'ACTIVE'
             ORDER BY
                 ts_rank(search_vector, plainto_tsquery('english', :q)) DESC,
                 rank_score DESC
@@ -79,7 +82,7 @@ public interface SpotRepository extends JpaRepository<Spot, Long> {
     @Query(value = """
             SELECT s.* FROM spots s
             JOIN spot_tags st ON st.spot_id = s.id
-            WHERE st.tag_id = :tagId
+            WHERE st.tag_id = :tagId AND s.status = 'ACTIVE'
             ORDER BY s.rank_score DESC
             """, nativeQuery = true)
     List<Spot> findByTagId(@Param("tagId") Long tagId);
@@ -88,14 +91,18 @@ public interface SpotRepository extends JpaRepository<Spot, Long> {
     @Query(value = """
             SELECT DISTINCT s.* FROM spots s
             JOIN spot_tags st ON st.spot_id = s.id
-            WHERE st.tag_id IN :tagIds
+            WHERE st.tag_id IN :tagIds AND s.status = 'ACTIVE'
             ORDER BY s.rank_score DESC
             """, nativeQuery = true)
     List<Spot> findByTagIds(@Param("tagIds") List<Long> tagIds);
 
-    List<Spot> findTop20ByOrderByRankScoreDesc();
+    List<Spot> findTop20ByStatusOrderByRankScoreDesc(com.radach.maps.model.SpotStatus status);
 
-    List<Spot> findAllByOrderByRankScoreDesc();
+    List<Spot> findAllByStatusOrderByRankScoreDesc(com.radach.maps.model.SpotStatus status);
+
+    List<Spot> findAllByStatus(com.radach.maps.model.SpotStatus status);
+
+    List<Spot> findByStatusOrderByCreatedAtAsc(com.radach.maps.model.SpotStatus status);
 
     /**
      * Single SQL to recompute all rank scores with weighted formula.

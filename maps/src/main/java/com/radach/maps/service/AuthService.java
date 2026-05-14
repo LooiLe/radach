@@ -6,7 +6,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.radach.maps.dto.AuthResponse;
 import com.radach.maps.dto.LoginRequest;
-import com.radach.maps.dto.RegisterRequest;
+import com.radach.maps.dto.VerifyOtpRegisterRequest;
 import com.radach.maps.exception.BadCredentialsException;
 import com.radach.maps.model.Role;
 import com.radach.maps.model.User;
@@ -19,30 +19,51 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final RefreshTokenService refreshTokenService;
+    private final OtpService otpService;
 
     public AuthService(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
             JwtService jwtService,
-            RefreshTokenService refreshTokenService
+            RefreshTokenService refreshTokenService,
+            OtpService otpService
     ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.refreshTokenService = refreshTokenService;
+        this.otpService = otpService;
     }
 
-    // REGISTER
+    /**
+     * Step 1: Validate the email isn't taken and send an OTP.
+     */
+    public void sendRegistrationOtp(String email) {
+        String normalizedEmail = email.trim().toLowerCase();
+
+        if (userRepository.findByEmailIgnoreCase(normalizedEmail).isPresent()) {
+            throw new IllegalArgumentException("Email already exists");
+        }
+
+        otpService.generateAndSend(normalizedEmail);
+    }
+
+    /**
+     * Step 2: Verify the OTP and create the user account.
+     */
     @Transactional
-    public AuthResponse register(RegisterRequest request) {
+    public AuthResponse register(VerifyOtpRegisterRequest request) {
         String email = request.email().trim().toLowerCase();
 
-        // 1. check if user exists
+        // 1. Verify OTP first (throws if invalid/expired)
+        otpService.verify(email, request.otp());
+
+        // 2. Re-check email not taken (race condition guard)
         if (userRepository.findByEmailIgnoreCase(email).isPresent()) {
             throw new IllegalArgumentException("Email already exists");
         }
 
-        // 2. create user
+        // 3. Create user
         User user = new User();
         user.setName(request.name().trim());
         user.setEmail(email);
@@ -51,11 +72,11 @@ public class AuthService {
 
         user = userRepository.save(user);
 
-        // 3. generate access + refresh tokens
+        // 4. Generate access + refresh tokens
         String token = jwtService.generateToken(user.getEmail(), user.getRole());
         String refreshToken = refreshTokenService.createRefreshToken(user.getId());
 
-        // 4. return response
+        // 5. Return response
         return new AuthResponse(token, user.getId(), user.getRole().name(), refreshToken);
     }
 

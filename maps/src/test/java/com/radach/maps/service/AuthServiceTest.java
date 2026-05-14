@@ -3,11 +3,13 @@ package com.radach.maps.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 
 import com.radach.maps.dto.AuthResponse;
 import com.radach.maps.dto.LoginRequest;
-import com.radach.maps.dto.RegisterRequest;
+import com.radach.maps.dto.VerifyOtpRegisterRequest;
 import com.radach.maps.exception.BadCredentialsException;
 import com.radach.maps.model.Role;
 import com.radach.maps.model.User;
@@ -27,18 +29,20 @@ class AuthServiceTest {
     @Mock private PasswordEncoder passwordEncoder;
     @Mock private JwtService jwtService;
     @Mock private RefreshTokenService refreshTokenService;
+    @Mock private OtpService otpService;
 
     private AuthService authService;
 
     @BeforeEach
     void setUp() {
-        authService = new AuthService(userRepository, passwordEncoder, jwtService, refreshTokenService);
+        authService = new AuthService(userRepository, passwordEncoder, jwtService, refreshTokenService, otpService);
     }
 
     @Test
     void register_createsUserAndReturnsToken() {
-        var request = new RegisterRequest("alice@example.com", "password123", "Alice");
+        var request = new VerifyOtpRegisterRequest("alice@example.com", "password123", "Alice", "123456");
 
+        doNothing().when(otpService).verify("alice@example.com", "123456");
         when(userRepository.findByEmailIgnoreCase("alice@example.com")).thenReturn(Optional.empty());
         when(passwordEncoder.encode("password123")).thenReturn("encoded");
         when(jwtService.generateToken("alice@example.com", Role.USER)).thenReturn("token");
@@ -58,9 +62,22 @@ class AuthServiceTest {
     }
 
     @Test
-    void register_throwsWhenEmailExists() {
-        var request = new RegisterRequest("alice@example.com", "password123", "Alice");
+    void register_throwsWhenOtpInvalid() {
+        var request = new VerifyOtpRegisterRequest("alice@example.com", "password123", "Alice", "000000");
 
+        doThrow(new IllegalArgumentException("Invalid verification code."))
+            .when(otpService).verify("alice@example.com", "000000");
+
+        assertThatThrownBy(() -> authService.register(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Invalid verification code.");
+    }
+
+    @Test
+    void register_throwsWhenEmailExists() {
+        var request = new VerifyOtpRegisterRequest("alice@example.com", "password123", "Alice", "123456");
+
+        doNothing().when(otpService).verify("alice@example.com", "123456");
         when(userRepository.findByEmailIgnoreCase("alice@example.com"))
                 .thenReturn(Optional.of(new User()));
 

@@ -107,6 +107,8 @@
 			<artifactId>micrometer-registry-prometheus</artifactId>
 		</dependency>
 
+		<!-- Email via Resend REST API (uses java.net.http.HttpClient, no extra dep) -->
+
 		<!-- Rate Limiting -->
 		<dependency>
 			<groupId>com.bucket4j</groupId>

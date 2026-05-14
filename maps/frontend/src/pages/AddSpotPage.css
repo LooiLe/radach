@@ -1,0 +1,33 @@
+.add-spot-page {
+  padding: 3rem 1.5rem;
+  min-height: calc(100vh - 64px);
+  background: var(--bg-surface);
+  display: flex;
+  justify-content: center;
+}
+
+.add-spot-container {
+  max-width: 600px;
+  width: 100%;
+  padding: 2.5rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-md);
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.btn-submit {
+  width: 100%;
+  margin-top: 1.5rem;
+  font-size: 1.1rem;
+  padding: 0.8rem;
+}
+
+@media (max-width: 768px) {
+  .add-spot-page {
+    padding: 2rem 1rem;
+  }
+  .add-spot-container {
+    padding: 1.5rem;
+  }
+}

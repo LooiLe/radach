@@ -73,15 +73,10 @@ export default function Navbar() {
         {isAdmin && (
           <>
             <div className="menu-divider" />
-            <Link to="/admin/dashboard" className={`menu-item ${isActive('/admin/dashboard') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
-              <span className="menu-icon">️</span> Admin
+            <Link to="/admin" className={`menu-item ${isActive('/admin') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
+              <span className="menu-icon"></span> {isSuperAdmin ? 'Super Admin' : 'Admin'}
             </Link>
           </>
-        )}
-        {isSuperAdmin && (
-          <Link to="/admin/users" className={`menu-item ${isActive('/admin/users') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
-            <span className="menu-icon"></span> Manage Users
-          </Link>
         )}
 
         <div className="menu-divider" />
