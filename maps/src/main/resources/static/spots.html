@@ -118,20 +118,20 @@
 
   <!-- Hamburger dropdown -->
   <nav class="menu-dropdown" id="menuDropdown">
-    <a href="/spots" class="menu-link active"><span class="icon">📍</span>All Spots</a>
-    <a href="/trending" class="menu-link"><span class="icon">🔥</span>Trending</a>
-    <a href="/search" class="menu-link"><span class="icon">🔍</span>Search</a>
+    <a href="/spots" class="menu-link active"><span class="icon"></span>All Spots</a>
+    <a href="/trending" class="menu-link"><span class="icon"></span>Trending</a>
+    <a href="/search" class="menu-link"><span class="icon"></span>Search</a>
     <div class="menu-divider"></div>
-    <a href="/admin/dashboard" class="menu-link" id="menuAdminLink" style="display:none"><span class="icon">⚙️</span>Admin</a>
-    <a href="/admin/users" class="menu-link" id="menuSuperAdminLink" style="display:none"><span class="icon">👥</span>Manage Users</a>
+    <a href="/admin/dashboard" class="menu-link" id="menuAdminLink" style="display:none"><span class="icon">️</span>Admin</a>
+    <a href="/admin/users" class="menu-link" id="menuSuperAdminLink" style="display:none"><span class="icon"></span>Manage Users</a>
     <div class="menu-divider"></div>
-    <button class="menu-link" id="menuLogoutBtn"><span class="icon">🚪</span>Sign out</button>
+    <button class="menu-link" id="menuLogoutBtn"><span class="icon"></span>Sign out</button>
   </nav>
 
   <div class="app-wrap">
     <div class="topbar">
       <div class="topbar-left">
-        <button class="hamburger" id="hamburgerBtn" onclick="toggleMenu()">☰</button>
+        <button class="hamburger" id="hamburgerBtn" onclick="toggleMenu()"></button>
         <a href="/" class="logo">
           <img src="/images/radach_logo.jpg" alt="Radach Logo" class="logo-img">
         </a>
@@ -155,7 +155,7 @@
             <div id="placeSuggestions" style="display:none; position:absolute; top:100%; left:0; right:0; z-index:1000; background:#fff; border:1px solid var(--line); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,0.12); max-height:240px; overflow-y:auto;"></div>
           </div>
           <div class="geo-row">
-            <span class="geo-label">📍</span>
+            <span class="geo-label"></span>
             <span id="latDisplay" style="flex:1; border:1px solid var(--line); border-radius:8px; padding:9px 10px; font-size:0.85rem; background:#f5f0ea; color:#756E66; cursor:default;">Latitude</span>
             <span id="lngDisplay" style="flex:1; border:1px solid var(--line); border-radius:8px; padding:9px 10px; font-size:0.85rem; background:#f5f0ea; color:#756E66; cursor:default;">Longitude</span>
           </div>
@@ -164,7 +164,7 @@
             <input id="radiusKm" type="number" min="0.1" step="0.1" placeholder="5" />
           </div>
           <div class="search-btn-row">
-            <button type="button" class="primary" id="searchNearbyBtn">🔍 Search nearby</button>
+            <button type="button" class="primary" id="searchNearbyBtn"> Search nearby</button>
             <button type="button" id="clearSearchBtn">Clear</button>
           </div>
         </div>
@@ -225,7 +225,7 @@
       }
       if (role) {
         const badge = document.getElementById('roleBadge');
-        badge.textContent = '🔑 ' + role;
+        badge.textContent = ' ' + role;
         badge.style.display = '';
       }
     })();
@@ -316,7 +316,7 @@
       searchPin = L.marker([lat, lng], {
         icon: L.divIcon({
           className: '',
-          html: '<div style="background:#C4623A;color:white;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);">📍</div>',
+          html: '<div style="background:#C4623A;color:white;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);"></div>',
           iconSize: [28, 28], iconAnchor: [14, 14]
         })
       }).addTo(map).bindPopup(`<strong>${escapeHtml(displayName)}</strong>`).openPopup();
@@ -359,7 +359,7 @@
     function formatRating(rating) {
       if (!rating || rating <= 0) return 'No ratings yet';
       const display = Number.isInteger(rating) ? rating : rating.toFixed(1);
-      return '★ ' + display + '/5';
+      return ' ' + display + '/5';
     }
 
     function updateMapMarkers(spots) {

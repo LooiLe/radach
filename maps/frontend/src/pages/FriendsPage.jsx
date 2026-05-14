@@ -80,7 +80,7 @@ export default function FriendsPage() {
   return (
     <div className="friends-page animate-fade-in">
       <div className="page-header">
-        <h1 className="page-title">🤝 Friends</h1>
+        <h1 className="page-title"> Friends</h1>
         <p className="page-subtitle">Connect with others to see personalized trending spots.</p>
       </div>
 

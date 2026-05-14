@@ -124,20 +124,20 @@
 
   <!-- Hamburger dropdown -->
   <nav class="menu-dropdown" id="menuDropdown">
-    <a href="/spots" class="menu-link"><span class="icon">📍</span>All Spots</a>
-    <a href="/trending" class="menu-link"><span class="icon">🔥</span>Trending</a>
-    <a href="/search" class="menu-link"><span class="icon">🔍</span>Search</a>
+    <a href="/spots" class="menu-link"><span class="icon"></span>All Spots</a>
+    <a href="/trending" class="menu-link"><span class="icon"></span>Trending</a>
+    <a href="/search" class="menu-link"><span class="icon"></span>Search</a>
     <div class="menu-divider"></div>
-    <a href="/admin/dashboard" class="menu-link" id="menuAdminLink" style="display:none"><span class="icon">⚙️</span>Admin</a>
-    <a href="/admin/users" class="menu-link" id="menuSuperAdminLink" style="display:none"><span class="icon">👥</span>Manage Users</a>
+    <a href="/admin/dashboard" class="menu-link" id="menuAdminLink" style="display:none"><span class="icon">️</span>Admin</a>
+    <a href="/admin/users" class="menu-link" id="menuSuperAdminLink" style="display:none"><span class="icon"></span>Manage Users</a>
     <div class="menu-divider"></div>
-    <button class="menu-link" id="menuLogoutBtn"><span class="icon">🚪</span>Sign out</button>
+    <button class="menu-link" id="menuLogoutBtn"><span class="icon"></span>Sign out</button>
   </nav>
 
   <div>
     <div class="topbar">
       <div class="topbar-left">
-        <button class="hamburger" id="hamburgerBtn" onclick="toggleMenu()">☰</button>
+        <button class="hamburger" id="hamburgerBtn" onclick="toggleMenu()"></button>
         <a href="/" class="logo">
           <img src="/images/radach_logo.jpg" alt="Radach Logo" class="logo-img">
         </a>
@@ -162,22 +162,22 @@
           </div>
           <div class="tags" id="spotTags"></div>
           <div class="action-btns">
-            <button class="primary" id="viewBtn">👁 View on map</button>
-            <button class="primary" id="saveBtn" style="display:none">💾 Save changes</button>
+            <button class="primary" id="viewBtn"> View on map</button>
+            <button class="primary" id="saveBtn" style="display:none"> Save changes</button>
           </div>
         </div>
 
-        <h2 class="section-title">💬 Reviews</h2>
+        <h2 class="section-title"> Reviews</h2>
 
         <div class="review-form" id="reviewForm">
           <textarea id="reviewBody" placeholder="Write your review..." maxlength="2000"></textarea>
           <div class="rating-row">
             <label>Rating: </label>
-            <span class="star" data-value="1">★</span>
-            <span class="star" data-value="2">★</span>
-            <span class="star" data-value="3">★</span>
-            <span class="star" data-value="4">★</span>
-            <span class="star" data-value="5">★</span>
+            <span class="star" data-value="1"></span>
+            <span class="star" data-value="2"></span>
+            <span class="star" data-value="3"></span>
+            <span class="star" data-value="4"></span>
+            <span class="star" data-value="5"></span>
             <span id="ratingDisplay" style="margin-left:8px;font-size:0.85rem;color:var(--muted)">Select a rating</span>
           </div>
           <div class="submit-row">
@@ -240,7 +240,7 @@
       }
       if (role) {
         const badge = document.getElementById('roleBadge');
-        badge.textContent = '🔑 ' + role;
+        badge.textContent = ' ' + role;
         badge.style.display = '';
       }
     })();
@@ -271,7 +271,7 @@
     function formatRating(rating) {
       if (!rating || rating <= 0) return 'No ratings yet';
       const display = Number.isInteger(rating) ? rating : rating.toFixed(1);
-      return '★ ' + display + '/5';
+      return ' ' + display + '/5';
     }
 
     function renderSpot(spot) {
@@ -442,7 +442,7 @@
       }
 
       btn.disabled = false;
-      btn.textContent = '💾 Save changes';
+      btn.textContent = ' Save changes';
     }
 
     async function trackEvent(type) {
@@ -485,10 +485,10 @@
         <div class="review-card">
           <div class="review-head">
             <span class="review-type-badge ${r.reviewType.toLowerCase()}">
-              ${r.reviewType === 'EXPERT' ? '👨‍🍳 Expert' : '👤 User'}
+              ${r.reviewType === 'EXPERT' ? '‍ Expert' : ' User'}
             </span>
           </div>
-          <div class="review-rating">${'★'.repeat(r.rating)}${'☆'.repeat(5 - r.rating)}</div>
+          <div class="review-rating">${''.repeat(r.rating)}${'☆'.repeat(5 - r.rating)}</div>
           <div class="review-body">${escapeHtml(r.body)}</div>
           <div class="review-meta">${escapeHtml(r.authorName || 'User #' + r.authorId)} · ${new Date(r.createdAt).toLocaleDateString()}</div>
         </div>

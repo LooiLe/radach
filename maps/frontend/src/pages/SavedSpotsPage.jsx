@@ -70,7 +70,7 @@ export default function SavedSpotsPage() {
 
       <div className="saved-sidebar">
         <div className="saved-header glass">
-          <h1>🔖 Saved Spots</h1>
+          <h1> Saved Spots</h1>
           <p>{status}</p>
         </div>
         

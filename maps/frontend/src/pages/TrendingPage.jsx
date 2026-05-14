@@ -75,8 +75,8 @@ export default function TrendingPage() {
     <div className="trending-page">
       <div className="trending-header animate-fade-up">
         <div>
-          <h1 className="page-title">🔥 Trending Spots</h1>
-          {isAuthenticated && <p className="text-sm text-secondary">✨ Personalized for you based on your friends</p>}
+          <h1 className="page-title"> Trending Spots</h1>
+          {isAuthenticated && <p className="text-sm text-secondary"> Personalized for you based on your friends</p>}
         </div>
       </div>
 
@@ -86,19 +86,19 @@ export default function TrendingPage() {
             className={`tab-btn ${activeTab === 'global' ? 'active' : ''}`}
             onClick={() => setActiveTab('global')}
           >
-            🌎 Global
+             Global
           </button>
           <button 
             className={`tab-btn ${activeTab === 'nearme' ? 'active' : ''}`}
             onClick={() => setActiveTab('nearme')}
           >
-            📍 Near me
+             Near me
           </button>
           <button 
             className={`tab-btn ${activeTab === 'destination' ? 'active' : ''}`}
             onClick={() => { setActiveTab('destination'); setSpots([]); setStatus('Enter a destination to see local trends.') }}
           >
-            ✈️ Destination
+            ️ Destination
           </button>
         </div>
 

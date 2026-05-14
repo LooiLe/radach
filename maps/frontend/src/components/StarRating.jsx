@@ -14,7 +14,7 @@ export default function StarRating({ value = 0, onChange, readonly = false, size
           onMouseEnter={() => !readonly && setHover(n)}
           onMouseLeave={() => !readonly && setHover(0)}
         >
-          ★
+          
         </span>
       ))}
     </div>
@@ -23,5 +23,5 @@ export default function StarRating({ value = 0, onChange, readonly = false, size
 
 export function formatRating(rating) {
   if (!rating || rating <= 0) return 'No ratings'
-  return `★ ${Number.isInteger(rating) ? rating : rating.toFixed(1)}/5`
+  return ` ${Number.isInteger(rating) ? rating : rating.toFixed(1)}/5`
 }

@@ -24,11 +24,11 @@ export default function FeedPage() {
 
   const getIcon = (type) => {
     switch (type) {
-      case 'REVIEW': return '⭐'
-      case 'LIKE': return '❤️'
-      case 'SAVE': return '🔖'
-      case 'VIEW': return '👀'
-      default: return '📍'
+      case 'REVIEW': return ''
+      case 'LIKE': return '️'
+      case 'SAVE': return ''
+      case 'VIEW': return ''
+      default: return ''
     }
   }
 
@@ -47,7 +47,7 @@ export default function FeedPage() {
   return (
     <div className="feed-page">
       <div className="feed-header animate-fade-up">
-        <h1 className="page-title">📡 Friend Activity</h1>
+        <h1 className="page-title"> Friend Activity</h1>
         <p className="page-subtitle">See what your friends are up to</p>
       </div>
 
@@ -58,7 +58,7 @@ export default function FeedPage() {
         </div>
       ) : feed.length === 0 ? (
         <div className="feed-empty glass animate-fade-up">
-          <span className="feed-empty-icon">🤝</span>
+          <span className="feed-empty-icon"></span>
           <h2>No friend activity yet</h2>
           <p>Add friends to see their reviews, likes, and saves here.</p>
           <button className="btn btn-primary" onClick={() => navigate('/friends')}>
@@ -85,7 +85,7 @@ export default function FeedPage() {
                 </p>
                 {item.spotAddress && (
                   <p className="feed-item-location">
-                    <span className="location-pin">📍</span> {item.spotAddress}
+                    <span className="location-pin"></span> {item.spotAddress}
                   </p>
                 )}
               </div>

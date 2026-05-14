@@ -139,9 +139,9 @@ export default function SpotDetailPage() {
               </select>
             </div>
             <div className="edit-actions">
-              <button className="btn btn-primary" onClick={() => { trackEvent('view'); navigate(`/spots?lat=${spot.latitude}&lng=${spot.longitude}&radiusKm=1`) }}>👁 View on map</button>
-              <button className="btn btn-primary" onClick={saveSpot} disabled={saving}>{saving ? 'Saving...' : '💾 Save changes'}</button>
-              <button className="btn btn-ghost" onClick={deleteSpot} disabled={saving} style={{ color: 'var(--text-error)' }}>🗑 Delete spot</button>
+              <button className="btn btn-primary" onClick={() => { trackEvent('view'); navigate(`/spots?lat=${spot.latitude}&lng=${spot.longitude}&radiusKm=1`) }}> View on map</button>
+              <button className="btn btn-primary" onClick={saveSpot} disabled={saving}>{saving ? 'Saving...' : ' Save changes'}</button>
+              <button className="btn btn-ghost" onClick={deleteSpot} disabled={saving} style={{ color: 'var(--text-error)' }}> Delete spot</button>
             </div>
           </div>
         ) : (
@@ -190,13 +190,13 @@ export default function SpotDetailPage() {
               <div className="detail-tags">{spot.tags.map(t => <span key={t} className="spot-tag">{t}</span>)}</div>
             )}
             <button className="btn btn-primary" onClick={() => { trackEvent('view'); navigate(`/spots?lat=${spot.latitude}&lng=${spot.longitude}&radiusKm=1`) }}>
-              👁 View on map
+               View on map
             </button>
           </>
         )}
       </div>
 
-      <h2 className="section-heading">💬 Reviews</h2>
+      <h2 className="section-heading"> Reviews</h2>
 
       <div className="review-form glass">
         <textarea className="textarea" value={reviewBody} onChange={e => setReviewBody(e.target.value)}
@@ -220,14 +220,14 @@ export default function SpotDetailPage() {
           <div key={r.id} className="review-card glass">
             <div className="review-card-header">
               <span className={`badge ${r.reviewType === 'EXPERT' ? 'badge-active' : 'badge-pending'}`}>
-                {r.reviewType === 'EXPERT' ? '👨‍🍳 Expert' : '👤 User'}
+                {r.reviewType === 'EXPERT' ? '‍ Expert' : ' User'}
               </span>
               <StarRating value={r.rating} readonly size="1rem" />
             </div>
             <p className="review-text">{r.body}</p>
             <div className="review-author" style={{ marginTop: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <Link to={`/user/${r.authorId}`} className="author-profile-link" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--primary)', fontWeight: '600', textDecoration: 'none', background: 'var(--bg-glass)', padding: '0.2rem 0.6rem', borderRadius: 'var(--radius-sm)', transition: 'background 0.2s' }}>
-                <span style={{ fontSize: '1.1rem' }}>👤</span> {r.authorName || `User #${r.authorId}`}
+                <span style={{ fontSize: '1.1rem' }}></span> {r.authorName || `User #${r.authorId}`}
               </Link>
               <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>· {new Date(r.createdAt).toLocaleDateString()}</span>
             </div>

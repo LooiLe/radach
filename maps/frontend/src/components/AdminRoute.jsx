@@ -13,7 +13,7 @@ function AccessDenied({ role }) {
   return (
     <div style={{ display:'flex', alignItems:'center', justifyContent:'center', minHeight:'80vh' }}>
       <div style={{ textAlign:'center', maxWidth: 420, padding: '2rem' }}>
-        <h1 style={{ fontFamily:'var(--font-display)', fontSize:'2rem', marginBottom:'1rem' }}>🔒 Access Denied</h1>
+        <h1 style={{ fontFamily:'var(--font-display)', fontSize:'2rem', marginBottom:'1rem' }}> Access Denied</h1>
         <p style={{ color:'var(--text-secondary)', lineHeight:1.6, marginBottom:'1.5rem' }}>
           This page requires <strong>ADMIN</strong> or <strong>SUPER_ADMIN</strong> role.<br/>
           Your current role: <span className="badge badge-role">{role || 'USER'}</span>

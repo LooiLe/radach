@@ -43,14 +43,14 @@ export default function AdminUsersPage() {
 
   return (
     <div className="users-page animate-fade-up">
-      <h1 className="page-title">👥 Manage Users</h1>
+      <h1 className="page-title"> Manage Users</h1>
       <p className="page-sub">Promote <strong>USER</strong> → <strong>ADMIN</strong>, or demote <strong>ADMIN</strong> → <strong>USER</strong>.</p>
       {msg.text && <div className={`msg msg-${msg.type}`}>{msg.text}</div>}
 
       <div className="users-search">
         <input className="input" value={emailFilter} onChange={e => setEmailFilter(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && load(emailFilter)} placeholder="Search by email..." />
-        <button className="btn btn-primary" onClick={() => load(emailFilter)}>🔍 Search</button>
+        <button className="btn btn-primary" onClick={() => load(emailFilter)}> Search</button>
         {emailFilter && <button className="btn" onClick={() => { setEmailFilter(''); load('') }}>Clear</button>}
       </div>
 

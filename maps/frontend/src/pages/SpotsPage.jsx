@@ -105,7 +105,7 @@ export default function SpotsPage() {
             <Marker key={s.id} position={[s.latitude, s.longitude]}>
               <Popup>
                 <strong>{s.name}</strong><br />
-                <span style={{ color: 'var(--star)' }}>{s.averageRating > 0 ? `★ ${s.averageRating.toFixed(1)}` : 'No ratings'}</span><br />
+                <span style={{ color: 'var(--star)' }}>{s.averageRating > 0 ? ` ${s.averageRating.toFixed(1)}` : 'No ratings'}</span><br />
                 {s.type} · {s.address}<br />
                 <a href={`/spot/${s.id}`}>View details →</a>
               </Popup>
@@ -147,7 +147,7 @@ export default function SpotsPage() {
               onChange={e => setRadius(e.target.value)} placeholder="5" />
           </div>
           <div className="search-actions">
-            <button className="btn btn-primary" onClick={handleSearch}>🔍 Search nearby</button>
+            <button className="btn btn-primary" onClick={handleSearch}> Search nearby</button>
             <button className="btn" onClick={handleClear}>Clear</button>
           </div>
         </div>
@@ -161,8 +161,8 @@ export default function SpotsPage() {
               setSortBy(newSort)
               loadSpots({ lat, lng, radiusKm: radius, sortBy: newSort })
             }}>
-            <option value="popularity">🔥 Popularity</option>
-            <option value="distance" disabled={!lat || !lng || !radius}>📍 Distance</option>
+            <option value="popularity"> Popularity</option>
+            <option value="distance" disabled={!lat || !lng || !radius}> Distance</option>
           </select>
         </div>
 

@@ -51,20 +51,20 @@
 <body>
   <div class="menu-overlay" id="menuOverlay" onclick="closeMenu()"></div>
   <nav class="menu-dropdown" id="menuDropdown">
-    <a href="/spots" class="menu-link"><span class="icon">📍</span>All Spots</a>
-    <a href="/trending" class="menu-link active"><span class="icon">🔥</span>Trending</a>
-    <a href="/search" class="menu-link"><span class="icon">🔍</span>Search</a>
+    <a href="/spots" class="menu-link"><span class="icon"></span>All Spots</a>
+    <a href="/trending" class="menu-link active"><span class="icon"></span>Trending</a>
+    <a href="/search" class="menu-link"><span class="icon"></span>Search</a>
     <div class="menu-divider"></div>
-    <a href="/admin/dashboard" class="menu-link" id="menuAdminLink" style="display:none"><span class="icon">⚙️</span>Admin</a>
-    <a href="/admin/users" class="menu-link" id="menuSuperAdminLink" style="display:none"><span class="icon">👥</span>Manage Users</a>
+    <a href="/admin/dashboard" class="menu-link" id="menuAdminLink" style="display:none"><span class="icon">️</span>Admin</a>
+    <a href="/admin/users" class="menu-link" id="menuSuperAdminLink" style="display:none"><span class="icon"></span>Manage Users</a>
     <div class="menu-divider"></div>
-    <button class="menu-link" id="menuLogoutBtn"><span class="icon">🚪</span>Sign out</button>
+    <button class="menu-link" id="menuLogoutBtn"><span class="icon"></span>Sign out</button>
   </nav>
 
   <div>
     <div class="topbar">
       <div class="topbar-left">
-        <button class="hamburger" onclick="toggleMenu()">☰</button>
+        <button class="hamburger" onclick="toggleMenu()"></button>
         <a href="/" class="logo">
           <img src="/images/radach_logo.jpg" alt="Radach Logo" class="logo-img">
         </a>
@@ -104,7 +104,7 @@
       }
       if (role === 'ADMIN' || role === 'SUPER_ADMIN') { document.getElementById('menuAdminLink').style.display = ''; localStorage.setItem('role', role); }
       if (role === 'SUPER_ADMIN') { document.getElementById('menuSuperAdminLink').style.display = ''; }
-      if (role) { const b = document.getElementById('roleBadge'); b.textContent = '🔑 ' + role; b.style.display = ''; }
+      if (role) { const b = document.getElementById('roleBadge'); b.textContent = ' ' + role; b.style.display = ''; }
     })();
 
     document.getElementById('refreshBtn').addEventListener('click', () => loadTrending());
@@ -123,7 +123,7 @@
     function formatRating(rating) {
       if (!rating || rating <= 0) return 'No ratings yet';
       const display = Number.isInteger(rating) ? rating : rating.toFixed(1);
-      return '★ ' + display + '/5';
+      return ' ' + display + '/5';
     }
 
     function renderSpots(spots) {

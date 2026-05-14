@@ -35,7 +35,7 @@ export default function Navbar() {
 
         <div className="navbar-right">
           {role && role !== 'USER' && isAuthenticated && (
-            <span className="badge badge-role">🔑 {role}</span>
+            <span className="badge badge-role"> {role}</span>
           )}
           {isAuthenticated ? (
             <button className="btn btn-ghost btn-pill" onClick={handleLogout}>Sign out</button>
@@ -52,46 +52,46 @@ export default function Navbar() {
       {menuOpen && <div className="menu-overlay" onClick={() => setMenuOpen(false)} />}
       <div className={`menu-drawer ${menuOpen ? 'open' : ''}`}>
         <Link to="/spots" className={`menu-item ${isActive('/spots') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
-          <span className="menu-icon">📍</span> All Spots
+          <span className="menu-icon"></span> All Spots
         </Link>
         <Link to="/trending" className={`menu-item ${isActive('/trending') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
-          <span className="menu-icon">🔥</span> Trending
+          <span className="menu-icon"></span> Trending
         </Link>
         <Link to="/search" className={`menu-item ${isActive('/search') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
-          <span className="menu-icon">🔍</span> Search
+          <span className="menu-icon"></span> Search
         </Link>
         <Link to="/friends" className={`menu-item ${isActive('/friends') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
-          <span className="menu-icon">🤝</span> Friends
+          <span className="menu-icon"></span> Friends
         </Link>
         <Link to="/saved" className={`menu-item ${isActive('/saved') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
-          <span className="menu-icon">🔖</span> Saved Spots
+          <span className="menu-icon"></span> Saved Spots
         </Link>
         <Link to="/feed" className={`menu-item ${isActive('/feed') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
-          <span className="menu-icon">📡</span> Friend Feed
+          <span className="menu-icon"></span> Friend Feed
         </Link>
 
         {isAdmin && (
           <>
             <div className="menu-divider" />
             <Link to="/admin/dashboard" className={`menu-item ${isActive('/admin/dashboard') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
-              <span className="menu-icon">⚙️</span> Admin
+              <span className="menu-icon">️</span> Admin
             </Link>
           </>
         )}
         {isSuperAdmin && (
           <Link to="/admin/users" className={`menu-item ${isActive('/admin/users') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
-            <span className="menu-icon">👥</span> Manage Users
+            <span className="menu-icon"></span> Manage Users
           </Link>
         )}
 
         <div className="menu-divider" />
         {isAuthenticated ? (
           <button className="menu-item menu-btn" onClick={handleLogout}>
-            <span className="menu-icon">🚪</span> Sign out
+            <span className="menu-icon"></span> Sign out
           </button>
         ) : (
           <Link to="/login" className="menu-item" onClick={() => setMenuOpen(false)}>
-            <span className="menu-icon">🔑</span> Sign in
+            <span className="menu-icon"></span> Sign in
           </Link>
         )}
       </div>

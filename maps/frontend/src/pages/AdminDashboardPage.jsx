@@ -78,10 +78,10 @@ export default function AdminDashboardPage() {
     <div className="admin-page animate-fade-up">
       <div className="admin-tabs">
         <button className={`admin-tab ${tab === 'add-spot' ? 'active' : ''}`} onClick={() => setTab('add-spot')}>
-          ➕ Add new spot
+           Add new spot
         </button>
         <button className={`admin-tab ${tab === 'reviews' ? 'active' : ''}`} onClick={() => setTab('reviews')}>
-          ✅ Verify reviews {pendingCount > 0 && <span className="pending-badge">{pendingCount}</span>}
+           Verify reviews {pendingCount > 0 && <span className="pending-badge">{pendingCount}</span>}
         </button>
       </div>
 
@@ -120,7 +120,7 @@ export default function AdminDashboardPage() {
               <option value="ACTIVE">Active</option><option value="INACTIVE">Inactive</option><option value="PENDING">Pending</option>
             </select>
           </div>
-          <button className="btn btn-primary" onClick={addSpot}>➕ Create spot</button>
+          <button className="btn btn-primary" onClick={addSpot}> Create spot</button>
           {spotMsg.text && <div className={`msg msg-${spotMsg.type}`}>{spotMsg.text}</div>}
         </div>
       )}
@@ -134,12 +134,12 @@ export default function AdminDashboardPage() {
                 <p className="pending-meta">Review #{r.id} · Spot #{r.spotId} · Rating: {r.rating}/5 · {r.reviewType}</p>
                 <p className="pending-text">{r.body}</p>
                 <p className="pending-author">
-                  ✍️ <strong>{r.authorName}</strong> · 📧 {r.authorEmail} · ✅ {r.authorApprovedCount} approved
+                  ️ <strong>{r.authorName}</strong> ·  {r.authorEmail} ·  {r.authorApprovedCount} approved
                 </p>
               </div>
               <div className="pending-actions">
-                <button className="btn btn-primary" onClick={() => reviewAction(r.id, 'APPROVED', 'EXPERT')}>👨‍🍳 Expert</button>
-                <button className="btn btn-primary" onClick={() => reviewAction(r.id, 'APPROVED', 'USER')}>👤 User</button>
+                <button className="btn btn-primary" onClick={() => reviewAction(r.id, 'APPROVED', 'EXPERT')}>‍ Expert</button>
+                <button className="btn btn-primary" onClick={() => reviewAction(r.id, 'APPROVED', 'USER')}> User</button>
                 <button className="btn btn-danger" onClick={() => reviewAction(r.id, 'REJECTED')}>✗ Reject</button>
               </div>
             </div>

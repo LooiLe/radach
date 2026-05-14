@@ -78,7 +78,7 @@ export default function UserProfilePage() {
             <p className="review-text">{r.body}</p>
             <p className="review-author">
               <span className={`badge ${r.reviewType === 'EXPERT' ? 'badge-active' : 'badge-pending'}`}>
-                {r.reviewType === 'EXPERT' ? '👨‍🍳 Expert Review' : '👤 User Review'}
+                {r.reviewType === 'EXPERT' ? '‍ Expert Review' : ' User Review'}
               </span>
               <span style={{ marginLeft: '1rem' }}>
                 {new Date(r.createdAt).toLocaleDateString()}

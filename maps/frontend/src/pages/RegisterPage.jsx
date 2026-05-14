@@ -39,9 +39,9 @@ export default function RegisterPage() {
         </blockquote>
         <div className="auth-mini-spots">
           {[
-            { icon: '🍜', name: 'Central Market Bangkok', tag: 'Food Hall · Chef reviewed', score: '4.9' },
-            { icon: '☕', name: 'Roots Coffee Roaster', tag: 'Café · Trending', score: '4.8' },
-            { icon: '🥘', name: 'Baan Ying', tag: 'Restaurant · Popular', score: '4.7' },
+            { icon: '', name: 'Central Market Bangkok', tag: 'Food Hall · Chef reviewed', score: '4.9' },
+            { icon: '', name: 'Roots Coffee Roaster', tag: 'Café · Trending', score: '4.8' },
+            { icon: '', name: 'Baan Ying', tag: 'Restaurant · Popular', score: '4.7' },
           ].map((s, i) => (
             <div className="auth-mini-spot glass" key={i}>
               <span className="auth-mini-icon">{s.icon}</span>
@@ -49,7 +49,7 @@ export default function RegisterPage() {
                 <span className="auth-mini-name">{s.name}</span>
                 <span className="auth-mini-tag">{s.tag}</span>
               </div>
-              <span className="auth-mini-score">★ {s.score}</span>
+              <span className="auth-mini-score"> {s.score}</span>
             </div>
           ))}
         </div>

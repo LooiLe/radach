@@ -42,27 +42,27 @@ export default function LandingPage() {
         <div className="hero-visual animate-fade-up" style={{ animationDelay: '0.15s' }}>
           <div className="hero-cards">
             <div className="hero-card tall glass">
-              <div className="hero-card-emoji">🍜</div>
+              <div className="hero-card-emoji"></div>
               <div className="hero-card-info">
                 <span className="hero-card-type">Food Hall</span>
                 <span className="hero-card-name">Central Market Bangkok</span>
-                <span className="hero-card-stars">★★★★★ Chef reviewed</span>
+                <span className="hero-card-stars"> Chef reviewed</span>
               </div>
             </div>
             <div className="hero-card glass">
-              <div className="hero-card-emoji">🥘</div>
+              <div className="hero-card-emoji"></div>
               <div className="hero-card-info">
                 <span className="hero-card-type">Restaurant</span>
                 <span className="hero-card-name">Baan Ying</span>
-                <span className="hero-card-stars">★★★★ Trending</span>
+                <span className="hero-card-stars"> Trending</span>
               </div>
             </div>
             <div className="hero-card glass">
-              <div className="hero-card-emoji">☕</div>
+              <div className="hero-card-emoji"></div>
               <div className="hero-card-info">
                 <span className="hero-card-type">Café</span>
                 <span className="hero-card-name">Roots Coffee</span>
-                <span className="hero-card-stars">★★★★★ Popular</span>
+                <span className="hero-card-stars"> Popular</span>
               </div>
             </div>
           </div>
@@ -81,17 +81,17 @@ export default function LandingPage() {
         <h2 className="section-title">Trusted by everyone,<br />curated by the pros.</h2>
         <div className="features-grid">
           <div className="feature glass">
-            <div className="feature-icon">👨‍🍳</div>
+            <div className="feature-icon">‍</div>
             <h3 className="feature-name">Verified reviews</h3>
             <p className="feature-desc">Every expert review is written by a verified culinary professional. No fake accounts. No paid promotions.</p>
           </div>
           <div className="feature glass">
-            <div className="feature-icon">📍</div>
+            <div className="feature-icon"></div>
             <h3 className="feature-name">Discover near you</h3>
             <p className="feature-desc">Find the best spots within any radius. Our geo-search surfaces hidden gems close to wherever you are.</p>
           </div>
           <div className="feature glass">
-            <div className="feature-icon">🔥</div>
+            <div className="feature-icon"></div>
             <h3 className="feature-name">Trending spots</h3>
             <p className="feature-desc">Our ranking engine tracks real engagement — views, saves, and review quality — so trending means actually trending.</p>
           </div>
@@ -99,7 +99,7 @@ export default function LandingPage() {
       </section>
 
       <footer className="landing-footer">
-        <span>© 2026 Radach.</span>
+        <span> 2026 Radach.</span>
       </footer>
     </div>
   )

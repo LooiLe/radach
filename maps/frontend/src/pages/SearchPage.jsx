@@ -73,8 +73,8 @@ export default function SearchPage() {
     <div className="search-page">
       <div className="search-header animate-fade-up">
         <div className="search-tabs" style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-          <button className={`btn ${searchType === 'spots' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => { setSearchType('spots'); setSpots([]); setUsers([]); setStatus('Enter a query to find spots.') }}>📍 Search Spots</button>
-          <button className={`btn ${searchType === 'users' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => { setSearchType('users'); setSpots([]); setUsers([]); setStatus('Enter a name or email to find users.') }}>👤 Search Users</button>
+          <button className={`btn ${searchType === 'spots' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => { setSearchType('spots'); setSpots([]); setUsers([]); setStatus('Enter a query to find spots.') }}> Search Spots</button>
+          <button className={`btn ${searchType === 'users' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => { setSearchType('users'); setSpots([]); setUsers([]); setStatus('Enter a name or email to find users.') }}> Search Users</button>
         </div>
         <form className="search-bar" onSubmit={handleSubmit}>
           <input className="input search-input" value={query} onChange={e => handleInput(e.target.value)}
