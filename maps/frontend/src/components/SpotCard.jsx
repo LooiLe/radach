@@ -40,6 +40,16 @@ export default function SpotCard({ spot, rank, style }) {
     }
   }
 
+  const categoryIcons = {
+    Restaurant: '/icons/material-symbols-light--chef-hat-outline.svg',
+    Bar: '/icons/guidance--bar.svg',
+    Hotel: '/icons/material-symbols-light--hotel-outline-rounded.svg',
+    Other: '/icons/stash--pin-location-light.svg',
+    Others: '/icons/stash--pin-location-light.svg',
+    Default: '/icons/stash--pin-location-light.svg',
+  }
+  const categoryIcon = categoryIcons[spot.type] || categoryIcons.Default
+
   return (
     <article
       className="spot-card glass"
@@ -47,9 +57,14 @@ export default function SpotCard({ spot, rank, style }) {
       onClick={() => navigate(`/spot/${spot.id}`)}
     >
       <div className="spot-card-header">
-        <div>
-          <h3 className="spot-card-name">{spot.name}</h3>
-          <p className="spot-card-meta">{spot.type} · {spot.address}</p>
+        <div className="spot-card-title">
+          {categoryIcon && (
+            <img src={categoryIcon} alt={`${spot.type} icon`} className="spot-card-type-icon" />
+          )}
+          <div>
+            <h3 className="spot-card-name">{spot.name}</h3>
+            <p className="spot-card-meta">{spot.type} · {spot.address}</p>
+          </div>
         </div>
       </div>
       <div className="spot-card-footer">

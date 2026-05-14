@@ -19,6 +19,21 @@
 
 .spot-card-header > div { min-width: 0; }
 
+.spot-card-title {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.spot-card-type-icon {
+  width: 24px;
+  height: 24px;
+  display: block;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
 .spot-card-name {
   font-family: var(--font-display);
   font-size: 1.15rem;
