@@ -19,8 +19,8 @@
 .auth-panel-glow {
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse at 20% 80%, rgba(232, 115, 74, 0.15) 0%, transparent 60%),
-              radial-gradient(ellipse at 80% 20%, rgba(99, 102, 241, 0.1) 0%, transparent 50%);
+  background: radial-gradient(ellipse at 20% 80%, rgba(255, 255, 255, 0.75) 0%, transparent 60%),
+              radial-gradient(ellipse at 80% 20%, rgba(255, 255, 255, 0.65) 0%, transparent 50%);
   pointer-events: none;
 }
 .auth-quote {
@@ -31,7 +31,7 @@
   position: relative;
   z-index: 1;
 }
-.auth-quote em { color: var(--accent); font-style: italic; }
+.auth-quote em { color: var(--text-secondary); font-style: italic; }
 
 .auth-mini-spots { display: flex; flex-direction: column; gap: 0.6rem; position: relative; z-index: 1; }
 .auth-mini-spot {
@@ -59,7 +59,7 @@
   font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--accent);
+  color: var(--text-secondary);
   margin-bottom: 0.5rem;
 }
 .auth-title {
@@ -70,7 +70,7 @@
   margin-bottom: 0.4rem;
 }
 .auth-subtitle { font-size: 0.88rem; color: var(--text-secondary); margin-bottom: 2rem; }
-.auth-subtitle a { color: var(--accent); font-weight: 600; }
+.auth-subtitle a { color: var(--text-primary); font-weight: 600; }
 
 .auth-form .field { margin-bottom: 1.2rem; }
 .auth-submit { width: 100%; padding: 0.85rem; margin-top: 0.5rem; font-size: 0.95rem; }

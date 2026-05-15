@@ -200,7 +200,7 @@ export default function RegisterPage() {
                 type="button"
                 className="btn-link"
                 onClick={() => { setStep(1); setOtp(''); setError('') }}
-                style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontSize: '0.85rem', padding: 0 }}
+                style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '0.85rem', padding: 0 }}
               >
                 ← Back
               </button>
@@ -209,7 +209,7 @@ export default function RegisterPage() {
                 className="btn-link"
                 onClick={handleResend}
                 disabled={countdown > 0 || loading}
-                style={{ background: 'none', border: 'none', color: countdown > 0 ? 'var(--text-muted)' : 'var(--accent)', cursor: countdown > 0 ? 'default' : 'pointer', fontSize: '0.85rem', padding: 0 }}
+                style={{ background: 'none', border: 'none', color: countdown > 0 ? 'var(--text-muted)' : 'var(--text-secondary)', cursor: countdown > 0 ? 'default' : 'pointer', fontSize: '0.85rem', padding: 0 }}
               >
                 {countdown > 0 ? `Resend in ${countdown}s` : 'Resend code'}
               </button>

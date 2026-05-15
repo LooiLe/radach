@@ -21,7 +21,7 @@
   padding: 1.5rem;
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-color);
-  box-shadow: var(--shadow-md);
+  box-shadow: none;
 }
 
 .friends-section h2 {
@@ -47,7 +47,7 @@
 
 .friend-item:hover, .request-item:hover, .search-result-item:hover {
   transform: translateY(-2px);
-  border-color: var(--accent-primary);
+  border-color: var(--border-color);
 }
 
 .friend-info h3 {

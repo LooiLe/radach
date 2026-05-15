@@ -9,8 +9,8 @@
   pointer-events: none;
   z-index: 0;
 }
-.glow-1 { width: 600px; height: 600px; background: var(--accent); top: -200px; right: -150px; }
-.glow-2 { width: 400px; height: 400px; background: #6366f1; bottom: 10%; left: -100px; }
+.glow-1 { width: 600px; height: 600px; background: var(--bg-card); top: -200px; right: -150px; }
+.glow-2 { width: 400px; height: 400px; background: var(--bg-card); bottom: 10%; left: -100px; }
 
 /* Hero */
 .hero {
@@ -36,10 +36,10 @@
   font-weight: 600;
   letter-spacing: 0.15em;
   text-transform: uppercase;
-  color: var(--accent);
+  color: var(--text-secondary);
   margin-bottom: 1.5rem;
 }
-.eyebrow-line { display: block; width: 2rem; height: 1.5px; background: var(--accent); }
+.eyebrow-line { display: block; width: 2rem; height: 1.5px; background: var(--border-color); }
 .hero-title {
   font-family: var(--font-display);
   font-size: clamp(2.6rem, 5vw, 4.2rem);
@@ -48,7 +48,7 @@
   letter-spacing: -0.03em;
   margin-bottom: 1.5rem;
 }
-.hero-title em { font-style: italic; color: var(--accent); }
+.hero-title em { font-style: italic; color: var(--text-secondary); }
 .hero-sub {
   font-size: 1.05rem;
   color: var(--text-secondary);
@@ -85,7 +85,7 @@
 .hero-card-emoji { font-size: 2.5rem; }
 .hero-card.tall .hero-card-emoji { font-size: 3.5rem; }
 .hero-card-info { display: flex; flex-direction: column; gap: 0.2rem; }
-.hero-card-type { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); }
+.hero-card-type { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-secondary); }
 .hero-card-name { font-family: var(--font-display); font-size: 0.9rem; font-weight: 700; }
 .hero-card-stars { font-size: 0.72rem; color: var(--star); }
 
@@ -121,7 +121,7 @@
   font-weight: 600;
   letter-spacing: 0.15em;
   text-transform: uppercase;
-  color: var(--accent);
+  color: var(--text-secondary);
   margin-bottom: 1rem;
 }
 .section-title {

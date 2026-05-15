@@ -60,12 +60,12 @@
   padding: 1.25rem 1.5rem;
   border-radius: var(--radius-lg);
   cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition: transform 0.2s;
 }
 
-.feed-item:hover {
+.feed-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  box-shadow: none;
 }
 
 .feed-item-icon {
@@ -94,7 +94,7 @@
 
 .feed-item-user {
   font-weight: 600;
-  color: var(--accent);
+  color: var(--text-secondary);
 }
 
 .feed-item-time {
@@ -111,7 +111,7 @@
 
 .feed-item-spot-name {
   font-weight: 700;
-  color: var(--accent);
+  color: var(--text-secondary);
 }
 
 .feed-item-location {
