@@ -241,7 +241,7 @@ export default function AddSpotPage() {
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '1rem' }}>
               {photos.map((url, idx) => (
                 <div key={idx} style={{ position: 'relative', width: '80px', height: '80px' }}>
-                  <img src={'http://localhost:8080' + url} alt="Upload preview" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px' }} />
+                  <img src={url} alt="Upload preview" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px' }} />
                   <button 
                     onClick={() => removePhoto(idx)}
                     style={{ position: 'absolute', top: '-5px', right: '-5px', background: 'var(--danger)', color: 'white', border: 'none', borderRadius: '50%', width: '20px', height: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }}>

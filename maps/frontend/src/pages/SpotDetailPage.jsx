@@ -212,7 +212,7 @@ export default function SpotDetailPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '10px', marginBottom: '1rem' }}>
                   {editPhotos.map((url, idx) => (
                     <div key={idx} style={{ position: 'relative' }}>
-                      <img src={'http://localhost:8080' + url} alt={`Spot photo ${idx + 1}`} style={{ width: '100%', height: '120px', objectFit: 'cover', borderRadius: '8px' }} />
+                      <img src={url} alt={`Spot photo ${idx + 1}`} style={{ width: '100%', height: '120px', objectFit: 'cover', borderRadius: '8px' }} />
                       <button 
                         type="button" 
                         onClick={() => removePhoto(idx)}
@@ -299,7 +299,7 @@ export default function SpotDetailPage() {
                 <h3 style={{ fontSize: '1.1rem', marginBottom: '0.8rem' }}>Photos</h3>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '10px' }}>
                   {spot.photos.map((url, idx) => (
-                    <img key={idx} src={'http://localhost:8080' + url} alt={`Spot photo ${idx + 1}`} style={{ width: '100%', height: '150px', objectFit: 'cover', borderRadius: '8px', cursor: 'pointer' }} onClick={() => window.open('http://localhost:8080' + url, '_blank')} />
+                    <img key={idx} src={url} alt={`Spot photo ${idx + 1}`} style={{ width: '100%', height: '150px', objectFit: 'cover', borderRadius: '8px', cursor: 'pointer' }} onClick={() => window.open(url, '_blank')} />
                   ))}
                 </div>
               </div>
