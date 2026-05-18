@@ -3,17 +3,41 @@
 # FIRST-TIME SETUP (new developer, one-time)
 # ============================================
 
+# --- Windows (PowerShell) ---
 # 1. Allow PowerShell to run scripts
 Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
-
 # 2. Generate SSH key (skip if you already have one)
 ssh-keygen -t rsa -b 4096
-
 # 3. Copy your public key to the VPS (will ask for password once)
 type $env:USERPROFILE\.ssh\id_rsa.pub | ssh root@93.127.194.132 "cat >> ~/.ssh/authorized_keys"
 
-# After this, .\deploy.ps1 works without a password!
+# --- Mac / Linux / WSL ---
+# 1. Generate SSH key (skip if you already have one)
+ssh-keygen -t rsa -b 4096
+# 2. Copy your public key to the VPS (will ask for password once)
+ssh-copy-id root@93.127.194.132
+# 3. Make deploy script executable (one-time)
+chmod +x deploy.sh
 
+
+# ============================================
+# DEPLOY (run from project root)
+# ============================================
+
+# Windows (PowerShell):
+.\deploy.ps1              # deploy everything
+.\deploy.ps1 -frontend    # frontend only
+.\deploy.ps1 -backend     # backend only
+
+# Mac / Linux / WSL:
+./deploy.sh               # deploy everything
+./deploy.sh frontend      # frontend only
+./deploy.sh backend       # backend only
+
+
+# ============================================
+# VPS MANAGEMENT (run these ON the VPS via SSH)
+# ============================================
 
 # Check app status
 systemctl status radach-maps
@@ -24,11 +48,10 @@ journalctl -u radach-maps -f
 # Restart app
 systemctl restart radach-maps
 
-# Redeploy after code changes (run from project root)
-.\deploy.ps1              # deploy everything
-.\deploy.ps1 -frontend    # frontend only
-.\deploy.ps1 -backend     # backend only
 
+# ============================================
+# DATABASE
+# ============================================
 
 # Connect to your VPS database:
 ssh root@93.127.194.132 "sudo -u postgres psql -d mapsdb"
@@ -37,4 +60,3 @@ ssh root@93.127.194.132 "sudo -u postgres psql -d mapsdb"
 SELECT id, name, email, role FROM users;
 UPDATE users SET role = 'SUPER_ADMIN' WHERE email = 'your@email.com';
 \q
-
