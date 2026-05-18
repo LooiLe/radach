@@ -55,6 +55,43 @@ export default function SpotsPage() {
   const [spots, setSpots] = useState([])
   const [status, setStatus] = useState('Loading spots...')
   const [searchParams] = useSearchParams()
+  const [searchMode, setSearchMode] = useState('place')
+
+  // Zoom controls component using useMap hook
+  const ZoomControls = () => {
+    const map = useMap()
+    
+    const handleZoomIn = (e) => {
+      e.preventDefault()
+      if (map) map.zoomIn()
+    }
+    
+    const handleZoomOut = (e) => {
+      e.preventDefault()
+      if (map) map.zoomOut()
+    }
+    
+    return (
+      <div className="leaflet-control-zoom" style={{ position: 'absolute', bottom: '20px', left: '20px', zIndex: 1000, display: 'flex', flexDirection: 'column', gap: '5px' }}>
+        <button 
+          type="button" 
+          className="leaflet-control-zoom-in"
+          title="Zoom in"
+          onClick={handleZoomIn}
+        >
+          +
+        </button>
+        <button 
+          type="button" 
+          className="leaflet-control-zoom-out"
+          title="Zoom out"
+          onClick={handleZoomOut}
+        >
+          –
+        </button>
+      </div>
+    )
+  }
 
   // Geo search state
   const [place, setPlace] = useState('')
@@ -131,28 +168,61 @@ export default function SpotsPage() {
     return selectedCategories[normalized]
   })
 
-  const loadSpots = useCallback(async (filters) => {
+   const loadSpots = useCallback(async (filters) => {
     setStatus('Loading spots...')
     const params = new URLSearchParams()
-    if (filters?.lat && filters?.lng && filters?.radiusKm) {
-      params.set('lat', filters.lat); params.set('lng', filters.lng); params.set('radiusKm', filters.radiusKm)
+    
+    // Handle different search modes
+    if (searchMode === 'nearby' && filters?.lat && filters?.lng && filters?.radiusKm) {
+      // Nearby search by radius
+      params.set('lat', filters.lat)
+      params.set('lng', filters.lng)
+      params.set('radiusKm', filters.radiusKm)
+    } else if (searchMode === 'place' && filters?.search) {
+      // Place search by keyword
+      params.set('q', filters.search)
+    } else if (searchMode === 'place' && filters?.lat && filters?.lng) {
+      // Place search by coordinates (fallback)
+      params.set('lat', filters.lat)
+      params.set('lng', filters.lng)
     }
+    
     params.set('sortBy', filters?.sortBy || sortBy)
     try {
-      const path = params.toString() ? `/api/v1/spots?${params}` : '/api/v1/spots'
-      const res = await apiFetch(path)
+      let path = '/api/v1/spots'
+      if (searchMode === 'place' && filters?.search) {
+        path = '/api/v1/spots/search'
+      }
+      const queryString = params.toString()
+      const finalPath = queryString ? `${path}?${queryString}` : path
+      const res = await apiFetch(finalPath)
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Could not load spots.')
       setSpots(data)
       setStatus(`${data.length} spot${data.length === 1 ? '' : 's'} found.`)
       if (data.length) setBounds(data.map(s => [s.latitude, s.longitude]))
     } catch (e) { setStatus(e.message) }
-  }, [apiFetch])
+  }, [apiFetch, searchMode, sortBy])
 
   useEffect(() => {
     const pLat = searchParams.get('lat'), pLng = searchParams.get('lng'), pR = searchParams.get('radiusKm'), pSort = searchParams.get('sortBy') || 'popularity'
-    if (pLat && pLng && pR) loadSpots({ lat: pLat, lng: pLng, radiusKm: pR, sortBy: pSort })
-    else loadSpots({ sortBy: pSort })
+    const pMode = searchParams.get('mode') || 'place' // default to place search
+    const pQ = searchParams.get('q')
+    setSearchMode(pMode)
+    
+    if (pQ && pMode === 'place') {
+      // Place search by keyword from URL
+      loadSpots({ search: pQ, sortBy: pSort })
+    } else if (pLat && pLng && pR && pMode === 'nearby') {
+      // Nearby search with radius
+      loadSpots({ lat: pLat, lng: pLng, radiusKm: pR, sortBy: pSort })
+    } else if (pLat && pLng && pMode === 'place') {
+      // Place search by coordinates from URL
+      loadSpots({ lat: pLat, lng: pLng, sortBy: pSort })
+    } else {
+      // Default search - load popular spots
+      loadSpots({ sortBy: pSort })
+    }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Update status message based on filtered spots
@@ -161,150 +231,297 @@ export default function SpotsPage() {
     setStatus(`${filteredSpots.length} spot${filteredSpots.length === 1 ? '' : 's'} found.`)
   }, [filteredSpots, spots.length])
 
-  // Place autocomplete
+  // Geocode a place name to get lat/lng
+  const geocodePlace = useCallback(async (query) => {
+    if (!query || query.length < 2) return
+    
+    setStatus(`Searching for "${query}"...`)
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`, { 
+        headers: { 'Accept-Language': 'en' } 
+      })
+      const data = await res.json()
+      if (data && data.length > 0) {
+        const result = data[0]
+        setLat(result.lat)
+        setLng(result.lon)
+        setPlace(result.display_name)
+        // Load spots for this location
+        loadSpots({ lat: result.lat, lng: result.lon, sortBy: sortBy })
+      } else {
+        setStatus('Place not found. Try a different search.')
+      }
+    } catch (e) {
+      setStatus('Error searching for place.')
+    }
+  }, [loadSpots, sortBy])
+
+  // Place autocomplete - search existing spots for suggestions
   const handlePlaceInput = (q) => {
     setPlace(q)
     clearTimeout(geocodeTimer.current)
-    if (q.length < 3) { setSuggestions([]); return }
+    if (q.length < 2) { 
+      setSuggestions([]); 
+      return 
+    }
     geocodeTimer.current = setTimeout(async () => {
       try {
-        const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5`, { headers: { 'Accept-Language': 'en' } })
+        // Use our own spots API for suggestions instead of Nominatim
+        const res = await apiFetch(`/api/v1/spots/search?q=${encodeURIComponent(q)}&limit=5`)
         const data = await res.json()
-        setSuggestions(data || [])
-      } catch { setSuggestions([]) }
+        if (res.ok) {
+          setSuggestions(data || [])
+        } else {
+          setSuggestions([])
+        }
+      } catch (error) {
+        console.error('Error fetching suggestions:', error)
+        setSuggestions([])
+      }
     }, 300)
   }
 
-  const selectSuggestion = (s) => {
-    setPlace(s.display_name)
-    setLat(s.lat); setLng(s.lon)
+  const selectSuggestion = (spot) => {
+    setPlace(spot.name)
+    setLat(spot.latitude)
+    setLng(spot.longitude)
     setSuggestions([])
+    // Load spots for this location
+    loadSpots({ lat: spot.latitude, lng: spot.longitude, sortBy })
   }
 
   const handleSearch = () => {
-    if (!lat || !lng || !radius) { setStatus('Search for a place first, then set a radius.'); return }
-    loadSpots({ lat, lng, radiusKm: radius, sortBy })
+    if (searchMode === 'nearby') {
+      if (!lat || !lng || !radius) { 
+        setStatus('Search for a place first, then set a radius.'); 
+        return 
+      }
+      loadSpots({ lat, lng, radiusKm: radius, sortBy })
+    } else {
+      // Place search mode - search by keyword
+      if (!place) {
+        setStatus('Enter a place to search.');
+        return;
+      }
+      loadSpots({ search: place, sortBy })
+    }
   }
 
-  const handleClear = () => {
-    setPlace(''); setLat(''); setLng(''); setRadius(''); setSortBy('popularity')
-    setSuggestions([]); loadSpots({ sortBy: 'popularity' })
-  }
 
-  return (
-    <div className="spots-page">
-      <div className="spots-map">
-        <div className="map-filter-container" style={{ position: 'absolute', top: '1rem', right: '1rem', zIndex: 500 }}>
-          <button 
-            className="btn btn-primary"
-            onClick={() => setFilterDropdownOpen(!filterDropdownOpen)}
-            style={{ whiteSpace: 'nowrap' }}>
-             Categories
-          </button>
-          {filterDropdownOpen && (
-            <div className="map-filter-dropdown" style={{ position: 'absolute', top: '100%', right: 0, marginTop: '0.5rem', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '1rem', minWidth: '200px', zIndex: 1000 }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500', marginBottom: '0.5rem', paddingBottom: '0.5rem', borderBottom: '1px solid var(--border)' }}>
-                <input
-                  type="checkbox"
-                  checked={selectedCategories.all}
-                  onChange={() => toggleCategory('all')}
-                  style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: 'var(--text-primary)' }}
+
+    return (
+      <div className="spots-page">
+        <div className="spots-map">
+            {/* Search bar at top left of map */}
+            <div 
+              className="map-search-bar" 
+              style={{ 
+                position: 'absolute', 
+                top: '1rem', 
+                left: '1rem', 
+                zIndex: 500, 
+                display: 'flex', 
+                gap: '0.5rem' 
+              }}
+            >
+              <div 
+                style={{ 
+                  position: 'relative', 
+                  flex: 1, 
+                  minWidth: 200 
+                }}
+              >
+                <label 
+                  className="label" 
+                  style={{ 
+                    position: 'absolute', 
+                    top: '-1.5rem', 
+                    left: 0, 
+                    fontSize: '0.75rem', 
+                    textTransform: 'uppercase', 
+                    letterSpacing: '0.08em', 
+                    color: 'var(--text-muted)' 
+                  }}
+                >
+                  Search
+                </label>
+                <input 
+                  className="input"
+                  value={place}
+                  onChange={e => handlePlaceInput(e.target.value)}
+                  placeholder="Search for a place..."
+                  autoComplete="off"
                 />
-                <span>All</span>
-              </label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', maxHeight: '300px', overflowY: 'auto' }}>
-                {categories.map(cat => (
-                  <label key={cat.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500' }}>
-                    <input
-                      type="checkbox"
-                      checked={selectedCategories[cat.id]}
-                      onChange={() => toggleCategory(cat.id)}
-                      style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: 'var(--text-primary)' }}
-                    />
-                    <span>{cat.label}</span>
-                  </label>
-                ))}
+                {suggestions.length > 0 && (
+                  <div 
+                    className="suggestions-dropdown" 
+                    style={{ 
+                      position: 'absolute', 
+                      top: '100%', 
+                      left: 0, 
+                      right: 0, 
+                      marginTop: '0.25rem', 
+                      background: 'var(--bg-surface)', 
+                      border: '1px solid var(--border)', 
+                      borderRadius: 'var(--radius-md)', 
+                      zIndex: 1000 
+                    }}
+                   >
+                     {suggestions.map((s, i) => (
+                       <div 
+                         key={i} 
+                         className="suggestion-item" 
+                         onClick={() => selectSuggestion(s)}
+                       >
+                         <div className="suggestion-name">{s.name}</div>
+                         <div className="suggestion-full">{s.type} · {s.address}</div>
+                       </div>
+                     ))}
+                   </div>
+                )}
               </div>
+            
+            {/* Mode toggle */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', cursor: 'pointer' }}>
+                <input
+                  type="radio"
+                  checked={searchMode === 'place'}
+                  onChange={() => setSearchMode('place')}
+                  style={{ width: '16px', height: '16px', accentColor: 'var(--text-primary)' }}
+                />
+                <span>Place</span>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', cursor: 'pointer' }}>
+                <input
+                  type="radio"
+                  checked={searchMode === 'nearby'}
+                  onChange={() => setSearchMode('nearby')}
+                  style={{ width: '16px', height: '16px', accentColor: 'var(--text-primary)' }}
+                />
+                <span>Nearby</span>
+              </label>
+              {searchMode === 'nearby' && (
+                <div style={{ marginTop: '0.25rem' }}>
+                  <label className="label" style={{ marginBottom: '0.25rem', fontSize: '0.7rem' }}>Radius (km)</label>
+                  <input
+                    className="input"
+                    type="number"
+                    min="0.1"
+                    step="0.1"
+                    value={radius}
+                    onChange={e => setRadius(e.target.value)}
+                    placeholder="5"
+                    style={{ width: '80px' }}
+                  />
+                </div>
+              )}
             </div>
-          )}
-        </div>
-        <MapContainer center={[13.7563, 100.5018]} zoom={11} style={{ width: '100%', height: '100%' }}>
-          <TileLayer
-            url={`https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png?api_key=${import.meta.env.VITE_STADIA_API_KEY}`}
-            attribution='&copy; <a href="https://stadiamaps.com/">Stadia Maps</a>, &copy; <a href="https://openmaptiles.org/">OpenMapTiles</a> &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors'
-          />
-          {filteredSpots.map(s => (
-            <Marker key={s.id} position={[s.latitude, s.longitude]} icon={createMarkerIcon(s.type)}>
-              <Popup>
-                <strong>{s.name}</strong><br />
-                <span style={{ color: 'var(--star)' }}>{s.averageRating > 0 ? ` ${s.averageRating.toFixed(1)}` : 'No ratings'}</span><br />
-                {s.type} · {s.address}<br />
-                <a href={`/spot/${s.id}`}>View details →</a>
-              </Popup>
-            </Marker>
-          ))}
-          {lat && lng && radius && (
-            <Circle center={[parseFloat(lat), parseFloat(lng)]} radius={parseFloat(radius) * 1000}
-              pathOptions={{ color: 'var(--border-color)', fillColor: 'var(--border-color)', fillOpacity: 0.08, weight: 2 }} />
-          )}
-          <FitBounds bounds={bounds} />
-        </MapContainer>
-      </div>
-
-      <div className="spots-sidebar">
-        <div className="spots-search glass">
-          <div className="field" style={{ position: 'relative' }}>
-            <label className="label">Search place</label>
-            <input className="input" value={place} onChange={e => handlePlaceInput(e.target.value)}
-              placeholder="e.g. Central Park, Bangkok" autoComplete="off"
-              onFocus={() => suggestions.length && setSuggestions(suggestions)} />
-            {suggestions.length > 0 && (
-              <div className="suggestions-dropdown">
-                {suggestions.map((s, i) => (
-                  <div key={i} className="suggestion-item" onClick={() => selectSuggestion(s)}>
-                    <div className="suggestion-name">{s.display_name.split(',')[0]}</div>
-                    <div className="suggestion-full">{s.display_name}</div>
-                  </div>
-                ))}
+            
+             <button 
+               className="btn btn-primary"
+               onClick={handleSearch}
+               style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }}
+             >
+               Search
+             </button>
+          </div>
+          
+          {/* Category filter button (moved to top right) */} 
+          <div className="map-filter-container" style={{ position: 'absolute', top: '1rem', right: '1rem', zIndex: 500 }}>
+            <button 
+              className="btn btn-primary"
+              onClick={() => setFilterDropdownOpen(!filterDropdownOpen)}
+              style={{ whiteSpace: 'nowrap', padding: '0.5rem 1rem' }}
+             >
+              Categories
+            </button>
+            {filterDropdownOpen && (
+              <div className="map-filter-dropdown" style={{ position: 'absolute', top: '100%', right: 0, marginTop: '0.5rem', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '1rem', minWidth: '200px', zIndex: 1000 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500', marginBottom: '0.5rem', paddingBottom: '0.5rem', borderBottom: '1px solid var(--border)' }}>
+                  <input
+                    type="checkbox"
+                    checked={selectedCategories.all}
+                    onChange={() => toggleCategory('all')}
+                    style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: 'var(--text-primary)' }}
+                  />
+                  <span>All</span>
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', maxHeight: '300px', overflowY: 'auto' }}>
+                  {categories.map(cat => (
+                    <label key={cat.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500' }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedCategories[cat.id]}
+                        onChange={() => toggleCategory(cat.id)}
+                        style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: 'var(--text-primary)' }}
+                      />
+                      <span>{cat.label}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
             )}
           </div>
-          <div className="geo-row">
-            <span className="geo-display">{lat || 'Latitude'}</span>
-            <span className="geo-display">{lng || 'Longitude'}</span>
-          </div>
-          <div className="field">
-            <label className="label">Radius (km)</label>
-            <input className="input" type="number" min="0.1" step="0.1" value={radius}
-              onChange={e => setRadius(e.target.value)} placeholder="5" />
-          </div>
-          <div className="search-actions">
-            <button className="btn btn-primary" onClick={handleSearch}> Search nearby</button>
-            <button className="btn" onClick={handleClear}>Clear</button>
-          </div>
+          
+           <MapContainer 
+             center={[13.7563, 100.5018]} 
+             zoom={11} 
+             style={{ width: '100%', height: '100%' }}
+             zoomControl={false} /* Disable default zoom controls to customize position */
+           >
+             <TileLayer
+               url="https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png"
+               attribution='Map tiles by <a href="https://stadiamaps.com/">Stadia Maps</a>, <a href="https://openmaptiles.org/">OpenMapTiles</a>, and <a href="http://openstreetmap.org">OpenStreetMap</a> contributors'
+             />
+             {filteredSpots.map(s => (
+               <Marker key={s.id} position={[s.latitude, s.longitude]} icon={createMarkerIcon(s.type)}>
+                 <Popup>
+                   <strong>{s.name}</strong><br />
+                   <span style={{ color: 'var(--star)' }}>{s.averageRating > 0 ? ` ${s.averageRating.toFixed(1)}` : 'No ratings'}</span><br />
+                   {s.type} · {s.address}<br />
+                   <a href={`/spot/${s.id}`}>View details →</a>
+                 </Popup>
+               </Marker>
+             ))}
+             {lat && lng && radius && searchMode === 'nearby' && (
+               <Circle center={[parseFloat(lat), parseFloat(lng)]} radius={parseFloat(radius) * 1000}
+                 pathOptions={{ color: 'var(--border-color)', fillColor: 'var(--border-color)', fillOpacity: 0.08, weight: 2 }} />
+             )}
+             <FitBounds bounds={bounds} />
+             {/* Custom zoom controls at bottom left - using useMap hook */}
+             <ZoomControls />
+           </MapContainer>
         </div>
-
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem', marginBottom: '1rem' }}>
-          <p className="spots-status" style={{ margin: 0 }}>{status}</p>
-          <select className="input select" style={{ width: 'auto', padding: '0.4rem 2.5rem 0.4rem 1rem' }} 
-            value={sortBy} 
-            onChange={e => {
-              const newSort = e.target.value
-              setSortBy(newSort)
-              loadSpots({ lat, lng, radiusKm: radius, sortBy: newSort })
-            }}>
-            <option value="popularity"> Popularity</option>
-            <option value="distance" disabled={!lat || !lng || !radius}> Distance</option>
-          </select>
-        </div>
-
-        <div className="spots-list">
-          {filteredSpots.length === 0 && status && !status.includes('Loading') && (
-            <div className="empty-state">No spots found.</div>
-          )}
-          {filteredSpots.map(s => <SpotCard key={s.id} spot={s} />)}
+        
+        <div className="spots-sidebar">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem', marginBottom: '1rem' }}>
+            <p className="spots-status" style={{ margin: 0 }}>{status}</p>
+            <select className="input select" style={{ width: 'auto', padding: '0.4rem 2.5rem 0.4rem 1rem' }} 
+              value={sortBy} 
+              onChange={e => {
+                const newSort = e.target.value
+                setSortBy(newSort)
+                loadSpots({ 
+                  lat: lat || undefined, 
+                  lng: lng || undefined, 
+                  radiusKm: radius || undefined, 
+                  sortBy: newSort 
+                })
+              }}
+            >
+              <option value="popularity"> Popularity</option>
+              <option value="distance" disabled={!(lat && lng && radius)}> Distance</option>
+            </select>
+          </div>
+          
+          <div className="spots-list">
+            {filteredSpots.length === 0 && status && !status.includes('Loading') && (
+              <div className="empty-state">No spots found.</div>
+            )}
+            {filteredSpots.map(s => <SpotCard key={s.id} spot={s} />)}
+          </div>
         </div>
       </div>
-    </div>
-  )
-}
+    )
+  }
