@@ -1,3 +1,20 @@
+
+# ============================================
+# FIRST-TIME SETUP (new developer, one-time)
+# ============================================
+
+# 1. Allow PowerShell to run scripts
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+
+# 2. Generate SSH key (skip if you already have one)
+ssh-keygen -t rsa -b 4096
+
+# 3. Copy your public key to the VPS (will ask for password once)
+type $env:USERPROFILE\.ssh\id_rsa.pub | ssh root@93.127.194.132 "cat >> ~/.ssh/authorized_keys"
+
+# After this, .\deploy.ps1 works without a password!
+
+
 # Check app status
 systemctl status radach-maps
 
