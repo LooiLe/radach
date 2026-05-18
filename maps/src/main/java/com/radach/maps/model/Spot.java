@@ -46,6 +46,13 @@ public class Spot {
     @Column(nullable = false)
     private SpotStatus status;
 
+    @Convert(converter = StringListConverter.class)
+    @Column(columnDefinition = "text")
+    private List<String> photos = new ArrayList<>();
+
+    @Column
+    private String websiteUrl;
+
     @Column(nullable = false)
     private int rankScore = 0;
 
@@ -87,6 +94,12 @@ public class Spot {
 
     public int getRankScore() { return rankScore; }
     public void setRankScore(int rankScore) { this.rankScore = rankScore; }
+
+    public List<String> getPhotos() { return photos; }
+    public void setPhotos(List<String> photos) { this.photos = photos; }
+
+    public String getWebsiteUrl() { return websiteUrl; }
+    public void setWebsiteUrl(String websiteUrl) { this.websiteUrl = websiteUrl; }
 
     public Instant getCreatedAt() { return createdAt; }
 }

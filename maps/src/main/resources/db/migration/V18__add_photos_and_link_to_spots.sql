@@ -1,0 +1,2 @@
+ALTER TABLE spots ADD COLUMN photos TEXT;
+ALTER TABLE spots ADD COLUMN website_url VARCHAR(255);

@@ -112,6 +112,8 @@ public class SpotService {
         spot.setLatitude(request.latitude());
         spot.setLongitude(request.longitude());
         spot.setTags(request.tags() == null ? List.of() : request.tags());
+        spot.setPhotos(request.photos() == null ? List.of() : request.photos());
+        spot.setWebsiteUrl(request.websiteUrl());
         if (isAdmin) {
             spot.setStatus(request.status());
         } else {
@@ -126,12 +128,34 @@ public class SpotService {
     public SpotResponse update(Long id, SpotRequest request) {
         Spot spot = spotRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Spot not found"));
+                
+        // Find deleted photos to clean up disk
+        List<String> oldPhotos = spot.getPhotos() == null ? List.of() : spot.getPhotos();
+        List<String> newPhotos = request.photos() == null ? List.of() : request.photos();
+        
+        for (String oldPhoto : oldPhotos) {
+            if (!newPhotos.contains(oldPhoto)) {
+                if (oldPhoto != null && oldPhoto.startsWith("/uploads/")) {
+                    String filename = oldPhoto.substring("/uploads/".length());
+                    if (!filename.contains("..") && !filename.contains("/") && !filename.contains("\\")) {
+                        try {
+                            java.nio.file.Files.deleteIfExists(java.nio.file.Paths.get("uploads").resolve(filename));
+                        } catch (java.io.IOException e) {
+                            System.err.println("Failed to delete removed photo during update: " + oldPhoto);
+                        }
+                    }
+                }
+            }
+        }
+                
         spot.setName(request.name().trim());
         spot.setType(request.type().trim());
         spot.setAddress(request.address().trim());
         spot.setLatitude(request.latitude());
         spot.setLongitude(request.longitude());
         spot.setTags(request.tags() == null ? List.of() : request.tags());
+        spot.setPhotos(newPhotos);
+        spot.setWebsiteUrl(request.websiteUrl());
         spot.setStatus(request.status());
 
         Spot saved = spotRepository.save(spot);
@@ -143,6 +167,24 @@ public class SpotService {
     public void deleteSpot(Long id) {
         Spot spot = spotRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Spot not found"));
+        
+        // Delete associated photos from disk
+        if (spot.getPhotos() != null) {
+            java.nio.file.Path uploadDir = java.nio.file.Paths.get("uploads");
+            for (String photoUrl : spot.getPhotos()) {
+                if (photoUrl != null && photoUrl.startsWith("/uploads/")) {
+                    String filename = photoUrl.substring("/uploads/".length());
+                    if (!filename.contains("..") && !filename.contains("/") && !filename.contains("\\")) {
+                        try {
+                            java.nio.file.Files.deleteIfExists(uploadDir.resolve(filename));
+                        } catch (java.io.IOException e) {
+                            // Log and ignore to not fail the transaction just because a file is missing/locked
+                            System.err.println("Failed to delete photo: " + photoUrl);
+                        }
+                    }
+                }
+            }
+        }
         
         reviewRepository.deleteBySpotId(spot.getId());
         spotEventRepository.deleteBySpotId(spot.getId());

@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { useApi } from '../hooks/useApi';
+import { useAuth } from '../context/AuthContext';
 import './AddSpotPage.css';
 
 export default function AddSpotPage() {
   const { apiFetch } = useApi();
+  const { isAdmin } = useAuth();
   const [categories, setCategories] = useState([]);
   
   const [name, setName] = useState('');
@@ -12,11 +14,29 @@ export default function AddSpotPage() {
   const [lat, setLat] = useState('');
   const [lng, setLng] = useState('');
   const [tags, setTags] = useState('');
-  const [status, setStatus] = useState('PENDING'); // Default to PENDING for regular users
+  const [websiteUrl, setWebsiteUrl] = useState('');
+  const [photos, setPhotos] = useState([]);
+  const [uploading, setUploading] = useState(false);
+  const [status, setStatus] = useState(isAdmin ? 'ACTIVE' : 'PENDING'); // Auto-approve for admins
   const [msg, setMsg] = useState({ type: '', text: '' });
   
   const [suggestions, setSuggestions] = useState([]);
   const geocodeTimer = useRef(null);
+  const newlyUploaded = useRef([]);
+
+  useEffect(() => {
+    return () => {
+      // Cleanup newly uploaded photos if component unmounts before saving
+      if (newlyUploaded.current.length > 0) {
+        newlyUploaded.current.forEach(url => {
+          fetch(`/api/v1/upload?url=${encodeURIComponent(url)}`, { 
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+          }).catch(() => {});
+        });
+      }
+    };
+  }, []);
 
   useEffect(() => {
     async function fetchCategories() {
@@ -63,6 +83,58 @@ export default function AddSpotPage() {
     setSuggestions([]);
   };
 
+  const handleFileChange = async (e) => {
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
+    
+    setUploading(true);
+    setMsg({ type: '', text: '' });
+    try {
+      const newPhotoUrls = [];
+      for (const file of files) {
+        if (file.size > 5 * 1024 * 1024) {
+          setMsg({ type: 'error', text: `File ${file.name} exceeds 5MB limit.` });
+          continue;
+        }
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        const res = await apiFetch('/api/v1/upload', {
+          method: 'POST',
+          body: formData
+        });
+        
+        if (res.ok) {
+          const data = await res.json();
+          newPhotoUrls.push(data.url);
+          newlyUploaded.current.push(data.url);
+        } else {
+          setMsg({ type: 'error', text: `Failed to upload ${file.name}` });
+        }
+      }
+      setPhotos(prev => [...prev, ...newPhotoUrls]);
+    } catch (err) {
+      setMsg({ type: 'error', text: 'Error uploading files' });
+    } finally {
+      setUploading(false);
+      // reset file input
+      e.target.value = '';
+    }
+  };
+
+  const removePhoto = async (index) => {
+    const photoUrl = photos[index];
+    try {
+      await apiFetch(`/api/v1/upload?url=${encodeURIComponent(photoUrl)}`, {
+        method: 'DELETE'
+      });
+      newlyUploaded.current = newlyUploaded.current.filter(url => url !== photoUrl);
+    } catch (err) {
+      console.error('Failed to delete photo from server', err);
+    }
+    setPhotos(prev => prev.filter((_, i) => i !== index));
+  };
+
   const addSpot = async () => {
     if (!name || !address || !lat || !lng) {
       setMsg({ type: 'error', text: 'Fill in name, address, latitude, and longitude.' });
@@ -80,13 +152,16 @@ export default function AddSpotPage() {
           latitude: parseFloat(lat),
           longitude: parseFloat(lng),
           tags: tagList,
+          photos: photos,
+          websiteUrl: websiteUrl.trim(),
           status
         })
       });
       const data = await res.json();
       if (res.ok) {
         setMsg({ type: 'success', text: `✓ "${data.name}" submitted successfully!` });
-        setName(''); setAddress(''); setLat(''); setLng(''); setTags('');
+        newlyUploaded.current = [];
+        setName(''); setAddress(''); setLat(''); setLng(''); setTags(''); setPhotos([]); setWebsiteUrl('');
       } else {
         setMsg({ type: 'error', text: data.error || 'Failed to submit spot.' });
       }
@@ -146,9 +221,36 @@ export default function AddSpotPage() {
           </div>
         </div>
 
+        <div className="form-row">
+          <div className="field">
+            <label className="label">Tags (comma separated)</label>
+            <input className="input" value={tags} onChange={e => setTags(e.target.value)} placeholder="e.g. thai, trending, cheap" />
+          </div>
+          <div className="field">
+            <label className="label">Website / Social Link</label>
+            <input className="input" value={websiteUrl} onChange={e => setWebsiteUrl(e.target.value)} placeholder="https://instagram.com/..." />
+          </div>
+        </div>
+
         <div className="field">
-          <label className="label">Tags (comma separated)</label>
-          <input className="input" value={tags} onChange={e => setTags(e.target.value)} placeholder="e.g. thai, trending, cheap" />
+          <label className="label">Photos (Max 5MB per image)</label>
+          <input type="file" multiple accept="image/png, image/jpeg, image/webp" className="input" onChange={handleFileChange} disabled={uploading} />
+          {uploading && <div style={{ fontSize: '0.9rem', color: 'var(--primary)', marginTop: '0.5rem' }}>Uploading images...</div>}
+          
+          {photos.length > 0 && (
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '1rem' }}>
+              {photos.map((url, idx) => (
+                <div key={idx} style={{ position: 'relative', width: '80px', height: '80px' }}>
+                  <img src={'http://localhost:8080' + url} alt="Upload preview" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px' }} />
+                  <button 
+                    onClick={() => removePhoto(idx)}
+                    style={{ position: 'absolute', top: '-5px', right: '-5px', background: 'var(--danger)', color: 'white', border: 'none', borderRadius: '50%', width: '20px', height: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }}>
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <button className="btn btn-primary btn-submit" onClick={addSpot}>

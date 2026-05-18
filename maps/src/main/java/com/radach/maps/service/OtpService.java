@@ -36,7 +36,10 @@ public class OtpService {
      */
     @Transactional
     public void generateAndSend(String email) {
-        String code = String.format("%06d", random.nextInt(1_000_000));
+        
+        // TODO: restore random OTP + email sending when Resend domain is configured
+        String code = "123456";
+        // String code = String.format("%06d", random.nextInt(1_000_000));
 
         EmailOtp otp = new EmailOtp();
         otp.setEmail(email.toLowerCase());
@@ -44,7 +47,7 @@ public class OtpService {
         otp.setExpiresAt(Instant.now().plus(Duration.ofMinutes(expirationMinutes)));
         otpRepository.save(otp);
 
-        emailService.sendOtpEmail(email, code);
+        // emailService.sendOtpEmail(email, code);
     }
 
     /**

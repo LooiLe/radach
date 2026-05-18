@@ -37,7 +37,7 @@ public class SpotServiceSaveTest {
 
         // 2. Create a Spot
         SpotResponse spot = spotService.create(new SpotRequest(
-            "Test Spot", "Park", "123 Test St", 40.0, -73.0, List.of("test"), com.radach.maps.model.SpotStatus.ACTIVE
+            "Test Spot", "Park", "123 Test St", 40.0, -73.0, List.of("test"), List.of(), null, com.radach.maps.model.SpotStatus.ACTIVE
         ), true);
 
         // 3. Save the spot
@@ -61,7 +61,7 @@ public class SpotServiceSaveTest {
 
     @Test
     public void testSerialization() throws Exception {
-        SpotResponse spot = new SpotResponse(null, "Test", "Park", "123", 40.0, -73.0, List.of(), "ACTIVE", 0, java.time.Instant.now(), 0.0, true, true);
+        SpotResponse spot = new SpotResponse(null, "Test", "Park", "123", 40.0, -73.0, List.of(), List.of(), null, "ACTIVE", 0, java.time.Instant.now(), 0.0, true, true);
         String json = objectMapper.writeValueAsString(spot);
         assertThat(json).contains("\"isSaved\":true");
     }

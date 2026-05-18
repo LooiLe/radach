@@ -1,0 +1,23 @@
+# Check app status
+systemctl status radach-maps
+
+# View logs
+journalctl -u radach-maps -f
+
+# Restart app
+systemctl restart radach-maps
+
+# Redeploy after code changes (run from project root)
+.\deploy.ps1              # deploy everything
+.\deploy.ps1 -frontend    # frontend only
+.\deploy.ps1 -backend     # backend only
+
+
+# Connect to your VPS database:
+ssh root@93.127.194.132 "sudo -u postgres psql -d mapsdb"
+
+# Then inside psql:
+SELECT id, name, email, role FROM users;
+UPDATE users SET role = 'SUPER_ADMIN' WHERE email = 'your@email.com';
+\q
+

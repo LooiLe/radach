@@ -7,8 +7,9 @@ export function useApi() {
   const { token, logout } = useAuth()
 
   const apiFetch = useCallback(async (path, options = {}) => {
+    const isFormData = options.body instanceof FormData
     const headers = {
-      'Content-Type': 'application/json',
+      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options.headers,
     }

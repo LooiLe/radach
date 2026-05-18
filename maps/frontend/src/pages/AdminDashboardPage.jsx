@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { Link } from 'react-router-dom'
 import { useApi } from '../hooks/useApi'
 import { useAuth } from '../context/AuthContext'
 import './AdminDashboardPage.css'
@@ -122,7 +123,7 @@ export default function AdminDashboardPage() {
     if (!isSuperAdmin) return
     try {
       let url = '/api/v1/super-admin/users'
-      if (email.trim()) url += `?email=${encodeURIComponent(email.trim())}`
+      if (email.trim()) url += `?query=${encodeURIComponent(email.trim())}`
       const res = await apiFetch(url)
       if (res.ok) setUsers(await res.json())
     } catch { /* ignore */ }
@@ -208,7 +209,11 @@ export default function AdminDashboardPage() {
             <div key={s.id} className="pending-review glass">
               <div className="pending-body">
                 <p className="pending-meta">Spot #{s.id} · Type: {s.type}</p>
-                <h3 className="pending-text" style={{margin: '0 0 0.5rem'}}>{s.name}</h3>
+                <h3 className="pending-text" style={{margin: '0 0 0.5rem'}}>
+                  <Link to={`/spot/${s.id}`} style={{ color: 'var(--primary)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    {s.name} <span style={{ fontSize: '0.9rem' }}>↗️</span>
+                  </Link>
+                </h3>
                 <p className="pending-author" style={{marginBottom: '0.5rem'}}>📍 {s.address}</p>
                 <p className="pending-author">
                   Coordinates: {s.latitude}, {s.longitude} | Tags: {s.tags?.join(', ') || 'none'}
@@ -259,7 +264,7 @@ export default function AdminDashboardPage() {
 
           <div className="users-search" style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
             <input className="input" value={emailFilter} onChange={e => setEmailFilter(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && loadUsers(emailFilter)} placeholder="Search by email..." />
+              onKeyDown={e => e.key === 'Enter' && loadUsers(emailFilter)} placeholder="Search by name or email..." />
             <button className="btn btn-primary" onClick={() => loadUsers(emailFilter)}>🔍 Search</button>
             {emailFilter && <button className="btn" onClick={() => { setEmailFilter(''); loadUsers('') }}>Clear</button>}
           </div>

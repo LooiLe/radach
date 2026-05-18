@@ -30,7 +30,7 @@ public class SuperAdminController {
     public List<UserResponse> getUsers(@RequestParam(required = false) String query) {
         List<User> users = (query != null && !query.isBlank())
                 ? userRepository.searchByNameOrEmail(query)
-                : userRepository.findAll();
+                : userRepository.findAllByOrderByIdAsc();
         return users.stream()
                 .map(u -> new UserResponse(u.getId(), u.getName(), u.getEmail(), u.getRole().name()))
                 .toList();
