@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 ## ============================================
 ## Radach Maps - Deploy Script (Mac/Linux/WSL)
 ## Run from: project root (maps/)
@@ -17,7 +18,7 @@ deploy_frontend() {
     scp -o ConnectTimeout=10 frontend/package.json frontend/package-lock.json frontend/vite.config.js frontend/index.html "$VPS:$REMOTE_DIR/frontend/"
 
     echo "[2/3] Building frontend on VPS..."
-    ssh -o ConnectTimeout=10 -o ServerAliveInterval=5 "$VPS" "cd $REMOTE_DIR/frontend && npm ci && npm run build && cp -r dist/* /var/www/radach/ && chown -R www-data:www-data /var/www/radach && echo 'Frontend deployed!'"
+    ssh -o ConnectTimeout=10 -o ServerAliveInterval=5 "$VPS" "cd $REMOTE_DIR/frontend && npm ci && npm run build && rm -rf /var/www/radach/assets && cp -r dist/* /var/www/radach/ && chown -R www-data:www-data /var/www/radach && echo 'Frontend deployed!'"
 
     echo "[3/3] Reloading Nginx..."
     ssh -o ConnectTimeout=10 "$VPS" "systemctl reload nginx"
@@ -26,6 +27,7 @@ deploy_frontend() {
 
 deploy_backend() {
     echo -e "\n[1/3] Uploading backend source..."
+    ssh -o ConnectTimeout=10 "$VPS" "rm -rf $REMOTE_DIR/src"
     scp -o ConnectTimeout=10 -r src "$VPS:$REMOTE_DIR/"
     scp -o ConnectTimeout=10 pom.xml "$VPS:$REMOTE_DIR/"
 

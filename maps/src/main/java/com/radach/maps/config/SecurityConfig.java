@@ -70,6 +70,7 @@ public class SecurityConfig {
                     "/favicon.ico",
                     "/css/**",
                     "/js/**",
+                    "/uploads/**",
                     "/api/v1/auth/**"
                 ).permitAll()
                 // Actuator endpoints: health is public, others require ADMIN
