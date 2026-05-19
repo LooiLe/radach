@@ -354,43 +354,6 @@ return (
                 }}
                 aria-label="Search"
               >
-<<<<<<< Updated upstream
-                <input 
-                  className="input"
-                  value={place}
-                  onChange={e => handlePlaceInput(e.target.value)}
-                  placeholder="Search for a place..."
-                  autoComplete="off"
-                />
-                {suggestions.length > 0 && (
-                  <div 
-                    className="suggestions-dropdown" 
-                    style={{ 
-                      position: 'absolute', 
-                      top: '100%', 
-                      left: 0, 
-                      right: 0, 
-                      marginTop: '0.25rem', 
-                      background: 'var(--bg-surface)', 
-                      border: '1px solid var(--border)', 
-                      borderRadius: 'var(--radius-md)', 
-                      zIndex: 1000 
-                    }}
-                   >
-                     {suggestions.map((s, i) => (
-                       <div 
-                         key={i} 
-                         className="suggestion-item" 
-                         onClick={() => selectSuggestion(s)}
-                       >
-                         <div className="suggestion-name">{s.name}</div>
-                         <div className="suggestion-full">{s.type} · {s.address}</div>
-                       </div>
-                     ))}
-                   </div>
-                )}
-              </div>
-=======
                 <img src="/icons/fluent--search-16-regular.svg" alt="Search" style={{ width: '18px', height: '18px' }} />
               </button>
               {/* Ellipsis icon embedded on rightmost side */}
@@ -444,7 +407,6 @@ return (
                 </div>
               )}
             </div>
->>>>>>> Stashed changes
             
             {/* Mode popup on right side of search bar (same level) */}
             {searchModeDropdownOpen && (

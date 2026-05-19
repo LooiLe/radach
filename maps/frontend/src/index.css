@@ -57,8 +57,8 @@
   --star-inactive: rgba(17, 24, 39, 0.2);
 
   /* Typography */
-  --font-body: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-display: var(--font-body);
+  --font-body: 'Figtree', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-display: 'Geom', 'Figtree', ui-sans-serif, system-ui, sans-serif;
 
   /* Radii */
   --radius-sm: 8px;
@@ -88,6 +88,11 @@ body {
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6, .page-title, .hero-title, .section-title, .detail-name {
+  font-family: var(--font-display);
+  font-weight: 700;
 }
 
 a { color: var(--text-secondary); text-decoration: none; transition: color 0.2s var(--ease); }
