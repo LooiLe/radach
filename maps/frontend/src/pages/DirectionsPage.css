@@ -1,0 +1,214 @@
+.directions-page {
+  display: flex;
+  height: calc(100vh - 64px); /* assuming navbar is ~64px */
+  margin-top: 64px;
+  position: relative;
+  overflow: hidden;
+}
+
+.directions-map {
+  flex: 1;
+  position: relative;
+  z-index: 1;
+}
+
+.directions-panel {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  z-index: 500;
+  width: 340px;
+  max-width: calc(100vw - 2rem);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+}
+
+.directions-header {
+  padding: 1rem;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+  border-top-left-radius: calc(var(--radius-lg) - 1px);
+  border-top-right-radius: calc(var(--radius-lg) - 1px);
+}
+
+.directions-header-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.directions-header-title h2 {
+  font-size: 1.1rem;
+  margin: 0;
+}
+
+.location-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  position: relative;
+}
+
+.input-group {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-icon {
+  position: absolute;
+  left: 0.75rem;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.input-group .input {
+  padding-left: 2.5rem;
+  padding-right: 2rem;
+  border-radius: var(--radius-md);
+}
+
+.clear-btn {
+  position: absolute;
+  right: 0.5rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  opacity: 0.5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 50%;
+}
+
+.clear-btn:hover {
+  opacity: 1;
+  background: var(--border-color);
+}
+
+.route-info {
+  padding: 1rem;
+  background: var(--bg-surface);
+  font-size: 0.9rem;
+}
+
+.route-info-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.route-info-row:last-child {
+  margin-bottom: 0;
+}
+
+.route-info-label {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.route-info-value {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.suggestions-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  z-index: 1000;
+  max-height: 250px;
+  overflow-y: auto;
+  margin-top: 4px;
+}
+
+.suggestion-item {
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.2s ease;
+}
+
+.suggestion-item:last-child {
+  border-bottom: none;
+}
+
+.suggestion-item:hover {
+  background: var(--bg-card-hover);
+}
+
+.suggestion-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.25rem;
+  font-size: 0.9rem;
+}
+
+.suggestion-full {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Specific start/end dots for inputs */
+.dot-start {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 3px solid var(--primary);
+  background: var(--bg-surface);
+}
+
+.dot-end {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--error);
+}
+
+.input-connector {
+  position: absolute;
+  left: 1.1rem;
+  top: 1.5rem;
+  bottom: 1.5rem;
+  width: 2px;
+  background: var(--border-color);
+  z-index: 0;
+}
+
+@media (max-width: 768px) {
+  .directions-page {
+    flex-direction: column;
+  }
+  .directions-panel {
+    position: relative;
+    top: 0;
+    left: 0;
+    width: 100%;
+    max-width: 100%;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    border-top: none;
+    box-shadow: none;
+    z-index: 10;
+  }
+}

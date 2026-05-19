@@ -1,0 +1,43 @@
+Production Readiness Checklist: Mapping & Routing Services
+=========================================================
+
+Currently, the application relies on a few free, public endpoints to handle mapping, geocoding, and routing. While these are excellent for development and prototyping, they have strict fair-use policies that prohibit heavy commercial use. 
+
+Before launching to a public audience, the following services should be updated:
+
+1. OSRM Routing API
+-------------------
+- Used in: Directions Feature
+- Current URL: https://router.project-osrm.org/route/v1/...
+- The Issue: The public OSRM server is strictly for testing and light non-commercial use. High traffic or commercial usage will result in the application being rate-limited or permanently blocked.
+- Production Solutions:
+  A) Self-Host (Free but requires server maintenance): OSRM is open-source. We can spin up a dedicated Linux server (like a DigitalOcean Droplet) and run the OSRM backend via Docker.
+  B) Commercial API (Easiest): Switch to Mapbox Directions API. Mapbox offers a generous free tier (up to 100,000 requests/month) and requires no server maintenance.
+
+
+2. Nominatim Geocoding API
+--------------------------
+- Used in: Spot Search & Directions Autocomplete
+- Current URL: https://nominatim.openstreetmap.org/search?...
+- The Issue: OpenStreetMap's public Nominatim server has a strict maximum of 1 request per second. Using it for live autocomplete search in a production app will easily exceed this limit and get the app blocked.
+- Production Solutions:
+  A) Commercial Geocoder (Recommended): Use a service like LocationIQ (which is a hosted, scalable version of Nominatim with a high free tier), OpenCage, or Mapbox Geocoding.
+  B) Self-Host: We can host our own Nominatim server, but it requires significant RAM and disk space depending on the map data size.
+
+
+3. Map Tiles (Stadia Maps)
+--------------------------
+- Used in: Main Map & Directions Map
+- Current URL: https://tiles.stadiamaps.com/tiles/...
+- The Issue: None currently. We are already using an API key for this, which is great.
+- Production Checklist:
+  A) Ensure the Stadia Maps account tier supports the expected monthly map loads.
+  B) Security: Log into the Stadia Maps dashboard and restrict the API key so it can *only* be used by our production domain (e.g., https://radachmaps.com). This prevents unauthorized users from stealing the API key from the browser and running up the bill.
+
+
+Summary of Required Code Changes:
+---------------------------------
+When a commercial provider (e.g., Mapbox or LocationIQ) is selected, we will need to:
+1. Add their API keys to the `.env.production` file.
+2. Swap out the fetch URLs in the React components to point to the new provider's endpoints.
+3. Update the JSON parsing logic slightly, as different providers return their data in slightly different formats.

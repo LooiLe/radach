@@ -43,7 +43,7 @@ export default function LandingPage() {
           <div className="map-features-right animate-fade-up" style={{ animationDelay: '0.15s' }}>
             <div className="feature-item">
               <h3 className="feature-name">Verified reviews</h3>
-              <p className="feature-desc">Every expert review is written by a verified culinary professional. No fake accounts. No paid promotions.</p>
+              <p className="feature-desc">Every expert review is written by a verified professional. No fake accounts. No paid promotions.</p>
             </div>
             <div className="feature-item">
               <h3 className="feature-name">Discover near you</h3>
@@ -66,11 +66,11 @@ export default function LandingPage() {
         {/* Center-Middle (gap) */}
         <div className="decorative-pin pin-green" style={{ top: '50%', left: '45%' }}></div>
         {/* Bottom-Middle (gap) */}
-        <div className="decorative-pin pin-blue" style={{ top: '75%', left: '50%' }}></div>
-        {/* Far-Right Top */}
-        <div className="decorative-pin pin-yellow-2" style={{ top: '10%', left: '85%' }}></div>
-        {/* Far-Right Bottom */}
-        <div className="decorative-pin pin-orange" style={{ top: '85%', left: '88%' }}></div>
+        <div className="decorative-pin pin-blue" style={{ top: '75%', left: '42%' }}></div>
+        {/* Far-Left Top */}
+        <div className="decorative-pin pin-yellow-2" style={{ top: '10%', left: '80%' }}></div>
+        {/* Far-Left Bottom */}
+        <div className="decorative-pin pin-orange" style={{ top: '65%', left: '10%' }}></div>
       </section>
 
       <footer className="landing-footer" style={{ position: 'relative', zIndex: 10 }}>

@@ -16,6 +16,7 @@ import SavedSpotsPage from './pages/SavedSpotsPage'
 import FeedPage from './pages/FeedPage'
 import AddSpotPage from './pages/AddSpotPage'
 import SearchPage from './pages/SearchPage'
+import DirectionsPage from './pages/DirectionsPage'
 
 export default function App() {
   return (
@@ -33,6 +34,8 @@ export default function App() {
          <Route path="/feed" element={<ProtectedRoute><FeedPage /></ProtectedRoute>} />
          <Route path="/user/:id" element={<ProtectedRoute><UserProfilePage /></ProtectedRoute>} />
          <Route path="/spot/:id" element={<ProtectedRoute><SpotDetailPage /></ProtectedRoute>} />
+         <Route path="/directions" element={<ProtectedRoute><DirectionsPage /></ProtectedRoute>} />
+         <Route path="/directions/:id" element={<ProtectedRoute><DirectionsPage /></ProtectedRoute>} />
          <Route path="/add-spot" element={<ProtectedRoute><AddSpotPage /></ProtectedRoute>} />
          <Route path="/admin" element={<AdminRoute><AdminDashboardPage /></AdminRoute>} />
        </Routes>
