@@ -107,6 +107,7 @@ export default function SpotsPage() {
   const [categoriesList, setCategoriesList] = useState([])
   const [selectedCategories, setSelectedCategories] = useState({ all: true })
   const [filterDropdownOpen, setFilterDropdownOpen] = useState(false)
+  const [searchModeDropdownOpen, setSearchModeDropdownOpen] = useState(false)
 
   useEffect(() => {
     async function fetchCatList() {
@@ -301,28 +302,59 @@ export default function SpotsPage() {
 
 
 
-    return (
+return (
       <div className="spots-page">
         <div className="spots-map">
-            {/* Search bar at top left of map */}
+          {/* Search bar at top left of map */}
+          <div 
+            className="map-search-bar" 
+            style={{ 
+              position: 'absolute', 
+              top: '1rem', 
+              left: '1rem', 
+              zIndex: 500, 
+              display: 'flex', 
+              gap: '0.5rem',
+              alignItems: 'flex-start'
+            }}
+          >
             <div 
-              className="map-search-bar" 
               style={{ 
-                position: 'absolute', 
-                top: '1rem', 
-                left: '1rem', 
-                zIndex: 500, 
-                display: 'flex', 
-                gap: '0.5rem' 
+                position: 'relative', 
+                flex: 1, 
+                minWidth: 300 
               }}
             >
-              <div 
-                style={{ 
-                  position: 'relative', 
-                  flex: 1, 
-                  minWidth: 200 
+              <input 
+                className="input"
+                value={place}
+                onChange={e => handlePlaceInput(e.target.value)}
+                placeholder="Search for a place..."
+                autoComplete="off"
+                style={{ paddingLeft: '12px', paddingRight: '80px' }}
+              />
+              {/* Search icon embedded on right side (clickable) */}
+              <button
+                type="button"
+                onClick={handleSearch}
+                style={{
+                  position: 'absolute',
+                  right: '44px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  padding: '4px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  opacity: 0.6,
+                  zIndex: 1
                 }}
+                aria-label="Search"
               >
+<<<<<<< Updated upstream
                 <input 
                   className="input"
                   value={place}
@@ -358,30 +390,99 @@ export default function SpotsPage() {
                    </div>
                 )}
               </div>
+=======
+                <img src="/icons/fluent--search-16-regular.svg" alt="Search" style={{ width: '18px', height: '18px' }} />
+              </button>
+              {/* Ellipsis icon embedded on rightmost side */}
+              <button
+                type="button"
+                onClick={() => setSearchModeDropdownOpen(!searchModeDropdownOpen)}
+                style={{
+                  position: 'absolute',
+                  right: '8px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  padding: '4px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  opacity: 0.6,
+                  zIndex: 1
+                }}
+                aria-label="Search options"
+              >
+                <img src="/icons/stash--ellipsis-v-light.svg" alt="Options" style={{ width: '18px', height: '18px' }} />
+              </button>
+              {suggestions.length > 0 && (
+                <div 
+                  className="suggestions-dropdown" 
+                  style={{ 
+                    position: 'absolute', 
+                    top: '100%', 
+                    left: 0, 
+                    right: 0, 
+                    marginTop: '0.25rem', 
+                    background: 'var(--bg-surface)', 
+                    border: '1px solid var(--border)', 
+                    borderRadius: 'var(--radius-md)', 
+                    zIndex: 1000 
+                  }}
+                >
+                  {suggestions.map((s, i) => (
+                    <div 
+                      key={i} 
+                      className="suggestion-item" 
+                      onClick={() => selectSuggestion(s)}
+                    >
+                      <div className="suggestion-name">{s.name}</div>
+                      <div className="suggestion-full">{s.type} · {s.address}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+>>>>>>> Stashed changes
             
-            {/* Mode toggle */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', cursor: 'pointer' }}>
-                <input
-                  type="radio"
-                  checked={searchMode === 'place'}
-                  onChange={() => setSearchMode('place')}
-                  style={{ width: '16px', height: '16px', accentColor: 'var(--text-primary)' }}
-                />
-                <span>Place</span>
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', cursor: 'pointer' }}>
-                <input
-                  type="radio"
-                  checked={searchMode === 'nearby'}
-                  onChange={() => setSearchMode('nearby')}
-                  style={{ width: '16px', height: '16px', accentColor: 'var(--text-primary)' }}
-                />
-                <span>Nearby</span>
-              </label>
-              {searchMode === 'nearby' && (
-                <div style={{ marginTop: '0.25rem' }}>
-                  <label className="label" style={{ marginBottom: '0.25rem', fontSize: '0.7rem' }}>Radius (km)</label>
+            {/* Mode popup on right side of search bar (same level) */}
+            {searchModeDropdownOpen && (
+              <div 
+                style={{ 
+                  position: 'absolute', 
+                  top: '0', 
+                  left: '100%',
+                  marginLeft: '0.5rem',
+                  background: 'var(--bg-surface)', 
+                  border: '1px solid var(--border)', 
+                  borderRadius: 'var(--radius-md)', 
+                  zIndex: 1001,
+                  minWidth: '180px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                }}
+              >
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.35rem 0.75rem', cursor: 'pointer', fontSize: '0.75rem' }}>
+                  <input
+                    type="radio"
+                    checked={searchMode === 'place'}
+                    onChange={() => { setSearchMode('place'); setSearchModeDropdownOpen(false) }}
+                    style={{ width: '14px', height: '14px', accentColor: 'var(--text-primary)' }}
+                  />
+                  <span>Place</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.35rem 0.75rem', cursor: 'pointer', fontSize: '0.75rem' }}>
+                  <input
+                    type="radio"
+                    checked={searchMode === 'nearby'}
+                    onChange={() => { setSearchMode('nearby'); setSearchModeDropdownOpen(false) }}
+                    style={{ width: '14px', height: '14px', accentColor: 'var(--text-primary)' }}
+                  />
+                  <span>Nearby</span>
+                </label>
+                {/* Radius input - always visible in popup */}
+                <div style={{ padding: '0.35rem 0.75rem', borderTop: '1px solid var(--border)', marginTop: '0.25rem' }}>
+                  <label className="label" style={{ marginBottom: '0.15rem', fontSize: '0.65rem' }}>Radius (km)</label>
                   <input
                     className="input"
                     type="number"
@@ -390,19 +491,11 @@ export default function SpotsPage() {
                     value={radius}
                     onChange={e => setRadius(e.target.value)}
                     placeholder="5"
-                    style={{ width: '80px' }}
+                    style={{ width: '80px', fontSize: '0.75rem', padding: '0.3rem 0.5rem' }}
                   />
                 </div>
-              )}
-            </div>
-            
-             <button 
-               className="btn btn-primary"
-               onClick={handleSearch}
-               style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }}
-             >
-               Search
-             </button>
+              </div>
+            )}
           </div>
           
           {/* Category filter button (moved to top right) */} 

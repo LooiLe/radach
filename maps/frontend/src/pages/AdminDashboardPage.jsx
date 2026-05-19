@@ -275,9 +275,13 @@ export default function AdminDashboardPage() {
           {reviews.map(r => (
             <div key={r.id} className="pending-review glass">
               <div className="pending-body">
+<<<<<<< Updated upstream
                 <p className="pending-meta">
                   Review #{r.id} · Spot #{r.spotId} · Rating: {r.rating}/5
                 </p>
+=======
+                <p className="pending-meta">Review #{r.id} · Spot #{r.spotId} · Rating: {r.rating.toFixed(1)}/5 · {r.reviewType}</p>
+>>>>>>> Stashed changes
                 <p className="pending-text">{r.body}</p>
                 <p className="pending-author" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                   <strong>

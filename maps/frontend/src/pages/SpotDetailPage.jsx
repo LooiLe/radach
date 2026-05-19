@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useApi } from '../hooks/useApi'
 import { useAuth } from '../context/AuthContext'
-import StarRating, { formatRating } from '../components/StarRating'
+import { formatRating } from '../components/StarRating'
 import StatusBadge from '../components/StatusBadge'
 import './SpotDetailPage.css'
 
@@ -14,7 +14,7 @@ export default function SpotDetailPage() {
   const [spot, setSpot] = useState(null)
   const [reviews, setReviews] = useState([])
   const [reviewBody, setReviewBody] = useState('')
-  const [rating, setRating] = useState(0)
+  const [rating, setRating] = useState(1)
   const [reviewMsg, setReviewMsg] = useState({ type: '', text: '' })
   const [saving, setSaving] = useState(false)
 
@@ -312,15 +312,27 @@ export default function SpotDetailPage() {
         )}
       </div>
 
-      <h2 className="section-heading"> Reviews</h2>
+<h2 className="section-heading"> Reviews</h2>
 
       <div className="review-form glass">
         <textarea className="textarea" value={reviewBody} onChange={e => setReviewBody(e.target.value)}
           placeholder="Write your review..." maxLength={2000} />
         <div className="rating-row">
           <label className="label" style={{ marginBottom: 0 }}>Rating:</label>
-          <StarRating value={rating} onChange={setRating} />
-          <span className="rating-display">{rating ? `${rating}/5` : 'Select a rating'}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <input
+              type="range"
+              min="1"
+              max="5"
+              step="0.1"
+              value={rating || 1}
+              onChange={(e) => setRating(parseFloat(e.target.value))}
+              style={{ width: '200px', color: 'var(--primary)' }}
+            />
+            <span className="rating-display">
+              {rating >= 1 ? `${rating.toFixed(1)}/5` : 'Select a rating'}
+            </span>
+          </div>
         </div>
         <div className="review-submit-row">
           <button className="btn btn-primary" onClick={submitReview} disabled={saving}>
@@ -330,7 +342,7 @@ export default function SpotDetailPage() {
         </div>
       </div>
 
-      <div className="reviews-list">
+<div className="reviews-list">
         {reviews.length === 0 && <div className="empty-state">No reviews yet. Be the first!</div>}
         {reviews.map(r => (
           <div key={r.id} className="review-card glass">
@@ -338,7 +350,7 @@ export default function SpotDetailPage() {
               <span className={`badge ${r.authorIsExpert ? 'badge-active' : 'badge-pending'}`}>
                 {r.authorIsExpert ? 'Expert' : 'User'}
               </span>
-              <StarRating value={r.rating} readonly size="1rem" />
+              <span className="review-rating">{r.rating.toFixed(1)}/5</span>
             </div>
             <p className="review-text">{r.body}</p>
             <div className="review-author" style={{ marginTop: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
