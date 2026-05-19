@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import './Navbar.css'
 
 export default function Navbar() {
-  const { isAuthenticated, isAdmin, isSuperAdmin, role, logout } = useAuth()
+  const { isAuthenticated, isAdmin, isSuperAdmin, role, userId, logout } = useAuth()
   const [menuOpen, setMenuOpen] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
@@ -57,7 +57,9 @@ export default function Navbar() {
          <Link to="/trending" className={`menu-item ${isActive('/trending') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
            <span className="menu-icon"></span> Trending
          </Link>
-         {/* Removed Search link */}
+         <Link to="/search" className={`menu-item ${isActive('/search') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
+           <span className="menu-icon"></span> Search
+         </Link>
          <Link to="/friends" className={`menu-item ${isActive('/friends') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
            <span className="menu-icon"></span> Friends
          </Link>
@@ -67,6 +69,11 @@ export default function Navbar() {
         <Link to="/feed" className={`menu-item ${isActive('/feed') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
           <span className="menu-icon"></span> Friend Feed
         </Link>
+        {isAuthenticated && (
+          <Link to={`/user/${userId}`} className={`menu-item ${isActive(`/user/${userId}`) ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
+            <span className="menu-icon"></span> My Profile
+          </Link>
+        )}
 
         {isAdmin && (
           <>

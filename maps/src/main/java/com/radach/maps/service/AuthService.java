@@ -77,7 +77,7 @@ public class AuthService {
         String refreshToken = refreshTokenService.createRefreshToken(user.getId());
 
         // 5. Return response
-        return new AuthResponse(token, user.getId(), user.getRole().name(), refreshToken);
+        return new AuthResponse(token, user.getId(), user.getRole().name(), refreshToken, user.isExpert());
     }
 
     // LOGIN
@@ -99,6 +99,6 @@ public class AuthService {
         String refreshToken = refreshTokenService.createRefreshToken(user.getId());
 
         // 4. return response
-        return new AuthResponse(token, user.getId(), user.getRole().name(), refreshToken);
+        return new AuthResponse(token, user.getId(), user.getRole().name(), refreshToken, user.isExpert());
     }
 }

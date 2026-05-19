@@ -21,12 +21,14 @@ export function AuthProvider({ children }) {
     if (t) { const d = decodeToken(t); return d?.role || 'USER' }
     return 'USER'
   })
+  const [isExpert, setIsExpert] = useState(() => localStorage.getItem('isExpert') === 'true')
   const refreshTimer = useRef(null)
 
   const login = useCallback((data) => {
     localStorage.setItem('token', data.token)
     localStorage.setItem('userId', data.userId)
     localStorage.setItem('role', data.role || 'USER')
+    localStorage.setItem('isExpert', data.isExpert ? 'true' : 'false')
     if (data.refreshToken) {
       localStorage.setItem('refreshToken', data.refreshToken)
     }
@@ -34,6 +36,7 @@ export function AuthProvider({ children }) {
     setToken(data.token)
     setUserId(data.userId)
     setRole((data.role || 'USER').toUpperCase())
+    setIsExpert(!!data.isExpert)
   }, [])
 
   const logout = useCallback(() => {
@@ -41,11 +44,13 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('userId')
     localStorage.removeItem('role')
     localStorage.removeItem('refreshToken')
+    localStorage.removeItem('isExpert')
     document.cookie = 'token=; path=/; max-age=0; SameSite=Strict'
     if (refreshTimer.current) clearTimeout(refreshTimer.current)
     setToken(null)
     setUserId(null)
     setRole('USER')
+    setIsExpert(false)
   }, [])
 
   // Silently refresh the access token before it expires
@@ -97,7 +102,7 @@ export function AuthProvider({ children }) {
   const isSuperAdmin = role === 'SUPER_ADMIN'
 
   return (
-    <AuthContext.Provider value={{ token, userId, role, isAuthenticated, isAdmin, isSuperAdmin, login, logout }}>
+    <AuthContext.Provider value={{ token, userId, role, isAuthenticated, isAdmin, isSuperAdmin, isExpert, login, logout }}>
       {children}
     </AuthContext.Provider>
   )

@@ -49,14 +49,35 @@ export default function AdminDashboardPage() {
     } catch { /* ignore */ }
   }, [apiFetch])
 
-  const reviewAction = async (id, statusVal, reviewType) => {
+  const reviewAction = async (id, statusVal) => {
     try {
-      let url = `/api/v1/admin/reviews/${id}/status?status=${statusVal}`
-      if (reviewType) url += `&reviewType=${reviewType}`
+      const url = `/api/v1/admin/reviews/${id}/status?status=${statusVal}`
       const res = await apiFetch(url, { method: 'PATCH' })
       if (res.ok) {
         setReviews(prev => prev.filter(r => r.id !== id))
         setPendingCount(c => c - 1)
+      }
+    } catch { /* ignore */ }
+  }
+
+  // === EXPERT APPLICATIONS TAB ===
+  const [expertApps, setExpertApps] = useState([])
+  const [expertAppsCount, setExpertAppsCount] = useState(0)
+
+  const loadExpertApps = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/v1/admin/expert-applications/pending')
+      const data = await res.json()
+      if (res.ok) { setExpertApps(data); setExpertAppsCount(data.length) }
+    } catch { /* ignore */ }
+  }, [apiFetch])
+
+  const expertAppAction = async (id, action) => {
+    try {
+      const res = await apiFetch(`/api/v1/admin/expert-applications/${id}/${action}`, { method: 'PATCH' })
+      if (res.ok) {
+        setExpertApps(prev => prev.filter(a => a.id !== id))
+        setExpertAppsCount(c => c - 1)
       }
     } catch { /* ignore */ }
   }
@@ -185,7 +206,7 @@ export default function AdminDashboardPage() {
     try {
       const res = await apiFetch(`/api/v1/super-admin/users/${id}/promote`, { method: 'PUT' })
       const data = await res.json()
-      if (res.ok) { setUserMsg({ type: 'success', text: `✓ ${data.name} promoted to ADMIN!` }); loadUsers(emailFilter) }
+      if (res.ok) { setUserMsg({ type: 'success', text: `${data.name} promoted to ADMIN!` }); loadUsers(emailFilter) }
       else setUserMsg({ type: 'error', text: data.error || 'Failed.' })
     } catch { setUserMsg({ type: 'error', text: 'Server error.' }) }
   }
@@ -195,7 +216,20 @@ export default function AdminDashboardPage() {
     try {
       const res = await apiFetch(`/api/v1/super-admin/users/${id}/demote`, { method: 'PUT' })
       const data = await res.json()
-      if (res.ok) { setUserMsg({ type: 'success', text: `✓ ${data.name} demoted to USER.` }); loadUsers(emailFilter) }
+      if (res.ok) { setUserMsg({ type: 'success', text: `${data.name} demoted to USER.` }); loadUsers(emailFilter) }
+      else setUserMsg({ type: 'error', text: data.error || 'Failed.' })
+    } catch { setUserMsg({ type: 'error', text: 'Server error.' }) }
+  }
+
+  const toggleExpert = async (id) => {
+    setUserMsg({ type: '', text: '' })
+    try {
+      const res = await apiFetch(`/api/v1/admin/users/${id}/toggle-expert`, { method: 'PUT' })
+      const data = await res.json()
+      if (res.ok) {
+        setUserMsg({ type: 'success', text: `${data.name} is now ${data.isExpert ? 'an Expert' : 'a regular user'}.` })
+        loadUsers(emailFilter)
+      }
       else setUserMsg({ type: 'error', text: data.error || 'Failed.' })
     } catch { setUserMsg({ type: 'error', text: 'Server error.' }) }
   }
@@ -204,9 +238,10 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     loadPendingReviews()
     loadPendingSpots()
+    loadExpertApps()
     loadCategories()
     if (isSuperAdmin) loadUsers()
-  }, [loadPendingReviews, loadPendingSpots, loadCategories, loadUsers, isSuperAdmin])
+  }, [loadPendingReviews, loadPendingSpots, loadExpertApps, loadCategories, loadUsers, isSuperAdmin])
 
   const roleBadgeCls = (r) => r === 'SUPER_ADMIN' ? 'badge-role' : r === 'ADMIN' ? 'badge-pending' : 'badge-inactive'
 
@@ -216,37 +251,49 @@ export default function AdminDashboardPage() {
       
       <div className="admin-tabs">
         <button className={`admin-tab ${tab === 'reviews' ? 'active' : ''}`} onClick={() => setTab('reviews')}>
-          ✅ Verify Reviews {pendingCount > 0 && <span className="pending-badge">{pendingCount}</span>}
+          Verify Reviews {pendingCount > 0 && <span className="pending-badge">{pendingCount}</span>}
         </button>
         <button className={`admin-tab ${tab === 'spots' ? 'active' : ''}`} onClick={() => setTab('spots')}>
-          📍 Verify Spots {pendingSpotsCount > 0 && <span className="pending-badge">{pendingSpotsCount}</span>}
+          Verify Spots {pendingSpotsCount > 0 && <span className="pending-badge">{pendingSpotsCount}</span>}
+        </button>
+        <button className={`admin-tab ${tab === 'experts' ? 'active' : ''}`} onClick={() => setTab('experts')}>
+          Expert Applications {expertAppsCount > 0 && <span className="pending-badge">{expertAppsCount}</span>}
         </button>
         <button className={`admin-tab ${tab === 'categories' ? 'active' : ''}`} onClick={() => setTab('categories')}>
-          📂 Manage Categories
+          Manage Categories
         </button>
         {isSuperAdmin && (
           <button className={`admin-tab ${tab === 'users' ? 'active' : ''}`} onClick={() => setTab('users')}>
-            👥 Manage Users
+            Manage Users
           </button>
         )}
       </div>
 
       {tab === 'reviews' && (
         <div className="admin-reviews">
-          {reviews.length === 0 && <p style={{ color: 'var(--success)', fontWeight: 600, textAlign: 'center', marginTop: '2rem' }}>✓ All reviews moderated. Nothing pending.</p>}
+          {reviews.length === 0 && <p style={{ color: 'var(--success)', fontWeight: 600, textAlign: 'center', marginTop: '2rem' }}>All reviews moderated. Nothing pending.</p>}
           {reviews.map(r => (
             <div key={r.id} className="pending-review glass">
               <div className="pending-body">
-                <p className="pending-meta">Review #{r.id} · Spot #{r.spotId} · Rating: {r.rating}/5 · {r.reviewType}</p>
+                <p className="pending-meta">
+                  Review #{r.id} · Spot #{r.spotId} · Rating: {r.rating}/5
+                </p>
                 <p className="pending-text">{r.body}</p>
-                <p className="pending-author">
-                  ✍️ <strong>{r.authorName}</strong> · 📧 {r.authorEmail} · ✅ {r.authorApprovedCount} approved
+                <p className="pending-author" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <strong>
+                    <Link to={`/user/${r.authorId}`} style={{ color: 'var(--text-primary)', textDecoration: 'none' }} className="hover-link">
+                      {r.authorName}
+                    </Link>
+                  </strong>
+                  <span className={`badge ${r.authorIsExpert ? 'badge-active' : 'badge-pending'}`} style={{ fontSize: '0.75rem', padding: '0.1rem 0.4rem' }}>
+                    {r.authorIsExpert ? 'Expert' : 'User'}
+                  </span>
+                  <span>· {r.authorEmail} · {r.authorApprovedCount} approved reviews</span>
                 </p>
               </div>
               <div className="pending-actions">
-                <button className="btn btn-primary" onClick={() => reviewAction(r.id, 'APPROVED', 'EXPERT')}>👨‍🍳 Expert</button>
-                <button className="btn btn-primary" onClick={() => reviewAction(r.id, 'APPROVED', 'USER')}>👤 User</button>
-                <button className="btn btn-danger" onClick={() => reviewAction(r.id, 'REJECTED')}>✗ Reject</button>
+                <button className="btn btn-primary" onClick={() => reviewAction(r.id, 'APPROVED')}>Approve</button>
+                <button className="btn btn-danger" onClick={() => reviewAction(r.id, 'REJECTED')}>Reject</button>
               </div>
             </div>
           ))}
@@ -255,24 +302,75 @@ export default function AdminDashboardPage() {
 
       {tab === 'spots' && (
         <div className="admin-reviews">
-          {pendingSpots.length === 0 && <p style={{ color: 'var(--success)', fontWeight: 600, textAlign: 'center', marginTop: '2rem' }}>✓ All spots moderated. Nothing pending.</p>}
+          {pendingSpots.length === 0 && <p style={{ color: 'var(--success)', fontWeight: 600, textAlign: 'center', marginTop: '2rem' }}>All spots moderated. Nothing pending.</p>}
           {pendingSpots.map(s => (
             <div key={s.id} className="pending-review glass">
               <div className="pending-body">
                 <p className="pending-meta">Spot #{s.id} · Type: {s.type}</p>
                 <h3 className="pending-text" style={{margin: '0 0 0.5rem'}}>
                   <Link to={`/spot/${s.id}`} style={{ color: 'var(--primary)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    {s.name} <span style={{ fontSize: '0.9rem' }}>↗️</span>
+                    {s.name}
                   </Link>
                 </h3>
-                <p className="pending-author" style={{marginBottom: '0.5rem'}}>📍 {s.address}</p>
+                <p className="pending-author" style={{marginBottom: '0.5rem'}}>{s.address}</p>
                 <p className="pending-author">
                   Coordinates: {s.latitude}, {s.longitude} | Tags: {s.tags?.join(', ') || 'none'}
                 </p>
+                {s.submitterId && (
+                  <p className="pending-author" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+                    <span>Submitted by: </span>
+                    <strong>
+                      <Link to={`/user/${s.submitterId}`} style={{ color: 'var(--text-primary)', textDecoration: 'none' }} className="hover-link">
+                        {s.submitterName || `User #${s.submitterId}`}
+                      </Link>
+                    </strong>
+                    {s.submitterIsExpert && (
+                      <span className="badge badge-active" style={{ fontSize: '0.75rem', padding: '0.1rem 0.4rem' }}>Expert</span>
+                    )}
+                  </p>
+                )}
               </div>
               <div className="pending-actions">
-                <button className="btn btn-primary" onClick={() => spotAction(s.id, 'APPROVE')}>✓ Approve</button>
-                <button className="btn btn-danger" onClick={() => spotAction(s.id, 'REJECT')}>✗ Reject</button>
+                <button className="btn btn-primary" onClick={() => spotAction(s.id, 'APPROVE')}>Approve</button>
+                <button className="btn btn-danger" onClick={() => spotAction(s.id, 'REJECT')}>Reject</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tab === 'experts' && (
+        <div className="admin-reviews">
+          {expertApps.length === 0 && <p style={{ color: 'var(--success)', fontWeight: 600, textAlign: 'center', marginTop: '2rem' }}>No pending expert applications.</p>}
+          {expertApps.map(app => (
+            <div key={app.id} className="pending-review glass">
+              <div className="pending-body">
+                <p className="pending-meta">Application #{app.id} · {new Date(app.createdAt).toLocaleDateString()}</p>
+                <h3 className="pending-text" style={{ margin: '0 0 0.5rem' }}>
+                  <Link to={`/user/${app.userId}`} style={{ color: 'var(--text-primary)', textDecoration: 'none' }} className="hover-link">
+                    {app.userName || `User #${app.userId}`}
+                  </Link>
+                  <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginLeft: '0.5rem' }}>{app.userEmail}</span>
+                </h3>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem 1.5rem', fontSize: '0.9rem', marginBottom: '0.75rem' }}>
+                  <div><strong>Title:</strong> {app.professionalTitle}</div>
+                  <div><strong>Organization:</strong> {app.organization || '—'}</div>
+                  <div><strong>Experience:</strong> {app.yearsExperience} years</div>
+                  <div><strong>Specializations:</strong> {app.specializations || '—'}</div>
+                </div>
+                {app.portfolioUrl && (
+                  <p style={{ fontSize: '0.9rem', marginBottom: '0.5rem' }}>
+                    <strong>Portfolio:</strong>{' '}
+                    <a href={app.portfolioUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)' }}>{app.portfolioUrl}</a>
+                  </p>
+                )}
+                <p className="pending-text" style={{ fontStyle: 'italic', borderLeft: '3px solid var(--primary)', paddingLeft: '0.75rem' }}>
+                  "{app.justification}"
+                </p>
+              </div>
+              <div className="pending-actions">
+                <button className="btn btn-primary" onClick={() => expertAppAction(app.id, 'approve')}>Approve</button>
+                <button className="btn btn-danger" onClick={() => expertAppAction(app.id, 'reject')}>Reject</button>
               </div>
             </div>
           ))}
@@ -301,13 +399,13 @@ export default function AdminDashboardPage() {
                 </div>
                 <div>
                   <label className="btn btn-sm" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', cursor: 'pointer', display: 'inline-block' }}>
-                    {uploadingIcon ? 'Uploading...' : '📁 Upload Custom Icon'}
+                    {uploadingIcon ? 'Uploading...' : 'Upload Custom Icon'}
                     <input type="file" accept="image/svg+xml, image/png, image/webp" style={{ display: 'none' }} onChange={handleCatIconUpload} disabled={uploadingIcon} />
                   </label>
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>SVG or PNG (default pin icon if none)</div>
                 </div>
               </div>
-              <button className="btn btn-primary" onClick={addCategory} style={{ padding: '0.6rem 1.5rem' }}>➕ Add Category</button>
+              <button className="btn btn-primary" onClick={addCategory} style={{ padding: '0.6rem 1.5rem' }}>Add Category</button>
             </div>
           </div>
           {catMsg.text && <div className={`msg msg-${catMsg.type}`} style={{ marginBottom: '1rem' }}>{catMsg.text}</div>}
@@ -321,7 +419,7 @@ export default function AdminDashboardPage() {
                 </div>
                 <div className="category-actions">
                   <label className="btn btn-sm" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', cursor: 'pointer', margin: 0 }}>
-                    ✏️ Change Icon
+                    Change Icon
                     <input type="file" accept="image/svg+xml, image/png, image/webp" style={{ display: 'none' }} onChange={(e) => updateExistingCatIcon(c.id, e)} />
                   </label>
                   {c.name.toLowerCase() !== 'other' && (
@@ -342,7 +440,7 @@ export default function AdminDashboardPage() {
           <div className="users-search" style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
             <input className="input" value={emailFilter} onChange={e => setEmailFilter(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && loadUsers(emailFilter)} placeholder="Search by name or email..." />
-            <button className="btn btn-primary" onClick={() => loadUsers(emailFilter)}>🔍 Search</button>
+            <button className="btn btn-primary" onClick={() => loadUsers(emailFilter)}>Search</button>
             {emailFilter && <button className="btn" onClick={() => { setEmailFilter(''); loadUsers('') }}>Clear</button>}
           </div>
 
@@ -354,6 +452,7 @@ export default function AdminDashboardPage() {
                   <th style={{ padding: '1rem' }}>Name</th>
                   <th style={{ padding: '1rem' }}>Email</th>
                   <th style={{ padding: '1rem' }}>Role</th>
+                  <th style={{ padding: '1rem' }}>Expert</th>
                   <th style={{ padding: '1rem' }}>Action</th>
                 </tr>
               </thead>
@@ -365,13 +464,22 @@ export default function AdminDashboardPage() {
                     <td style={{ padding: '1rem' }}>{u.email}</td>
                     <td style={{ padding: '1rem' }}><span className={`badge ${roleBadgeCls(u.role)}`}>{u.role}</span></td>
                     <td style={{ padding: '1rem' }}>
-                      {u.role === 'USER' && <button className="btn btn-primary btn-sm" onClick={() => promoteUser(u.id)}>↑ Promote</button>}
-                      {u.role === 'ADMIN' && <button className="btn btn-danger btn-sm" onClick={() => demoteUser(u.id)}>↓ Demote</button>}
+                      {u.isExpert
+                        ? <span className="badge badge-active">Expert</span>
+                        : <span className="badge badge-inactive">No</span>
+                      }
+                    </td>
+                    <td style={{ padding: '1rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <button className={`btn btn-sm ${u.isExpert ? 'btn-danger' : 'btn-primary'}`} onClick={() => toggleExpert(u.id)}>
+                        {u.isExpert ? 'Remove Expert' : 'Make Expert'}
+                      </button>
+                      {u.role === 'USER' && <button className="btn btn-primary btn-sm" onClick={() => promoteUser(u.id)}>Promote</button>}
+                      {u.role === 'ADMIN' && <button className="btn btn-danger btn-sm" onClick={() => demoteUser(u.id)}>Demote</button>}
                       {u.role === 'SUPER_ADMIN' && <span className="text-muted">—</span>}
                     </td>
                   </tr>
                 ))}
-                {users.length === 0 && <tr><td colSpan={5} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>No users found.</td></tr>}
+                {users.length === 0 && <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>No users found.</td></tr>}
               </tbody>
             </table>
           </div>

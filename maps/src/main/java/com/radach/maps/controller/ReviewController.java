@@ -14,7 +14,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.radach.maps.dto.ReviewRequest;
 import com.radach.maps.dto.ReviewResponse;
-import com.radach.maps.model.Review.ReviewType;
 import com.radach.maps.service.AuthenticatedUserService;
 import com.radach.maps.service.ReviewService;
 
@@ -40,8 +39,8 @@ public class ReviewController {
             Authentication authentication
     ) {
         Long authorId = authenticatedUserService.getUserId(authentication);
-        // All reviews start as USER type, pending admin review
-        return reviewService.create(spotId, authorId, ReviewType.USER, request);
+        // Review type is auto-determined from the author's expert status
+        return reviewService.create(spotId, authorId, request);
     }
 
     @GetMapping

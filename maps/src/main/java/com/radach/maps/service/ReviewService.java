@@ -37,22 +37,25 @@ public class ReviewService {
     }
 
     @Transactional
-    public ReviewResponse create(Long spotId, Long authorId, ReviewType reviewType, ReviewRequest request) {
+    public ReviewResponse create(Long spotId, Long authorId, ReviewRequest request) {
+        // Auto-determine review type from author's expert status
+        User author = userRepository.findById(authorId)
+                .orElseThrow(() -> new ResourceNotFoundException("Author not found"));
+        ReviewType reviewType = author.isExpert() ? ReviewType.EXPERT : ReviewType.USER;
+
         Review review = new Review();
         review.setSpotId(spotId);
         review.setAuthorId(authorId);
         review.setReviewType(reviewType);
         review.setBody(request.body().trim());
         review.setRating(request.rating());
-        // All reviews start as PENDING — admin decides type and approval
+        // All reviews start as PENDING — admin approves or rejects
         review.setStatus(Status.PENDING);
 
         Review saved = reviewRepository.save(review);
 
-        User author = userRepository.findById(authorId)
-                .orElseThrow(() -> new ResourceNotFoundException("Author not found"));
         long approvedCount = reviewRepository.countByAuthorIdAndStatus(authorId, Status.APPROVED);
-        return new ReviewResponse(saved, author.getName(), author.getEmail(), approvedCount);
+        return new ReviewResponse(saved, author.getName(), author.getEmail(), approvedCount, author.isExpert());
     }
 
     public Page<ReviewResponse> getReviews(Long spotId, String type, int page, int size) {
@@ -95,26 +98,23 @@ public class ReviewService {
     }
 
     @Transactional
-    public ReviewResponse updateStatus(Long reviewId, Status status, ReviewType reviewType) {
+    public ReviewResponse updateStatus(Long reviewId, Status status) {
         Review review = reviewRepository.findById(reviewId)
                 .orElseThrow(() -> new ResourceNotFoundException("Review not found"));
         review.setStatus(status);
-        if (reviewType != null) {
-            review.setReviewType(reviewType);
-        }
         Review saved = reviewRepository.save(review);
 
         User author = userRepository.findById(saved.getAuthorId())
                 .orElseThrow(() -> new ResourceNotFoundException("Author not found"));
         long approvedCount = reviewRepository.countByAuthorIdAndStatus(saved.getAuthorId(), Status.APPROVED);
-        return new ReviewResponse(saved, author.getName(), author.getEmail(), approvedCount);
+        return new ReviewResponse(saved, author.getName(), author.getEmail(), approvedCount, author.isExpert());
     }
 
     /**
      * Batch-enrich a page of reviews with author info and approved counts — 2 queries instead of 2N.
      */
     private Page<ReviewResponse> enrichReviews(Page<Review> reviews) {
-        if (reviews.isEmpty()) return reviews.map(r -> new ReviewResponse(r, "Unknown", "", 0));
+        if (reviews.isEmpty()) return reviews.map(r -> new ReviewResponse(r, "Unknown", "", 0, false));
 
         Set<Long> authorIds = reviews.stream().map(Review::getAuthorId).collect(Collectors.toSet());
 
@@ -133,7 +133,8 @@ public class ReviewService {
             String name = author != null ? author.getName() : "User #" + r.getAuthorId();
             String email = author != null ? author.getEmail() : "";
             long count = approvedCounts.getOrDefault(r.getAuthorId(), 0L);
-            return new ReviewResponse(r, name, email, count);
+            boolean isExpert = author != null && author.isExpert();
+            return new ReviewResponse(r, name, email, count, isExpert);
         });
     }
 
@@ -158,7 +159,8 @@ public class ReviewService {
             String name = author != null ? author.getName() : "User #" + r.getAuthorId();
             String email = author != null ? author.getEmail() : "";
             long count = approvedCounts.getOrDefault(r.getAuthorId(), 0L);
-            return new ReviewResponse(r, name, email, count);
+            boolean isExpert = author != null && author.isExpert();
+            return new ReviewResponse(r, name, email, count, isExpert);
         }).toList();
     }
 }

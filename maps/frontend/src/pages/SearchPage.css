@@ -1,0 +1,12 @@
+.search-page { padding: 2rem 2rem 4rem; max-width: 1120px; margin: 0 auto; }
+.search-header { position: relative; margin-bottom: 2rem; }
+.search-bar { display: flex; gap: 0.75rem; }
+.search-input { flex: 1; font-size: 1rem; padding: 0.85rem 1rem; }
+
+.search-grid { display: flex; flex-direction: column; gap: 1rem; }
+.user-card { transition: transform 0.2s, box-shadow 0.2s; }
+.user-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); border-color: var(--primary); }
+
+@media (max-width: 860px) {
+  .search-grid { grid-template-columns: 1fr; }
+}

@@ -59,6 +59,9 @@ public class Spot {
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
+    @Column(name = "submitted_by")
+    private Long submittedBy;
+
     @PrePersist
     void prePersist() {
         if (createdAt == null) {
@@ -102,4 +105,7 @@ public class Spot {
     public void setWebsiteUrl(String websiteUrl) { this.websiteUrl = websiteUrl; }
 
     public Instant getCreatedAt() { return createdAt; }
+
+    public Long getSubmittedBy() { return submittedBy; }
+    public void setSubmittedBy(Long submittedBy) { this.submittedBy = submittedBy; }
 }

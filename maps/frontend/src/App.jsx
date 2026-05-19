@@ -15,6 +15,7 @@ import UserProfilePage from './pages/UserProfilePage'
 import SavedSpotsPage from './pages/SavedSpotsPage'
 import FeedPage from './pages/FeedPage'
 import AddSpotPage from './pages/AddSpotPage'
+import SearchPage from './pages/SearchPage'
 
 export default function App() {
   return (
@@ -25,6 +26,7 @@ export default function App() {
          <Route path="/login" element={<LoginPage />} />
          <Route path="/register" element={<RegisterPage />} />
          <Route path="/spots" element={<ProtectedRoute><SpotsPage /></ProtectedRoute>} />
+         <Route path="/search" element={<ProtectedRoute><SearchPage /></ProtectedRoute>} />
          <Route path="/trending" element={<ProtectedRoute><TrendingPage /></ProtectedRoute>} />
          <Route path="/friends" element={<ProtectedRoute><FriendsPage /></ProtectedRoute>} />
          <Route path="/saved" element={<ProtectedRoute><SavedSpotsPage /></ProtectedRoute>} />

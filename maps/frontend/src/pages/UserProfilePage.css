@@ -70,3 +70,42 @@
   margin-top: -0.5rem;
   margin-bottom: 0.5rem;
 }
+
+.expert-cv {
+  border-left: 3px solid var(--primary);
+}
+
+.cv-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.cv-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.cv-value {
+  font-size: 0.95rem;
+  color: var(--text-primary);
+}
+
+.edit-profile-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.edit-profile-grid .field:has(textarea) {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 600px) {
+  .edit-profile-grid {
+    grid-template-columns: 1fr;
+  }
+}

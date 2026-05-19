@@ -25,17 +25,17 @@ public class SpotService {
     private final com.radach.maps.repository.SpotEventRepository spotEventRepository;
     private final com.radach.maps.repository.UserSpotInteractionRepository interactionRepository;
 
-    public SpotService(SpotRepository spotRepository, ReviewRepository reviewRepository, FriendshipService friendshipService, com.radach.maps.repository.SpotEventRepository spotEventRepository, com.radach.maps.repository.UserSpotInteractionRepository interactionRepository) {
+    private final com.radach.maps.repository.UserRepository userRepository;
+
+    public SpotService(SpotRepository spotRepository, ReviewRepository reviewRepository, FriendshipService friendshipService, com.radach.maps.repository.SpotEventRepository spotEventRepository, com.radach.maps.repository.UserSpotInteractionRepository interactionRepository, com.radach.maps.repository.UserRepository userRepository) {
         this.spotRepository = spotRepository;
         this.reviewRepository = reviewRepository;
         this.friendshipService = friendshipService;
         this.spotEventRepository = spotEventRepository;
         this.interactionRepository = interactionRepository;
+        this.userRepository = userRepository;
     }
 
-    /**
-     * Batch-fetch average ratings and user interactions.
-     */
     private List<SpotResponse> withRatingsAndInteractions(List<Spot> spots, Long authenticatedUserId) {
         if (spots.isEmpty()) return List.of();
 
@@ -50,16 +50,26 @@ public class SpotService {
         Set<Long> likedSpotIds = authenticatedUserId != null ? interactionRepository.findLikedSpotIdsByUserId(authenticatedUserId) : Set.of();
         Set<Long> savedSpotIds = authenticatedUserId != null ? interactionRepository.findSavedSpotIdsByUserId(authenticatedUserId) : Set.of();
 
+        Set<Long> submitterIds = spots.stream().map(Spot::getSubmittedBy).filter(id -> id != null).collect(Collectors.toSet());
+        Map<Long, com.radach.maps.model.User> submitters = submitterIds.isEmpty() ? Map.of() : 
+                userRepository.findAllById(submitterIds).stream()
+                .collect(Collectors.toMap(com.radach.maps.model.User::getId, java.util.function.Function.identity()));
+
         return spots.stream()
-                .map(spot -> new SpotResponse(
-                        spot, 
-                        ratings.getOrDefault(spot.getId(), 0.0),
-                        likedSpotIds.contains(spot.getId()),
-                        savedSpotIds.contains(spot.getId())
-                ))
+                .map(spot -> {
+                    com.radach.maps.model.User submitter = spot.getSubmittedBy() != null ? submitters.get(spot.getSubmittedBy()) : null;
+                    return new SpotResponse(
+                            spot, 
+                            ratings.getOrDefault(spot.getId(), 0.0),
+                            likedSpotIds.contains(spot.getId()),
+                            savedSpotIds.contains(spot.getId()),
+                            submitter != null ? submitter.getId() : null,
+                            submitter != null ? submitter.getName() : null,
+                            submitter != null && submitter.isExpert()
+                    );
+                })
                 .toList();
     }
-
     public List<SpotResponse> findSpots(Double lat, Double lng, Double radiusKm, String sortBy, Long authenticatedUserId) {
         boolean geoSearch = lat != null || lng != null || radiusKm != null;
         if (geoSearch && (lat == null || lng == null || radiusKm == null)) {
@@ -100,11 +110,17 @@ public class SpotService {
             }
         }
         
-        return new SpotResponse(spot, avg, isLiked, isSaved);
+        com.radach.maps.model.User submitter = spot.getSubmittedBy() != null ? userRepository.findById(spot.getSubmittedBy()).orElse(null) : null;
+        return new SpotResponse(
+                spot, avg, isLiked, isSaved, 
+                submitter != null ? submitter.getId() : null,
+                submitter != null ? submitter.getName() : null,
+                submitter != null && submitter.isExpert()
+        );
     }
 
     @Transactional
-    public SpotResponse create(SpotRequest request, boolean isAdmin) {
+    public SpotResponse create(SpotRequest request, boolean isAdmin, Long authenticatedUserId) {
         Spot spot = new Spot();
         spot.setName(request.name().trim());
         spot.setType(request.type().trim());
@@ -114,6 +130,7 @@ public class SpotService {
         spot.setTags(request.tags() == null ? List.of() : request.tags());
         spot.setPhotos(request.photos() == null ? List.of() : request.photos());
         spot.setWebsiteUrl(request.websiteUrl());
+        spot.setSubmittedBy(authenticatedUserId);
         if (isAdmin) {
             spot.setStatus(request.status());
         } else {
@@ -121,7 +138,7 @@ public class SpotService {
         }
 
         Spot saved = spotRepository.save(spot);
-        return new SpotResponse(saved, 0.0, false, false);
+        return findById(saved.getId(), authenticatedUserId);
     }
 
     @Transactional
@@ -159,8 +176,7 @@ public class SpotService {
         spot.setStatus(request.status());
 
         Spot saved = spotRepository.save(spot);
-        Double avg = reviewRepository.findAverageRatingBySpotId(saved.getId());
-        return new SpotResponse(saved, avg, false, false);
+        return findById(saved.getId(), null);
     }
 
     @Transactional
@@ -202,8 +218,7 @@ public class SpotService {
                 .orElseThrow(() -> new ResourceNotFoundException("Spot not found"));
         spot.setStatus(status);
         Spot saved = spotRepository.save(spot);
-        Double avg = reviewRepository.findAverageRatingBySpotId(saved.getId());
-        return new SpotResponse(saved, avg, false, false);
+        return findById(saved.getId(), null);
     }
 
     public List<SpotResponse> getTrending(Long authenticatedUserId, Double lat, Double lng, Double radiusKm) {

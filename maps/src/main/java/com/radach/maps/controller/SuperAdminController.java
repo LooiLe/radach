@@ -32,7 +32,7 @@ public class SuperAdminController {
                 ? userRepository.searchByNameOrEmail(query)
                 : userRepository.findAllByOrderByIdAsc();
         return users.stream()
-                .map(u -> new UserResponse(u.getId(), u.getName(), u.getEmail(), u.getRole().name()))
+                .map(u -> new UserResponse(u.getId(), u.getName(), u.getEmail(), u.getRole().name(), u.isExpert()))
                 .toList();
     }
 
@@ -46,7 +46,7 @@ public class SuperAdminController {
         }
         user.setRole(Role.ADMIN);
         user = userRepository.save(user);
-        return new UserResponse(user.getId(), user.getName(), user.getEmail(), user.getRole().name());
+        return new UserResponse(user.getId(), user.getName(), user.getEmail(), user.getRole().name(), user.isExpert());
     }
 
     @PutMapping("/users/{id}/demote")
@@ -59,9 +59,10 @@ public class SuperAdminController {
         }
         user.setRole(Role.USER);
         user = userRepository.save(user);
-        return new UserResponse(user.getId(), user.getName(), user.getEmail(), user.getRole().name());
+        return new UserResponse(user.getId(), user.getName(), user.getEmail(), user.getRole().name(), user.isExpert());
     }
 
+
     // Inner DTO
-    public record UserResponse(Long id, String name, String email, String role) {}
+    public record UserResponse(Long id, String name, String email, String role, boolean isExpert) {}
 }

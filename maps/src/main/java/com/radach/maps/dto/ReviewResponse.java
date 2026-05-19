@@ -11,6 +11,7 @@ public record ReviewResponse(
         String authorName,
         String authorEmail,
         long authorApprovedCount,
+        boolean authorIsExpert,
         String reviewType,
         String body,
         Integer rating,
@@ -18,7 +19,7 @@ public record ReviewResponse(
         Instant createdAt
 ) {
     /** Convenience constructor from entity + resolved author info. */
-    public ReviewResponse(Review review, String authorName, String authorEmail, long authorApprovedCount) {
+    public ReviewResponse(Review review, String authorName, String authorEmail, long authorApprovedCount, boolean authorIsExpert) {
         this(
                 review.getId(),
                 review.getSpotId(),
@@ -26,6 +27,7 @@ public record ReviewResponse(
                 authorName,
                 authorEmail,
                 authorApprovedCount,
+                authorIsExpert,
                 review.getReviewType().name(),
                 review.getBody(),
                 review.getRating(),

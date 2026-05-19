@@ -11,7 +11,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.radach.maps.dto.ReviewResponse;
-import com.radach.maps.model.Review.ReviewType;
 import com.radach.maps.model.Review.Status;
 import com.radach.maps.service.ReviewService;
 
@@ -35,9 +34,9 @@ public class AdminReviewController {
     @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
     public ReviewResponse updateStatus(
             @PathVariable Long id,
-            @RequestParam Status status,
-            @RequestParam(required = false) ReviewType reviewType
+            @RequestParam Status status
     ) {
-        return reviewService.updateStatus(id, status, reviewType);
+        // Admin only approves or rejects — review type is auto-determined from author's expert status
+        return reviewService.updateStatus(id, status);
     }
 }

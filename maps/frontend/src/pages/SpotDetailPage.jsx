@@ -335,8 +335,8 @@ export default function SpotDetailPage() {
         {reviews.map(r => (
           <div key={r.id} className="review-card glass">
             <div className="review-card-header">
-              <span className={`badge ${r.reviewType === 'EXPERT' ? 'badge-active' : 'badge-pending'}`}>
-                {r.reviewType === 'EXPERT' ? '‍ Expert' : ' User'}
+              <span className={`badge ${r.authorIsExpert ? 'badge-active' : 'badge-pending'}`}>
+                {r.authorIsExpert ? 'Expert' : 'User'}
               </span>
               <StarRating value={r.rating} readonly size="1rem" />
             </div>
