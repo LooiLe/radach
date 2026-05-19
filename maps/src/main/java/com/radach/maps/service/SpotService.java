@@ -262,7 +262,7 @@ public class SpotService {
         for (Object[] row : ratingData) {
             Long spotId = (Long) row[0];
             Long authorId = (Long) row[1];
-            long ratingSum = ((Number) row[2]).longValue();
+            double ratingSum = ((Number) row[2]).doubleValue();
             int scoreAddition = (int) (ratingSum * 2 * getMultiplier.apply(authorId));
             dynamicScores.merge(spotId, scoreAddition, Integer::sum);
         }

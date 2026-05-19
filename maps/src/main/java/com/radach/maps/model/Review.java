@@ -42,7 +42,7 @@ public class Review {
     private String body;
 
     @Column(nullable = false)
-    private Integer rating;
+    private Double rating;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -73,8 +73,8 @@ public class Review {
     public String getBody() { return body; }
     public void setBody(String body) { this.body = body; }
 
-    public Integer getRating() { return rating; }
-    public void setRating(Integer rating) { this.rating = rating; }
+    public Double getRating() { return rating; }
+    public void setRating(Double rating) { this.rating = rating; }
 
     public Status getStatus() { return status; }
     public void setStatus(Status status) { this.status = status; }

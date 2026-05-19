@@ -12,7 +12,7 @@ public record UserReviewResponse(
         String spotAddress,
         String reviewType,
         String body,
-        Integer rating,
+        Double rating,
         Instant createdAt
 ) {
     public UserReviewResponse(Review review, String spotName, String spotType, String spotAddress) {

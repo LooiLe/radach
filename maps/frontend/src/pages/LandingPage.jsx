@@ -11,18 +11,10 @@ export default function LandingPage() {
 
   return (
     <div className="landing">
-      {/* Ambient glow */}
-      <div className="landing-glow glow-1" />
-      <div className="landing-glow glow-2" />
-
-      <section className="hero">
-        <div className="hero-content animate-fade-up">
-          <p className="hero-eyebrow">
-            <span className="eyebrow-line" />
-            discoveries
-          </p>
+      <section className="hero-fullscreen">
+        <div className="hero-content-right animate-fade-up">
           <h1 className="hero-title">
-            Find the spots<br />worth <em>talking</em><br />about.
+            Find the spots<br />worth <span className="highlight-orange">talking</span><br />about.
           </h1>
           <p className="hero-sub">
             Real reviews from verified experts. No sponsored posts. No algorithms. Just the best food halls, restaurants, and hidden gems.
@@ -38,67 +30,50 @@ export default function LandingPage() {
             )}
           </div>
         </div>
-
-        <div className="hero-visual animate-fade-up" style={{ animationDelay: '0.15s' }}>
-          <div className="hero-cards">
-            <div className="hero-card tall glass">
-              <div className="hero-card-emoji"></div>
-              <div className="hero-card-info">
-                <span className="hero-card-type">Food Hall</span>
-                <span className="hero-card-name">Central Market Bangkok</span>
-                <span className="hero-card-stars"> Chef reviewed</span>
-              </div>
-            </div>
-            <div className="hero-card glass">
-              <div className="hero-card-emoji"></div>
-              <div className="hero-card-info">
-                <span className="hero-card-type">Restaurant</span>
-                <span className="hero-card-name">Baan Ying</span>
-                <span className="hero-card-stars"> Trending</span>
-              </div>
-            </div>
-            <div className="hero-card glass">
-              <div className="hero-card-emoji"></div>
-              <div className="hero-card-info">
-                <span className="hero-card-type">Café</span>
-                <span className="hero-card-name">Roots Coffee</span>
-                <span className="hero-card-stars"> Popular</span>
-              </div>
-            </div>
-          </div>
+        <div className="scroll-indicator">
+          <img src="/icons/chevron-double-down.svg" alt="Scroll down" />
         </div>
       </section>
 
-      <section className="stats-bar">
-        <div className="stat"><span className="stat-number">200+</span><span className="stat-label">Verified spots</span></div>
-        <div className="stat"><span className="stat-number">50+</span><span className="stat-label">Expert chefs</span></div>
-        <div className="stat"><span className="stat-number">1,000+</span><span className="stat-label">Reviews written</span></div>
-        <div className="stat"><span className="stat-number">5k+</span><span className="stat-label">Monthly visitors</span></div>
-      </section>
-
-      <section className="features">
-        <p className="section-eyebrow"><span className="eyebrow-line" />Why Radach</p>
-        <h2 className="section-title">Trusted by everyone,<br />curated by the pros.</h2>
-        <div className="features-grid">
-          <div className="feature glass">
-            <div className="feature-icon">‍</div>
-            <h3 className="feature-name">Verified reviews</h3>
-            <p className="feature-desc">Every expert review is written by a verified culinary professional. No fake accounts. No paid promotions.</p>
+      <section className="map-features">
+        <div className="map-features-content">
+          <div className="map-features-left animate-fade-up">
+            <h2 className="section-title">Trusted by everyone,<br />curated by professionals</h2>
           </div>
-          <div className="feature glass">
-            <div className="feature-icon"></div>
-            <h3 className="feature-name">Discover near you</h3>
-            <p className="feature-desc">Find the best spots within any radius. Our geo-search surfaces hidden gems close to wherever you are.</p>
-          </div>
-          <div className="feature glass">
-            <div className="feature-icon"></div>
-            <h3 className="feature-name">Trending spots</h3>
-            <p className="feature-desc">Our ranking engine tracks real engagement — views, saves, and review quality — so trending means actually trending.</p>
+          <div className="map-features-right animate-fade-up" style={{ animationDelay: '0.15s' }}>
+            <div className="feature-item">
+              <h3 className="feature-name">Verified reviews</h3>
+              <p className="feature-desc">Every expert review is written by a verified culinary professional. No fake accounts. No paid promotions.</p>
+            </div>
+            <div className="feature-item">
+              <h3 className="feature-name">Discover near you</h3>
+              <p className="feature-desc">Find the best spots within any radius. Our geo-search surfaces hidden gems close to wherever you are.</p>
+            </div>
+            <div className="feature-item">
+              <h3 className="feature-name">Trending spots</h3>
+              <p className="feature-desc">Our ranking engine tracks real engagement — views, saves, and review quality — so trending means actually trending.</p>
+            </div>
           </div>
         </div>
+
+        {/* Decorative Map Pins */}
+        {/* Top-Left (above heading) */}
+        <div className="decorative-pin pin-purple" style={{ top: '15%', left: '15%' }}></div>
+        {/* Bottom-Left (below heading) */}
+        <div className="decorative-pin pin-yellow" style={{ top: '80%', left: '20%' }}></div>
+        {/* Top-Middle (gap) */}
+        <div className="decorative-pin pin-red" style={{ top: '20%', left: '48%' }}></div>
+        {/* Center-Middle (gap) */}
+        <div className="decorative-pin pin-green" style={{ top: '50%', left: '45%' }}></div>
+        {/* Bottom-Middle (gap) */}
+        <div className="decorative-pin pin-blue" style={{ top: '75%', left: '50%' }}></div>
+        {/* Far-Right Top */}
+        <div className="decorative-pin pin-yellow-2" style={{ top: '10%', left: '85%' }}></div>
+        {/* Far-Right Bottom */}
+        <div className="decorative-pin pin-orange" style={{ top: '85%', left: '88%' }}></div>
       </section>
 
-      <footer className="landing-footer">
+      <footer className="landing-footer" style={{ position: 'relative', zIndex: 10 }}>
         <span> 2026 Radach.</span>
       </footer>
     </div>

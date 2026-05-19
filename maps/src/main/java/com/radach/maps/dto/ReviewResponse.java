@@ -14,7 +14,7 @@ public record ReviewResponse(
         boolean authorIsExpert,
         String reviewType,
         String body,
-        Integer rating,
+        Double rating,
         String status,
         Instant createdAt
 ) {
