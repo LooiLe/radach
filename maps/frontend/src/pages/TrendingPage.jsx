@@ -35,16 +35,35 @@ export default function TrendingPage() {
       fetchTrending()
     } else if (activeTab === 'nearme') {
       setStatus('Getting your location...')
-      if (!navigator.geolocation) {
-        setStatus('Geolocation is not supported by your browser.')
-        return
-      }
-      navigator.geolocation.getCurrentPosition(
-        (pos) => fetchTrending(pos.coords.latitude, pos.coords.longitude),
-        () => {
-          setStatus('Unable to retrieve your location. Please check your permissions.')
+      
+      const fallbackToIpLocation = async (reason) => {
+        setStatus(`HTML5 Geolocation unavailable (${reason}). Trying IP-based location...`)
+        try {
+          const res = await fetch('https://get.geojs.io/v1/ip/geo.json')
+          const data = await res.json()
+          if (data.latitude && data.longitude) {
+            fetchTrending(parseFloat(data.latitude), parseFloat(data.longitude))
+            setStatus(`Showing trending spots near ${data.city || 'your region'} (IP-based estimate).`)
+          } else {
+            throw new Error('Invalid IP data')
+          }
+        } catch (err) {
+          setStatus('Unable to retrieve location. HTML5 Geolocation requires HTTPS, and IP fallback failed.')
           setSpots([])
         }
+      }
+
+      if (!navigator.geolocation) {
+        fallbackToIpLocation('Requires HTTPS or localhost')
+        return
+      }
+      
+      navigator.geolocation.getCurrentPosition(
+        (pos) => fetchTrending(pos.coords.latitude, pos.coords.longitude),
+        (err) => {
+          fallbackToIpLocation(err.message || 'Permission denied')
+        },
+        { timeout: 5000, maximumAge: 60000 }
       )
     }
     // For 'destination', we wait for the user to search.

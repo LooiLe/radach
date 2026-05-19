@@ -236,7 +236,7 @@ export default function SpotDetailPage() {
             </div>
 
             <div className="edit-actions">
-              <button className="btn btn-primary" onClick={() => { trackEvent('view'); navigate(`/spots?lat=${spot.latitude}&lng=${spot.longitude}&radiusKm=1`) }}> View on map</button>
+              <button className="btn btn-primary" onClick={() => { trackEvent('view'); navigate(`/spots?mode=nearby&lat=${spot.latitude}&lng=${spot.longitude}&radiusKm=0.1`) }}> View on map</button>
               <button className="btn btn-primary" onClick={saveSpot} disabled={saving}>{saving ? 'Saving...' : ' Save changes'}</button>
               <button className="btn btn-ghost" onClick={deleteSpot} disabled={saving} style={{ color: 'var(--text-error)' }}> Delete spot</button>
             </div>
@@ -305,7 +305,7 @@ export default function SpotDetailPage() {
               </div>
             )}
 
-            <button className="btn btn-primary" onClick={() => { trackEvent('view'); navigate(`/spots?lat=${spot.latitude}&lng=${spot.longitude}&radiusKm=1`) }}>
+            <button className="btn btn-primary" onClick={() => { trackEvent('view'); navigate(`/spots?mode=nearby&lat=${spot.latitude}&lng=${spot.longitude}&radiusKm=0.1`) }}>
                View on map
             </button>
           </>

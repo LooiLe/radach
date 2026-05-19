@@ -162,16 +162,18 @@ export default function SpotsPage() {
     setStatus('Loading spots...')
     const params = new URLSearchParams()
     
+    const modeToUse = filters?.mode || searchMode;
+
     // Handle different search modes
-    if (searchMode === 'nearby' && filters?.lat && filters?.lng && filters?.radiusKm) {
+    if (modeToUse === 'nearby' && filters?.lat && filters?.lng && filters?.radiusKm) {
       // Nearby search by radius
       params.set('lat', filters.lat)
       params.set('lng', filters.lng)
       params.set('radiusKm', filters.radiusKm)
-    } else if (searchMode === 'place' && filters?.search) {
+    } else if (modeToUse === 'place' && filters?.search) {
       // Place search by keyword
       params.set('q', filters.search)
-    } else if (searchMode === 'place' && filters?.lat && filters?.lng) {
+    } else if (modeToUse === 'place' && filters?.lat && filters?.lng) {
       // Place search by coordinates (fallback)
       params.set('lat', filters.lat)
       params.set('lng', filters.lng)
@@ -180,7 +182,7 @@ export default function SpotsPage() {
     params.set('sortBy', filters?.sortBy || sortBy)
     try {
       let path = '/api/v1/spots'
-      if (searchMode === 'place' && filters?.search) {
+      if (modeToUse === 'place' && filters?.search) {
         path = '/api/v1/spots/search'
       }
       const queryString = params.toString()
@@ -202,16 +204,16 @@ export default function SpotsPage() {
     
     if (pQ && pMode === 'place') {
       // Place search by keyword from URL
-      loadSpots({ search: pQ, sortBy: pSort })
+      loadSpots({ search: pQ, sortBy: pSort, mode: pMode })
     } else if (pLat && pLng && pR && pMode === 'nearby') {
       // Nearby search with radius
-      loadSpots({ lat: pLat, lng: pLng, radiusKm: pR, sortBy: pSort })
+      loadSpots({ lat: pLat, lng: pLng, radiusKm: pR, sortBy: pSort, mode: pMode })
     } else if (pLat && pLng && pMode === 'place') {
       // Place search by coordinates from URL
-      loadSpots({ lat: pLat, lng: pLng, sortBy: pSort })
+      loadSpots({ lat: pLat, lng: pLng, sortBy: pSort, mode: pMode })
     } else {
       // Default search - load popular spots
-      loadSpots({ sortBy: pSort })
+      loadSpots({ sortBy: pSort, mode: pMode })
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
