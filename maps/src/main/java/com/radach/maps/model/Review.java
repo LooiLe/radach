@@ -41,11 +41,7 @@ public class Review {
     @Column(nullable = false, columnDefinition = "text")
     private String body;
 
-<<<<<<< Updated upstream
     @Column(nullable = false)
-=======
-    @Column(nullable = false, columnDefinition = "DECIMAL(2,1)")
->>>>>>> Stashed changes
     private Double rating;
 
     @Enumerated(EnumType.STRING)
