@@ -14,6 +14,9 @@ public class SpotCategory {
     @Column(nullable = false, unique = true)
     private String name;
 
+    @Column(name = "icon_url")
+    private String iconUrl = "/icons/stash--pin-location-light.svg";
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
@@ -31,6 +34,14 @@ public class SpotCategory {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public String getIconUrl() {
+        return iconUrl;
+    }
+
+    public void setIconUrl(String iconUrl) {
+        this.iconUrl = iconUrl;
     }
 
     public Instant getCreatedAt() {

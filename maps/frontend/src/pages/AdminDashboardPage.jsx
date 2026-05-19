@@ -64,6 +64,8 @@ export default function AdminDashboardPage() {
   // === CATEGORIES TAB ===
   const [categories, setCategories] = useState([])
   const [newCatName, setNewCatName] = useState('')
+  const [newCatIconUrl, setNewCatIconUrl] = useState('')
+  const [uploadingIcon, setUploadingIcon] = useState(false)
   const [catMsg, setCatMsg] = useState({ type: '', text: '' })
 
   const loadCategories = useCallback(async () => {
@@ -81,18 +83,67 @@ export default function AdminDashboardPage() {
     } catch { /* ignore */ }
   }, [apiFetch])
 
+  const handleCatIconUpload = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    setUploadingIcon(true)
+    setCatMsg({ type: '', text: '' })
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await apiFetch('/api/v1/upload', { method: 'POST', body: formData })
+      if (res.ok) {
+        const data = await res.json()
+        setNewCatIconUrl(data.url)
+        setCatMsg({ type: 'success', text: 'Icon uploaded successfully!' })
+      } else {
+        setCatMsg({ type: 'error', text: 'Failed to upload icon' })
+      }
+    } catch {
+      setCatMsg({ type: 'error', text: 'Error uploading icon' })
+    } finally {
+      setUploadingIcon(false)
+      e.target.value = ''
+    }
+  }
+
+  const updateExistingCatIcon = async (id, e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    setCatMsg({ type: '', text: '' })
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await apiFetch('/api/v1/upload', { method: 'POST', body: formData })
+      if (res.ok) {
+        const data = await res.json()
+        await apiFetch(`/api/v1/admin/categories/${id}/icon`, {
+          method: 'PUT',
+          body: JSON.stringify({ iconUrl: data.url })
+        })
+        loadCategories()
+        setCatMsg({ type: 'success', text: 'Category icon updated successfully!' })
+      }
+    } catch {
+      setCatMsg({ type: 'error', text: 'Failed to update category icon' })
+    } finally {
+      e.target.value = ''
+    }
+  }
+
   const addCategory = async () => {
     if (!newCatName.trim()) return
     setCatMsg({ type: '', text: '' })
     try {
       const res = await apiFetch('/api/v1/admin/categories', {
         method: 'POST',
-        body: JSON.stringify({ name: newCatName.trim() })
+        body: JSON.stringify({ name: newCatName.trim(), iconUrl: newCatIconUrl.trim() })
       })
       const data = await res.json()
       if (res.ok) {
         setCatMsg({ type: 'success', text: `Added category: ${data.name}` })
         setNewCatName('')
+        setNewCatIconUrl('')
         loadCategories()
       } else {
         setCatMsg({ type: 'error', text: data.error || 'Failed to add category' })
@@ -232,25 +283,51 @@ export default function AdminDashboardPage() {
         <div className="admin-categories glass">
           <h3 className="admin-form-title">Spot Categories</h3>
           
-          <div className="add-category-row">
-            <input 
-              className="input" 
-              value={newCatName} 
-              onChange={e => setNewCatName(e.target.value)} 
-              placeholder="New category name..." 
-              onKeyDown={e => e.key === 'Enter' && addCategory()}
-            />
-            <button className="btn btn-primary" onClick={addCategory}>➕ Add</button>
+          <div className="add-category-box" style={{ background: 'var(--bg-card)', padding: '1.25rem', borderRadius: 'var(--radius-md)', marginBottom: '1.5rem', border: '1px solid var(--border)' }}>
+            <h4 style={{ margin: '0 0 1rem 0', fontSize: '1rem', color: 'var(--text-secondary)' }}>Create New Category</h4>
+            <div className="add-category-row" style={{ marginBottom: '1rem' }}>
+              <input 
+                className="input" 
+                value={newCatName} 
+                onChange={e => setNewCatName(e.target.value)} 
+                placeholder="Category name (e.g. Museum)..." 
+                onKeyDown={e => e.key === 'Enter' && addCategory()}
+              />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <div className="category-icon" style={{ width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <img src={newCatIconUrl || '/icons/stash--pin-location-light.svg'} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                </div>
+                <div>
+                  <label className="btn btn-sm" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', cursor: 'pointer', display: 'inline-block' }}>
+                    {uploadingIcon ? 'Uploading...' : '📁 Upload Custom Icon'}
+                    <input type="file" accept="image/svg+xml, image/png, image/webp" style={{ display: 'none' }} onChange={handleCatIconUpload} disabled={uploadingIcon} />
+                  </label>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>SVG or PNG (default pin icon if none)</div>
+                </div>
+              </div>
+              <button className="btn btn-primary" onClick={addCategory} style={{ padding: '0.6rem 1.5rem' }}>➕ Add Category</button>
+            </div>
           </div>
           {catMsg.text && <div className={`msg msg-${catMsg.type}`} style={{ marginBottom: '1rem' }}>{catMsg.text}</div>}
 
           <div className="categories-list">
             {categories.map(c => (
               <div key={c.id} className="category-item">
-                <span className="category-name">{c.name}</span>
-                {c.name.toLowerCase() !== 'other' && (
-                  <button className="btn btn-danger btn-sm" onClick={() => deleteCategory(c.id)}>Delete</button>
-                )}
+                <div className="category-info">
+                  <img className="category-icon" src={c.iconUrl || '/icons/stash--pin-location-light.svg'} alt={c.name} />
+                  <span className="category-name">{c.name}</span>
+                </div>
+                <div className="category-actions">
+                  <label className="btn btn-sm" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', cursor: 'pointer', margin: 0 }}>
+                    ✏️ Change Icon
+                    <input type="file" accept="image/svg+xml, image/png, image/webp" style={{ display: 'none' }} onChange={(e) => updateExistingCatIcon(c.id, e)} />
+                  </label>
+                  {c.name.toLowerCase() !== 'other' && (
+                    <button className="btn btn-danger btn-sm" onClick={() => deleteCategory(c.id)}>Delete</button>
+                  )}
+                </div>
               </div>
             ))}
             {categories.length === 0 && <p className="text-muted">No categories found.</p>}

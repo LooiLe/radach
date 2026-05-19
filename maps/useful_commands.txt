@@ -60,3 +60,11 @@ ssh root@93.127.194.132 "sudo -u postgres psql -d mapsdb"
 SELECT id, name, email, role FROM users;
 UPDATE users SET role = 'SUPER_ADMIN' WHERE email = 'your@email.com';
 \q
+
+
+# ============================================
+# ENVIRONMENT VARIABLES
+# ============================================
+
+scp .env root@93.127.194.132:/opt/radach-maps/.env
+ssh root@93.127.194.132 "systemctl restart radach-maps"

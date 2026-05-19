@@ -6,7 +6,7 @@ import { useApi } from '../hooks/useApi'
 import SpotCard from '../components/SpotCard'
 import './SavedSpotsPage.css'
 import 'leaflet/dist/leaflet.css'
-const markerIconMap = {
+let dynamicIconMap = {
   restaurant: '/icons/material-symbols-light--chef-hat-outline.svg',
   bar: '/icons/guidance--bar.svg',
   hotel: '/icons/material-symbols-light--hotel-outline-rounded.svg',
@@ -23,7 +23,7 @@ const markerIconMap = {
 
 function createMarkerIcon(type) {
   const normalized = (type || '').toString().trim().toLowerCase().replace('é', 'e')
-  const icon = markerIconMap[normalized] || markerIconMap.default
+  const icon = dynamicIconMap[normalized] || dynamicIconMap.default
   return new L.DivIcon({
     html: `<div class="custom-map-marker"><img src="${icon}" alt="${type || 'Spot'}" /></div>`,
     className: 'custom-leaflet-marker',
@@ -48,55 +48,46 @@ export default function SavedSpotsPage() {
   const [status, setStatus] = useState('Loading saved spots...')
   const [bounds, setBounds] = useState([])
 
-  const [selectedCategories, setSelectedCategories] = useState({
-    all: true,
-    restaurant: true,
-    bar: true,
-    hotel: true,
-    cafe: true,
-    'food hall': true,
-    beach: true,
-    market: true,
-    viewpoint: true,
-    activities: true,
-    'dine & play': true,
-    children: true,
-    sport: true,
-    trail: true,
-    other: true,
-  })
-
+  // Category filter state
+  const [categoriesList, setCategoriesList] = useState([])
+  const [selectedCategories, setSelectedCategories] = useState({ all: true })
   const [filterDropdownOpen, setFilterDropdownOpen] = useState(false)
 
-  const categoryLabels = {
-    all: 'All',
-    restaurant: 'Restaurant',
-    bar: 'Bar',
-    hotel: 'Hotel',
-    cafe: 'Café',
-    'food hall': 'Food Hall',
-    beach: 'Beach',
-    market: 'Market',
-    viewpoint: 'Viewpoint',
-    activities: 'Activities',
-    'dine & play': 'Dine & Play',
-    children: 'Children',
-    sport: 'Sport',
-    trail: 'Trail',
-    other: 'Other',
-  }
+  useEffect(() => {
+    async function fetchCatList() {
+      try {
+        const res = await apiFetch('/api/v1/categories')
+        const data = await res.json()
+        if (res.ok && data.length > 0) {
+          const sorted = data.sort((a, b) => {
+            if (a.name.toLowerCase() === 'other') return 1;
+            if (b.name.toLowerCase() === 'other') return -1;
+            return a.name.localeCompare(b.name);
+          })
+          setCategoriesList(sorted)
 
-  const categories = Object.keys(selectedCategories).filter(c => c !== 'all').map(c => ({
-    id: c,
-    label: categoryLabels[c],
-  }))
+          const selMap = { all: true }
+          sorted.forEach(c => {
+            const norm = c.name.trim().toLowerCase().replace('é', 'e')
+            selMap[norm] = true
+            if (c.iconUrl) {
+              dynamicIconMap[norm] = c.iconUrl
+            }
+          })
+          setSelectedCategories(selMap)
+        }
+      } catch { /* ignore */ }
+    }
+    fetchCatList()
+  }, [apiFetch])
 
   const toggleCategory = (categoryId) => {
     if (categoryId === 'all') {
-      const allSelected = Object.values(selectedCategories).every(v => v === true)
-      const newState = {}
-      Object.keys(categoryLabels).forEach(key => {
-        newState[key] = !allSelected
+      const allSelected = Object.keys(selectedCategories).filter(k => k !== 'all').every(k => selectedCategories[k] === true)
+      const newState = { all: !allSelected }
+      categoriesList.forEach(c => {
+        const norm = c.name.trim().toLowerCase().replace('é', 'e')
+        newState[norm] = !allSelected
       })
       setSelectedCategories(newState)
     } else {
@@ -168,17 +159,21 @@ export default function SavedSpotsPage() {
                 <span>All</span>
               </label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', maxHeight: '300px', overflowY: 'auto' }}>
-                {categories.map(cat => (
-                  <label key={cat.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500' }}>
-                    <input
-                      type="checkbox"
-                      checked={selectedCategories[cat.id]}
-                      onChange={() => toggleCategory(cat.id)}
-                      style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: 'var(--text-primary)' }}
-                    />
-                    <span>{cat.label}</span>
-                  </label>
-                ))}
+                {categoriesList.map(cat => {
+                  const norm = cat.name.trim().toLowerCase().replace('é', 'e')
+                  return (
+                    <label key={cat.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500' }}>
+                      <input
+                        type="checkbox"
+                        checked={!!selectedCategories[norm]}
+                        onChange={() => toggleCategory(norm)}
+                        style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: 'var(--text-primary)' }}
+                      />
+                      <img src={cat.iconUrl || '/icons/stash--pin-location-light.svg'} alt="" style={{ width: 16, height: 16, objectFit: 'contain' }} />
+                      <span>{cat.name}</span>
+                    </label>
+                  )
+                })}
               </div>
             </div>
           )}

@@ -37,10 +37,31 @@ public class SpotCategoryController {
             return ResponseEntity.badRequest().body(Map.of("error", "Category already exists"));
         }
 
+        String iconUrl = body.get("iconUrl");
+        if (iconUrl == null || iconUrl.trim().isEmpty()) {
+            iconUrl = "/icons/stash--pin-location-light.svg";
+        }
+
         SpotCategory category = new SpotCategory();
         category.setName(name);
+        category.setIconUrl(iconUrl.trim());
         categoryRepository.save(category);
 
+        return ResponseEntity.ok(category);
+    }
+
+    @PutMapping("/admin/categories/{id}/icon")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
+    public ResponseEntity<?> updateCategoryIcon(@PathVariable Long id, @RequestBody Map<String, String> body) {
+        SpotCategory category = categoryRepository.findById(id).orElse(null);
+        if (category == null) {
+            return ResponseEntity.notFound().build();
+        }
+        String iconUrl = body.get("iconUrl");
+        if (iconUrl != null && !iconUrl.trim().isEmpty()) {
+            category.setIconUrl(iconUrl.trim());
+            categoryRepository.save(category);
+        }
         return ResponseEntity.ok(category);
     }
 
