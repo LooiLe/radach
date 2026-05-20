@@ -96,6 +96,16 @@ public interface SpotRepository extends JpaRepository<Spot, Long> {
             """, nativeQuery = true)
     List<Spot> findByTagIds(@Param("tagIds") List<Long> tagIds);
 
+    /** Find spots by vibe tag name (via the spot_vibe_tags + vibe_tag_definitions join). */
+    @Query(value = """
+            SELECT DISTINCT s.* FROM spots s
+            JOIN spot_vibe_tags svt ON svt.spot_id = s.id
+            JOIN vibe_tag_definitions vtd ON vtd.id = svt.vibe_tag_id
+            WHERE LOWER(vtd.name) = LOWER(:vibeName) AND s.status = 'ACTIVE'
+            ORDER BY svt.confidence DESC, s.rank_score DESC
+            """, nativeQuery = true)
+    List<Spot> findByVibeTagName(@Param("vibeName") String vibeName);
+
     List<Spot> findTop20ByStatusOrderByRankScoreDesc(com.radach.maps.model.SpotStatus status);
 
     List<Spot> findAllByStatusOrderByRankScoreDesc(com.radach.maps.model.SpotStatus status);

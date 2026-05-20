@@ -10,11 +10,16 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.radach.maps.dto.SpotRequest;
 import com.radach.maps.dto.SpotResponse;
+import com.radach.maps.dto.VibeTagDTO;
 import com.radach.maps.exception.ResourceNotFoundException;
 import com.radach.maps.model.Spot;
 import com.radach.maps.model.SpotStatus;
+import com.radach.maps.model.SpotVibeTag;
+import com.radach.maps.model.VibeTagDefinition;
 import com.radach.maps.repository.ReviewRepository;
 import com.radach.maps.repository.SpotRepository;
+import com.radach.maps.repository.SpotVibeTagRepository;
+import com.radach.maps.repository.VibeTagDefinitionRepository;
 
 @Service
 public class SpotService {
@@ -26,14 +31,37 @@ public class SpotService {
     private final com.radach.maps.repository.UserSpotInteractionRepository interactionRepository;
 
     private final com.radach.maps.repository.UserRepository userRepository;
+    private final SpotVibeTagRepository spotVibeRepo;
+    private final VibeTagDefinitionRepository vibeDefRepo;
 
-    public SpotService(SpotRepository spotRepository, ReviewRepository reviewRepository, FriendshipService friendshipService, com.radach.maps.repository.SpotEventRepository spotEventRepository, com.radach.maps.repository.UserSpotInteractionRepository interactionRepository, com.radach.maps.repository.UserRepository userRepository) {
+    public SpotService(SpotRepository spotRepository, ReviewRepository reviewRepository, FriendshipService friendshipService, com.radach.maps.repository.SpotEventRepository spotEventRepository, com.radach.maps.repository.UserSpotInteractionRepository interactionRepository, com.radach.maps.repository.UserRepository userRepository, SpotVibeTagRepository spotVibeRepo, VibeTagDefinitionRepository vibeDefRepo) {
         this.spotRepository = spotRepository;
         this.reviewRepository = reviewRepository;
         this.friendshipService = friendshipService;
         this.spotEventRepository = spotEventRepository;
         this.interactionRepository = interactionRepository;
         this.userRepository = userRepository;
+        this.spotVibeRepo = spotVibeRepo;
+        this.vibeDefRepo = vibeDefRepo;
+    }
+
+    /** Load vibe tags for a spot and convert to DTOs. */
+    private List<VibeTagDTO> loadVibeTags(Long spotId) {
+        return spotVibeRepo.findBySpotId(spotId).stream()
+                .map(svt -> {
+                    VibeTagDefinition def = vibeDefRepo.findById(svt.getVibeTagId()).orElse(null);
+                    if (def == null) return null;
+                    return new VibeTagDTO(
+                            def.getId(),
+                            def.getName(),
+                            def.getEmoji(),
+                            def.getCategory(),
+                            svt.getConfidence(),
+                            svt.getSource()
+                    );
+                })
+                .filter(dto -> dto != null)
+                .toList();
     }
 
     private List<SpotResponse> withRatingsAndInteractions(List<Spot> spots, Long authenticatedUserId) {
@@ -55,6 +83,13 @@ public class SpotService {
                 userRepository.findAllById(submitterIds).stream()
                 .collect(Collectors.toMap(com.radach.maps.model.User::getId, java.util.function.Function.identity()));
 
+        // Batch-load vibe tags for all spots to avoid N+1
+        Map<Long, List<VibeTagDTO>> vibeTagMap = spotIds.stream()
+                .collect(Collectors.toMap(
+                        id -> id,
+                        id -> loadVibeTags(id)
+                ));
+
         return spots.stream()
                 .map(spot -> {
                     com.radach.maps.model.User submitter = spot.getSubmittedBy() != null ? submitters.get(spot.getSubmittedBy()) : null;
@@ -65,7 +100,8 @@ public class SpotService {
                             savedSpotIds.contains(spot.getId()),
                             submitter != null ? submitter.getId() : null,
                             submitter != null ? submitter.getName() : null,
-                            submitter != null && submitter.isExpert()
+                            submitter != null && submitter.isExpert(),
+                            vibeTagMap.getOrDefault(spot.getId(), List.of())
                     );
                 })
                 .toList();
@@ -110,12 +146,14 @@ public class SpotService {
             }
         }
         
+        List<VibeTagDTO> vibeTags = loadVibeTags(id);
         com.radach.maps.model.User submitter = spot.getSubmittedBy() != null ? userRepository.findById(spot.getSubmittedBy()).orElse(null) : null;
         return new SpotResponse(
                 spot, avg, isLiked, isSaved, 
                 submitter != null ? submitter.getId() : null,
                 submitter != null ? submitter.getName() : null,
-                submitter != null && submitter.isExpert()
+                submitter != null && submitter.isExpert(),
+                vibeTags
         );
     }
 
@@ -328,7 +366,16 @@ public class SpotService {
         if (q == null || q.isBlank()) {
             throw new IllegalArgumentException("Search query is required");
         }
-        return withRatingsAndInteractions(spotRepository.searchByNameOrTag(q.trim()), authenticatedUserId);
+        String trimmed = q.trim();
+        // Handle vibe: prefix — search by vibe tag name
+        if (trimmed.toLowerCase().startsWith("vibe:")) {
+            String vibeName = trimmed.substring(5).trim();
+            if (vibeName.isEmpty()) {
+                throw new IllegalArgumentException("Vibe tag name is required after 'vibe:'");
+            }
+            return withRatingsAndInteractions(spotRepository.findByVibeTagName(vibeName), authenticatedUserId);
+        }
+        return withRatingsAndInteractions(spotRepository.searchByNameOrTag(trimmed), authenticatedUserId);
     }
     
     @Transactional
