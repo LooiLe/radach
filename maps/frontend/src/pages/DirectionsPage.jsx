@@ -25,6 +25,26 @@ const createStartIcon = () => {
   })
 }
 
+const createNavUserIcon = (heading) => {
+  const rotation = (heading !== null && heading !== undefined && !isNaN(heading)) ? heading : 0;
+  return new L.DivIcon({
+    html: `
+      <div class="nav-user-marker-container">
+        <div class="nav-user-dot"></div>
+        <div class="nav-user-arrow" style="transform: rotate(${rotation}deg); opacity: ${heading !== null && heading !== undefined ? '1' : '0.4'};">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#3b82f6" stroke="#ffffff" stroke-width="2" stroke-linejoin="round">
+            <path d="M12 2L4 20L12 17L20 20L12 2Z" />
+          </svg>
+        </div>
+      </div>
+    `,
+    className: 'nav-user-leaflet-icon',
+    iconSize: [48, 48],
+    iconAnchor: [24, 24],
+    popupAnchor: [0, -24],
+  })
+}
+
 const createEndIcon = () => {
   return new L.DivIcon({
     html: `<div class="custom-map-marker" style="border: 3px solid #e11d48;"><img src="/icons/stash--pin-location-light.svg" alt="End" /></div>`,
@@ -58,11 +78,15 @@ const ZoomControls = () => {
 }
 
 // Fit map to bounds component
-function FitBounds({ bounds }) {
+function FitBounds({ bounds, isNavigating, liveLocation }) {
   const map = useMap()
   useEffect(() => {
-    if (bounds?.length) map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 })
-  }, [bounds, map])
+    if (isNavigating && liveLocation) {
+      map.flyTo([liveLocation.lat, liveLocation.lng], 17, { animate: true, duration: 1 })
+    } else if (bounds?.length && !isNavigating) {
+      map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 })
+    }
+  }, [bounds, map, isNavigating, liveLocation])
   return null
 }
 
@@ -79,6 +103,13 @@ export default function DirectionsPage() {
   
   const [routeData, setRouteData] = useState(null)
   const [routeInfo, setRouteInfo] = useState(null) // { distance, duration }
+  
+  // Navigation State
+  const [routeSteps, setRouteSteps] = useState([])
+  const [isNavigating, setIsNavigating] = useState(false)
+  const [currentStepIndex, setCurrentStepIndex] = useState(0)
+  const [watchId, setWatchId] = useState(null)
+  const [liveLocation, setLiveLocation] = useState(null)
   
   // Search state
   const [startInputText, setStartInputText] = useState('Current Location')
@@ -172,7 +203,7 @@ export default function DirectionsPage() {
       
       try {
         // OSRM expects coordinates as lon,lat
-        const url = `https://router.project-osrm.org/route/v1/driving/${startPoint.lng},${startPoint.lat};${endPoint.lng},${endPoint.lat}?overview=full&geometries=geojson`
+        const url = `https://router.project-osrm.org/route/v1/driving/${startPoint.lng},${startPoint.lat};${endPoint.lng},${endPoint.lat}?overview=full&geometries=geojson&steps=true`
         
         // Note: For a public production app, replace this free public API with a dedicated OSRM instance or commercial API (e.g. Mapbox).
         const res = await fetch(url)
@@ -181,6 +212,12 @@ export default function DirectionsPage() {
         if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
           const route = data.routes[0]
           setRouteData(route.geometry)
+          
+          if (route.legs && route.legs.length > 0 && route.legs[0].steps) {
+            setRouteSteps(route.legs[0].steps)
+          } else {
+            setRouteSteps([])
+          }
           
           // distance in meters, duration in seconds
           const distanceKm = (route.distance / 1000).toFixed(1)
@@ -373,6 +410,55 @@ export default function DirectionsPage() {
     )
   }
 
+  // Navigation functions
+  const startNavigation = () => {
+    setIsNavigating(true)
+    setCurrentStepIndex(0)
+    
+    // Automatically reroute from current location if they used a custom start point
+    if (!usingCurrentLocation && navigator.geolocation) {
+      setStatus('Rerouting from your current location...')
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setStartPoint({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+            name: 'Current Location'
+          })
+          setStartInputText('Current Location')
+          setUsingCurrentLocation(true)
+        },
+        (error) => console.warn('Could not reroute from current location:', error),
+        { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 }
+      )
+    }
+    
+    if (navigator.geolocation) {
+      const id = navigator.geolocation.watchPosition(
+        (position) => {
+          const newLoc = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+            heading: position.coords.heading !== null ? position.coords.heading : null
+          }
+          setLiveLocation(newLoc)
+        },
+        (error) => console.warn('Navigation watch error:', error),
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
+      )
+      setWatchId(id)
+    }
+  }
+
+  const stopNavigation = () => {
+    setIsNavigating(false)
+    if (watchId !== null) {
+      navigator.geolocation.clearWatch(watchId)
+      setWatchId(null)
+    }
+    setLiveLocation(null)
+  }
+
   // Calculate bounds to show both start and end point
   const mapBounds = []
   if (startPoint) mapBounds.push([startPoint.lat, startPoint.lng])
@@ -383,18 +469,20 @@ export default function DirectionsPage() {
   const center = mapBounds.length > 0 ? mapBounds[0] : defaultCenter
 
   return (
-    <div className="directions-page animate-fade-in">
+    <div className={`directions-page ${isNavigating ? 'navigating-mode' : ''} animate-fade-in`}>
       <div className="directions-panel">
-        <div className="directions-header">
-          <div className="directions-header-title">
-            <button className="btn btn-ghost" onClick={() => navigate(-1)} style={{ padding: '0.2rem', minWidth: 'auto', marginRight: '0.2rem' }}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="19" y1="12" x2="5" y2="12"></line>
-                <polyline points="12 19 5 12 12 5"></polyline>
-              </svg>
-            </button>
-            <h2>Directions</h2>
-          </div>
+        {!isNavigating ? (
+          <>
+            <div className="directions-header">
+              <div className="directions-header-title">
+                <button className="btn btn-ghost" onClick={() => navigate(-1)} style={{ padding: '0.2rem', minWidth: 'auto', marginRight: '0.2rem' }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="19" y1="12" x2="5" y2="12"></line>
+                    <polyline points="12 19 5 12 12 5"></polyline>
+                  </svg>
+                </button>
+                <h2>Directions</h2>
+              </div>
 
           <div className="location-inputs">
             <div className="input-connector"></div>
@@ -496,10 +584,71 @@ export default function DirectionsPage() {
                   <span className="route-info-label">Est. Time:</span>
                   <span className="route-info-value" style={{ color: 'var(--success)' }}>{routeInfo.duration}</span>
                 </div>
+                
+                {routeSteps.length > 0 && (
+                  <button className="btn btn-primary" onClick={startNavigation} style={{ width: '100%', marginTop: '1rem', display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"></polygon></svg>
+                    Start Navigation
+                  </button>
+                )}
               </>
             )}
           </div>
         )}
+      </>
+    ) : (
+      <div className="navigation-ui">
+        <div className="nav-header">
+          <button className="btn btn-outline" onClick={stopNavigation} style={{ marginBottom: '1rem', width: '100%' }}>
+            Exit Navigation
+          </button>
+          
+          {routeSteps.length > 0 && currentStepIndex < routeSteps.length && (
+            <div className="current-step">
+              <div className="step-instruction">
+                {routeSteps[currentStepIndex].maneuver.modifier && (
+                  <span className="step-modifier">{routeSteps[currentStepIndex].maneuver.modifier}</span>
+                )}
+                <h3>{routeSteps[currentStepIndex].maneuver.instruction || `Turn ${routeSteps[currentStepIndex].maneuver.modifier || ''} onto ${routeSteps[currentStepIndex].name || 'unknown road'}`}</h3>
+                <p>In {routeSteps[currentStepIndex].distance} meters</p>
+              </div>
+            </div>
+          )}
+        </div>
+        
+        <div className="nav-steps-list">
+          <h4>Upcoming Steps</h4>
+          {routeSteps.slice(currentStepIndex + 1, currentStepIndex + 6).map((step, idx) => (
+            <div key={idx} className="nav-step-item">
+              <div className="nav-step-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+              </div>
+              <div className="nav-step-text">
+                {step.maneuver.instruction || `${step.maneuver.modifier ? step.maneuver.modifier : 'Proceed'} ${step.name ? 'on ' + step.name : ''}`}
+                <div className="nav-step-dist">{step.distance}m</div>
+              </div>
+            </div>
+          ))}
+        </div>
+        
+        <div className="nav-controls">
+          <button 
+            className="btn btn-ghost" 
+            disabled={currentStepIndex === 0}
+            onClick={() => setCurrentStepIndex(prev => Math.max(0, prev - 1))}
+          >
+            Previous
+          </button>
+          <button 
+            className="btn btn-primary"
+            disabled={currentStepIndex >= routeSteps.length - 1}
+            onClick={() => setCurrentStepIndex(prev => Math.min(routeSteps.length - 1, prev + 1))}
+          >
+            Next Step
+          </button>
+        </div>
+      </div>
+    )}
       </div>
 
       <div className="directions-map">
@@ -514,9 +663,15 @@ export default function DirectionsPage() {
             attribution='Map tiles by <a href="https://stadiamaps.com/">Stadia Maps</a>, <a href="https://openmaptiles.org/">OpenMapTiles</a>, and <a href="http://openstreetmap.org">OpenStreetMap</a> contributors'
           />
           
-          {startPoint && (
+          {startPoint && !isNavigating && (
             <Marker position={[startPoint.lat, startPoint.lng]} icon={createStartIcon()}>
               <Popup><strong>Start:</strong> {startPoint.name}</Popup>
+            </Marker>
+          )}
+          
+          {isNavigating && liveLocation && (
+            <Marker position={[liveLocation.lat, liveLocation.lng]} icon={createNavUserIcon(liveLocation.heading)} zIndexOffset={1000}>
+              <Popup><strong>You are here</strong></Popup>
             </Marker>
           )}
           
@@ -539,7 +694,7 @@ export default function DirectionsPage() {
             />
           )}
           
-          <FitBounds bounds={mapBounds} />
+          <FitBounds bounds={mapBounds} isNavigating={isNavigating} liveLocation={liveLocation} />
           <ZoomControls />
         </MapContainer>
       </div>

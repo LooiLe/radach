@@ -212,3 +212,174 @@
     z-index: 10;
   }
 }
+
+/* Navigation Mode UI */
+.navigating-mode .directions-panel {
+  top: 1rem;
+  left: 1rem;
+  bottom: 1rem;
+  width: 360px;
+}
+
+.navigation-ui {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-surface);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.nav-header {
+  padding: 1.5rem;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+}
+
+.current-step {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: var(--bg-surface);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.step-modifier {
+  display: inline-block;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  color: var(--primary);
+  margin-bottom: 0.25rem;
+}
+
+.step-instruction h3 {
+  font-size: 1.25rem;
+  margin: 0 0 0.5rem 0;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+
+.step-instruction p {
+  font-size: 0.95rem;
+  margin: 0;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.nav-steps-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+}
+
+.nav-steps-list h4 {
+  margin: 0 0 1rem 0;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+}
+
+.nav-step-item {
+  display: flex;
+  gap: 1rem;
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.nav-step-item:last-child {
+  border-bottom: none;
+}
+
+.nav-step-icon {
+  width: 32px;
+  height: 32px;
+  background: var(--bg-card);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-primary);
+  flex-shrink: 0;
+}
+
+.nav-step-text {
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.nav-step-dist {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-top: 0.25rem;
+}
+
+.nav-controls {
+  display: flex;
+  justify-content: space-between;
+  padding: 1rem;
+  border-top: 1px solid var(--border);
+  background: var(--bg-card);
+}
+
+/* Navigation User Marker */
+.nav-user-leaflet-icon {
+  background: transparent;
+  border: none;
+}
+
+.nav-user-marker-container {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-user-dot {
+  width: 16px;
+  height: 16px;
+  background-color: #3b82f6; /* bright blue */
+  border: 3px solid #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+  position: absolute;
+  z-index: 2;
+}
+
+.nav-user-arrow {
+  position: absolute;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+  transition: transform 0.3s ease;
+}
+
+.nav-user-arrow svg {
+  width: 32px;
+  height: 32px;
+  /* The SVG path is drawn such that 'up' is the direction. We offset it to rotate around the dot. */
+  transform: translateY(-12px);
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+}
+
+@media (max-width: 768px) {
+  .navigating-mode .directions-panel {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 40vh; /* Bottom drawer style for mobile navigation */
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    border-top: 1px solid var(--border);
+  }
+}

@@ -7,9 +7,9 @@ Before launching to a public audience, the following services should be updated:
 
 1. OSRM Routing API
 -------------------
-- Used in: Directions Feature
+- Used in: Directions Feature and Navigation Mode
 - Current URL: https://router.project-osrm.org/route/v1/...
-- The Issue: The public OSRM server is strictly for testing and light non-commercial use. High traffic or commercial usage will result in the application being rate-limited or permanently blocked.
+- The Issue: The public OSRM server is strictly for testing and light non-commercial use. High traffic or commercial usage will result in the application being rate-limited or permanently blocked. In addition, getting detailed turn-by-turn navigation steps (`&steps=true`) makes the payload larger and increases the load on the public server.
 - Production Solutions:
   A) Self-Host (Free but requires server maintenance): OSRM is open-source. We can spin up a dedicated Linux server (like a DigitalOcean Droplet) and run the OSRM backend via Docker.
   B) Commercial API (Easiest): Switch to Mapbox Directions API. Mapbox offers a generous free tier (up to 100,000 requests/month) and requires no server maintenance.
