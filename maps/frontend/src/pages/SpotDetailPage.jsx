@@ -341,10 +341,6 @@ export default function SpotDetailPage() {
               <button className="btn btn-primary" onClick={saveSpot} disabled={saving}>{saving ? 'Saving...' : ' Save changes'}</button>
               <button className="btn btn-ghost" onClick={deleteSpot} disabled={saving} style={{ color: 'var(--text-error)' }}> Delete spot</button>
             </div>
-
-            <div className="view-map-wrapper">
-              <button className="btn btn-ghost" onClick={() => { trackEvent('view'); navigate(`/spots?mode=nearby&lat=${spot.latitude}&lng=${spot.longitude}&radiusKm=2`) }}> View on map</button>
-            </div>
           </div>
         ) : (
           <>
@@ -471,22 +467,22 @@ export default function SpotDetailPage() {
 
       <div className="reviews-list">
         <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
-          <button 
-            className={`btn ${reviewFilter === 'all' ? 'btn-primary' : 'btn-ghost'}`} 
+          <button
+            className={`btn ${reviewFilter === 'all' ? 'btn-primary' : 'btn-ghost'}`}
             onClick={() => setReviewFilter('all')}
           >All Reviews</button>
-          <button 
-            className={`btn ${reviewFilter === 'expert' ? 'btn-primary' : 'btn-ghost'}`} 
+          <button
+            className={`btn ${reviewFilter === 'expert' ? 'btn-primary' : 'btn-ghost'}`}
             onClick={() => setReviewFilter('expert')}
           >Experts</button>
-          <button 
-            className={`btn ${reviewFilter === 'user' ? 'btn-primary' : 'btn-ghost'}`} 
+          <button
+            className={`btn ${reviewFilter === 'user' ? 'btn-primary' : 'btn-ghost'}`}
             onClick={() => setReviewFilter('user')}
           >Users</button>
         </div>
         {(() => {
           let filteredReviews = reviews;
-          
+
           if (reviewFilter === 'expert') {
             filteredReviews = filteredReviews.filter(r => r.authorIsExpert);
           } else if (reviewFilter === 'user') {
