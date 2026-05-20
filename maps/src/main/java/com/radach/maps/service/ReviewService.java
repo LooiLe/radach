@@ -48,7 +48,7 @@ public class ReviewService {
         review.setAuthorId(authorId);
         review.setReviewType(reviewType);
         review.setBody(request.body().trim());
-        review.setRating(request.rating());
+        review.setRating(request.rating().doubleValue());
         // All reviews start as PENDING — admin approves or rejects
         review.setStatus(Status.PENDING);
 
