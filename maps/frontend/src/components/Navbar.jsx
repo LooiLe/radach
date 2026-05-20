@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import './Navbar.css'
 
 export default function Navbar() {
-  const { isAuthenticated, isAdmin, isSuperAdmin, role, userId, logout } = useAuth()
+  const { isAuthenticated, isAdmin, isSuperAdmin, role, userId, isExpert, logout } = useAuth()
   const [menuOpen, setMenuOpen] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
@@ -34,11 +34,16 @@ export default function Navbar() {
         </div>
 
         <div className="navbar-right">
+          {isAuthenticated && isExpert && (
+            <span className="badge badge-active" style={{ fontWeight: 700 }}>Expert</span>
+          )}
           {role && role !== 'USER' && isAuthenticated && (
             <span className="badge badge-role"> {role}</span>
           )}
           {isAuthenticated ? (
-            <button className="btn btn-ghost btn-pill" onClick={handleLogout}>Sign out</button>
+            <Link to={`/user/${userId}`} className="btn btn-ghost btn-pill" aria-label="Profile" style={{ padding: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <img src="/icons/iconamoon--profile-thin.svg" alt="Profile" style={{ width: '22px', height: '22px' }} />
+            </Link>
           ) : (
             <>
               <Link to="/login" className="btn btn-ghost btn-pill">Sign in</Link>

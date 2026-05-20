@@ -178,6 +178,7 @@ export default function SpotsPage() {
       // Place search by coordinates (fallback)
       params.set('lat', filters.lat)
       params.set('lng', filters.lng)
+      params.set('radiusKm', filters.radiusKm || '5')
     }
     
     params.set('sortBy', filters?.sortBy || sortBy)
@@ -279,6 +280,7 @@ export default function SpotsPage() {
       loadSpots({ lat: pLat, lng: pLng, sortBy: pSort, mode: pMode })
     } else {
       // Default search - load popular spots
+      loadSpots({ sortBy: pSort, mode: pMode })
       loadSpots({ sortBy: pSort, mode: pMode })
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps

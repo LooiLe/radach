@@ -8,9 +8,14 @@ import './UserProfilePage.css'
 export default function UserProfilePage() {
   const { id } = useParams()
   const { apiFetch } = useApi()
-  const { userId, isExpert: authIsExpert } = useAuth()
-  const navigate = useNavigate()
+  const { userId, isExpert: authIsExpert, logout } = useAuth()
+const navigate = useNavigate()
   
+  const handleLogout = () => {
+    logout()
+    navigate('/login')
+  }
+   
   const [user, setUser] = useState(null)
   const [reviews, setReviews] = useState([])
   const [status, setStatus] = useState('Loading profile...')
@@ -132,7 +137,12 @@ export default function UserProfilePage() {
 
   return (
     <div className="user-profile-page animate-fade-up">
-      <button className="btn btn-ghost back-btn" onClick={() => navigate(-1)}>← Back</button>
+      <div className="profile-actions-row">
+        <button className="btn btn-ghost back-btn" onClick={() => navigate(-1)}>← Back</button>
+        {isOwnProfile && (
+          <button className="btn btn-ghost" onClick={handleLogout} style={{ color: 'var(--text-error)' }}>Sign out</button>
+        )}
+      </div>
 
       <div className="profile-header glass">
         <div className="profile-avatar">
