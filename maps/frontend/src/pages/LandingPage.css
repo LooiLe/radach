@@ -1,4 +1,8 @@
-.landing { position: relative; overflow: hidden; background: #000; }
+.landing {
+  position: relative;
+  overflow: hidden;
+  background: #000;
+}
 
 /* Hero */
 .hero-fullscreen {
@@ -7,7 +11,8 @@
   background-image: url('/images/landing_mural.jpg');
   background-size: cover;
   background-position: center;
-  background-color: #333; /* Fallback */
+  background-color: #333;
+  /* Fallback */
   position: relative;
   display: flex;
   justify-content: flex-end;
@@ -18,8 +23,11 @@
 .hero-fullscreen::before {
   content: '';
   position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: linear-gradient(to left, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.3) 50%, rgba(0,0,0,0) 100%);
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(to left, rgba(0, 0, 0, 0.85) 0%, rgba(0, 0, 0, 0.3) 50%, rgba(0, 0, 0, 0) 100%);
   z-index: 1;
 }
 
@@ -37,7 +45,7 @@
   font-weight: 900;
   line-height: 1.1;
   margin-bottom: 1.5rem;
-  text-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  text-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .highlight-orange {
@@ -50,7 +58,7 @@
   line-height: 1.6;
   margin-bottom: 2.5rem;
   opacity: 0.95;
-  text-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .hero-cta {
@@ -61,10 +69,13 @@
 }
 
 .hero-link {
-  color: rgba(255,255,255,0.8);
+  color: rgba(255, 255, 255, 0.8);
   font-weight: 500;
 }
-.hero-link:hover { color: #fff; }
+
+.hero-link:hover {
+  color: #fff;
+}
 
 .scroll-indicator {
   position: absolute;
@@ -75,15 +86,29 @@
   animation: bounce 2s infinite;
   opacity: 0.9;
 }
+
 .scroll-indicator img {
   width: 48px;
   height: 48px;
 }
 
 @keyframes bounce {
-  0%, 20%, 50%, 80%, 100% { transform: translateY(0) translateX(-50%); }
-  40% { transform: translateY(-20px) translateX(-50%); }
-  60% { transform: translateY(-10px) translateX(-50%); }
+
+  0%,
+  20%,
+  50%,
+  80%,
+  100% {
+    transform: translateY(0) translateX(-50%);
+  }
+
+  40% {
+    transform: translateY(-20px) translateX(-50%);
+  }
+
+  60% {
+    transform: translateY(-10px) translateX(-50%);
+  }
 }
 
 /* Map Features */
@@ -93,7 +118,8 @@
   background-image: url('/images/landing_map.jpg');
   background-size: cover;
   background-position: center;
-  background-color: #f5f5f5; /* Fallback */
+  background-color: #f5f5f5;
+  /* Fallback */
   padding: 6rem 8%;
   display: flex;
   align-items: center;
@@ -102,7 +128,10 @@
 .map-features::before {
   content: '';
   position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   background: #ffffff4d;
   z-index: 1;
 }
@@ -122,6 +151,7 @@
   display: flex;
   align-items: center;
 }
+
 .map-features-left .section-title {
   font-size: clamp(2.5rem, 4vw, 3.8rem);
   line-height: 1.1;
@@ -137,14 +167,15 @@
 }
 
 .feature-item {
-  background: rgba(255,255,255,0.7);
+  background: rgba(255, 255, 255, 0.7);
   padding: 1.5rem 2rem;
   border-radius: var(--radius-lg);
   border-left: 5px solid #121826;
   backdrop-filter: blur(12px);
-  box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
   transition: transform 0.3s var(--ease);
 }
+
 .feature-item:hover {
   transform: translateX(-10px);
 }
@@ -154,6 +185,7 @@
   margin-bottom: 0.5rem;
   color: #121826;
 }
+
 .feature-desc {
   color: #4b5563;
   line-height: 1.6;
@@ -169,6 +201,7 @@
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='5 2 14 20'%3E%3Cpath d='M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z'/%3E%3C/svg%3E") no-repeat center / 100% 100%;
   z-index: 2;
 }
+
 .decorative-pin::after {
   content: '';
   position: absolute;
@@ -181,13 +214,40 @@
   transform: translate(-50%, -50%);
 }
 
-.pin-purple { color: #7c3aed; animation-delay: 0s; }
-.pin-blue { color: #0284c7; animation-delay: 0.7s; }
-.pin-green { color: #10b981; animation-delay: 1.2s; }
-.pin-yellow { color: #eab308; animation-delay: 0.4s; }
-.pin-yellow-2 { color: #eab308; animation-delay: 1.8s; }
-.pin-orange { color: #f97316; animation-delay: 2.2s; }
-.pin-red { color: #ef4444; animation-delay: 0.9s; }
+.pin-purple {
+  color: #7c3aed;
+  animation-delay: 0s;
+}
+
+.pin-blue {
+  color: #0284c7;
+  animation-delay: 0.7s;
+}
+
+.pin-green {
+  color: #10b981;
+  animation-delay: 1.2s;
+}
+
+.pin-yellow {
+  color: #eab308;
+  animation-delay: 0.4s;
+}
+
+.pin-yellow-2 {
+  color: #eab308;
+  animation-delay: 1.8s;
+}
+
+.pin-orange {
+  color: #f97316;
+  animation-delay: 2.2s;
+}
+
+.pin-red {
+  color: #ef4444;
+  animation-delay: 0.9s;
+}
 
 /* Footer */
 .landing-footer {
@@ -201,28 +261,34 @@
 
 @media (max-width: 900px) {
   .hero-fullscreen::before {
-    background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.2) 100%);
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.2) 100%);
   }
+
   .hero-fullscreen {
     justify-content: center;
     align-items: flex-end;
     padding-bottom: 8rem;
   }
+
   .hero-content-right {
     text-align: center;
   }
+
   .hero-cta {
     justify-content: center;
     flex-wrap: wrap;
   }
+
   .map-features-content {
     grid-template-columns: 1fr;
     gap: 3rem;
   }
+
   .feature-item {
     border-left: none;
     border-top: 4px solid #121826;
   }
+
   .feature-item:hover {
     transform: translateY(-5px);
   }
