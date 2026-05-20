@@ -172,26 +172,34 @@ export default function SpotsPage() {
    const loadSpots = useCallback(async (filters) => {
     setStatus('Loading spots...')
     const params = new URLSearchParams()
+    // Allow mode to be passed explicitly to avoid closure issues on first load
+    const mode = filters?.mode || searchMode
     
     // Handle different search modes
-    if (searchMode === 'nearby' && filters?.lat && filters?.lng && filters?.radiusKm) {
+    if (mode === 'nearby' && filters?.lat && filters?.lng && filters?.radiusKm) {
       // Nearby search by radius
       params.set('lat', filters.lat)
       params.set('lng', filters.lng)
       params.set('radiusKm', filters.radiusKm)
-    } else if (searchMode === 'place' && filters?.search) {
+    } else if (mode === 'place' && filters?.search) {
       // Place search by keyword
       params.set('q', filters.search)
-    } else if (searchMode === 'place' && filters?.lat && filters?.lng) {
-      // Place search by coordinates (fallback)
+    } else if (mode === 'place' && filters?.lat && filters?.lng && filters?.radiusKm) {
+      // Place search by coordinates with radius
       params.set('lat', filters.lat)
       params.set('lng', filters.lng)
+      params.set('radiusKm', filters.radiusKm)
+    } else if (mode === 'place' && filters?.lat && filters?.lng) {
+      // Place search by coordinates (fallback) - use a default radius of 5km
+      params.set('lat', filters.lat)
+      params.set('lng', filters.lng)
+      params.set('radiusKm', filters.radiusKm || '5')
     }
     
     params.set('sortBy', filters?.sortBy || sortBy)
     try {
       let path = '/api/v1/spots'
-      if (searchMode === 'place' && filters?.search) {
+      if (mode === 'place' && filters?.search) {
         path = '/api/v1/spots/search'
       }
       const queryString = params.toString()
@@ -213,16 +221,16 @@ export default function SpotsPage() {
     
     if (pQ && pMode === 'place') {
       // Place search by keyword from URL
-      loadSpots({ search: pQ, sortBy: pSort })
-    } else if (pLat && pLng && pR && pMode === 'nearby') {
-      // Nearby search with radius
-      loadSpots({ lat: pLat, lng: pLng, radiusKm: pR, sortBy: pSort })
-    } else if (pLat && pLng && pMode === 'place') {
+      loadSpots({ search: pQ, sortBy: pSort, mode: pMode })
+    } else if (pLat && pLng && pR) {
+      // Search with coordinates and radius (mode can be nearby or place)
+      loadSpots({ lat: pLat, lng: pLng, radiusKm: pR, sortBy: pSort, mode: pMode })
+    } else if (pLat && pLng) {
       // Place search by coordinates from URL
-      loadSpots({ lat: pLat, lng: pLng, sortBy: pSort })
+      loadSpots({ lat: pLat, lng: pLng, radiusKm: pR || '5', sortBy: pSort, mode: pMode })
     } else {
       // Default search - load popular spots
-      loadSpots({ sortBy: pSort })
+      loadSpots({ sortBy: pSort, mode: pMode })
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
