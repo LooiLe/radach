@@ -52,7 +52,7 @@ const VIBE_KEYWORDS = {
 export default function SpotDetailPage() {
   const { id } = useParams()
   const { apiFetch } = useApi()
-  const { isAdmin, isAuthenticated } = useAuth()
+  const { isAdmin, isAuthenticated, userId } = useAuth()
   const navigate = useNavigate()
   const [spot, setSpot] = useState(null)
   const [reviews, setReviews] = useState([])
@@ -60,6 +60,10 @@ export default function SpotDetailPage() {
   const [rating, setRating] = useState(0)
   const [reviewMsg, setReviewMsg] = useState({ type: '', text: '' })
   const [saving, setSaving] = useState(false)
+  const [editingReviewId, setEditingReviewId] = useState(null)
+  const [editingBody, setEditingBody] = useState('')
+  const [editingRating, setEditingRating] = useState(0)
+  const [deletingReviewId, setDeletingReviewId] = useState(null)
   const [activeVibeFilters, setActiveVibeFilters] = useState([])
 
   // Admin edit fields
@@ -172,10 +176,58 @@ export default function SpotDetailPage() {
           ? '✓ Review submitted and published! (Expert reviewer)'
           : '✓ Review submitted! Pending admin moderation.';
         setReviewMsg({ type: 'success', text: msg })
-        setReviewBody(''); setRating(0); loadReviews()
+        setReviewBody(''); setRating(0); loadReviews(); loadSpot()
       } else { setReviewMsg({ type: 'error', text: data.error || 'Failed.' }) }
     } catch { setReviewMsg({ type: 'error', text: 'Could not reach server.' }) }
     finally { setSaving(false) }
+  }
+
+  const startEditReview = (r) => {
+    setEditingReviewId(r.id)
+    setEditingBody(r.body)
+    setEditingRating(r.rating)
+  }
+
+  const cancelEditReview = () => {
+    setEditingReviewId(null)
+    setEditingBody('')
+    setEditingRating(0)
+  }
+
+  const saveEditReview = async () => {
+    if (!editingBody.trim()) { setReviewMsg({ type: 'error', text: 'Please write a review.' }); return }
+    if (!editingRating || editingRating === 0) { setReviewMsg({ type: 'error', text: 'Please select a rating.' }); return }
+    setReviewMsg({ type: '', text: '' }); setSaving(true)
+    try {
+      const res = await apiFetch(`/api/v1/spots/${id}/reviews/${editingReviewId}`, {
+        method: 'PUT', body: JSON.stringify({ body: editingBody.trim(), rating: editingRating })
+      })
+      if (res.ok) {
+        setReviewMsg({ type: 'success', text: '✓ Review updated!' })
+        cancelEditReview()
+        loadReviews(); loadSpot()
+      } else {
+        const data = await res.json()
+        setReviewMsg({ type: 'error', text: data.error || 'Failed to update.' })
+      }
+    } catch { setReviewMsg({ type: 'error', text: 'Could not reach server.' }) }
+    finally { setSaving(false) }
+  }
+
+  const deleteReview = async (reviewId) => {
+    if (!window.confirm('Delete this review? This cannot be undone.')) return
+    setDeletingReviewId(reviewId)
+    try {
+      const res = await apiFetch(`/api/v1/spots/${id}/reviews/${reviewId}`, { method: 'DELETE' })
+      if (res.ok) {
+        setReviewMsg({ type: 'success', text: '✓ Review deleted.' })
+        loadReviews(); loadSpot()
+      } else {
+        const data = await res.json()
+        setReviewMsg({ type: 'error', text: data.error || 'Failed to delete.' })
+      }
+    } catch { setReviewMsg({ type: 'error', text: 'Could not reach server.' }) }
+    finally { setDeletingReviewId(null) }
   }
 
   const saveSpot = async () => {
@@ -435,13 +487,42 @@ export default function SpotDetailPage() {
                 </span>
                 <span className="review-rating">{r.rating.toFixed(1)}/5</span>
               </div>
-              <p className="review-text">{r.body}</p>
-              <div className="review-author" style={{ marginTop: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Link to={`/user/${r.authorId}`} className="author-profile-link" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--primary)', fontWeight: '600', textDecoration: 'none', background: 'var(--bg-glass)', padding: '0.2rem 0.6rem', borderRadius: 'var(--radius-sm)', transition: 'background 0.2s' }}>
-                  <span style={{ fontSize: '1.1rem' }}></span> {r.authorName || `User #${r.authorId}`}
-                </Link>
-                <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>· {new Date(r.createdAt).toLocaleDateString()}</span>
-              </div>
+              {editingReviewId === r.id ? (
+                <div className="review-form glass" style={{ marginTop: '0.5rem', marginBottom: '0.5rem', padding: '0.75rem' }}>
+                  <textarea className="textarea" value={editingBody} onChange={e => setEditingBody(e.target.value)}
+                    placeholder="Edit your review..." maxLength={2000} />
+                  <div className="rating-row" style={{ marginTop: '0.5rem' }}>
+                    <label className="label" style={{ marginBottom: 0 }}>Rating:</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <input type="range" min="1" max="5" step="0.1" value={editingRating || 1}
+                        onChange={(e) => setEditingRating(parseFloat(e.target.value))} style={{ width: '150px' }} />
+                      <span className="rating-display">{editingRating >= 1 ? `${editingRating.toFixed(1)}/5` : 'Select a rating'}</span>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                    <button className="btn btn-primary btn-sm" onClick={saveEditReview} disabled={saving}>
+                      {saving ? 'Saving...' : 'Save'}
+                    </button>
+                    <button className="btn btn-ghost btn-sm" onClick={cancelEditReview}>Cancel</button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <p className="review-text">{r.body}</p>
+                  <div className="review-author" style={{ marginTop: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Link to={`/user/${r.authorId}`} className="author-profile-link" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--primary)', fontWeight: '600', textDecoration: 'none', background: 'var(--bg-glass)', padding: '0.2rem 0.6rem', borderRadius: 'var(--radius-sm)', transition: 'background 0.2s' }}>
+                      <span style={{ fontSize: '1.1rem' }}></span> {r.authorName || `User #${r.authorId}`}
+                    </Link>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>· {new Date(r.createdAt).toLocaleDateString()}</span>
+                    {(String(r.authorId) === String(userId)) && (
+                      <span style={{ display: 'inline-flex', gap: '0.25rem', marginLeft: '0.5rem' }}>
+                        <button className="btn btn-ghost btn-sm" onClick={() => startEditReview(r)} style={{ fontSize: '0.75rem', padding: '0.1rem 0.4rem', lineHeight: 1.2 }}>Edit</button>
+                        <button className="btn btn-ghost btn-sm" onClick={() => deleteReview(r.id)} disabled={deletingReviewId === r.id} style={{ fontSize: '0.75rem', padding: '0.1rem 0.4rem', lineHeight: 1.2, color: 'var(--text-error)' }}>{deletingReviewId === r.id ? '...' : 'Delete'}</button>
+                      </span>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
           ));
         })()}
