@@ -7,7 +7,7 @@ import { useApi } from '../hooks/useApi'
 import SpotCard from '../components/SpotCard'
 import './SpotsPage.css'
 
-const markerIconMap = {
+let dynamicIconMap = {
   restaurant: '/icons/material-symbols-light--chef-hat-outline.svg',
   bar: '/icons/guidance--bar.svg',
   hotel: '/icons/material-symbols-light--hotel-outline-rounded.svg',
@@ -24,7 +24,7 @@ const markerIconMap = {
 
 function createMarkerIcon(type) {
   const normalized = (type || '').toString().trim().toLowerCase().replace('é', 'e')
-  const icon = markerIconMap[normalized] || markerIconMap.default
+  const icon = dynamicIconMap[normalized] || dynamicIconMap.default
   return new L.DivIcon({
     html: `<div class="custom-map-marker"><img src="${icon}" alt="${type || 'Spot'}" /></div>`,
     className: 'custom-leaflet-marker',
@@ -104,56 +104,46 @@ export default function SpotsPage() {
   const geocodeTimer = useRef(null)
 
   // Category filter state
-  const [selectedCategories, setSelectedCategories] = useState({
-    all: true,
-    restaurant: true,
-    bar: true,
-    hotel: true,
-    cafe: true,
-    'food hall': true,
-    beach: true,
-    market: true,
-    viewpoint: true,
-    activities: true,
-    'dine & play': true,
-    children: true,
-    sport: true,
-    trail: true,
-    other: true,
-  })
-
+  const [categoriesList, setCategoriesList] = useState([])
+  const [selectedCategories, setSelectedCategories] = useState({ all: true })
   const [filterDropdownOpen, setFilterDropdownOpen] = useState(false)
   const [searchModeDropdownOpen, setSearchModeDropdownOpen] = useState(false)
 
-  const categoryLabels = {
-    all: 'All',
-    restaurant: 'Restaurant',
-    bar: 'Bar',
-    hotel: 'Hotel',
-    cafe: 'Café',
-    'food hall': 'Food Hall',
-    beach: 'Beach',
-    market: 'Market',
-    viewpoint: 'Viewpoint',
-    activities: 'Activities',
-    'dine & play': 'Dine & Play',
-    children: 'Children',
-    sport: 'Sport',
-    trail: 'Trail',
-    other: 'Other',
-  }
+  useEffect(() => {
+    async function fetchCatList() {
+      try {
+        const res = await apiFetch('/api/v1/categories')
+        const data = await res.json()
+        if (res.ok && data.length > 0) {
+          const sorted = data.sort((a, b) => {
+            if (a.name.toLowerCase() === 'other') return 1;
+            if (b.name.toLowerCase() === 'other') return -1;
+            return a.name.localeCompare(b.name);
+          })
+          setCategoriesList(sorted)
 
-  const categories = Object.keys(selectedCategories).filter(c => c !== 'all').map(c => ({
-    id: c,
-    label: categoryLabels[c],
-  }))
+          const selMap = { all: true }
+          sorted.forEach(c => {
+            const norm = c.name.trim().toLowerCase().replace('é', 'e')
+            selMap[norm] = true
+            if (c.iconUrl) {
+              dynamicIconMap[norm] = c.iconUrl
+            }
+          })
+          setSelectedCategories(selMap)
+        }
+      } catch { /* ignore */ }
+    }
+    fetchCatList()
+  }, [apiFetch])
 
   const toggleCategory = (categoryId) => {
     if (categoryId === 'all') {
-      const allSelected = Object.values(selectedCategories).every(v => v === true)
-      const newState = {}
-      Object.keys(categoryLabels).forEach(key => {
-        newState[key] = !allSelected
+      const allSelected = Object.keys(selectedCategories).filter(k => k !== 'all').every(k => selectedCategories[k] === true)
+      const newState = { all: !allSelected }
+      categoriesList.forEach(c => {
+        const norm = c.name.trim().toLowerCase().replace('é', 'e')
+        newState[norm] = !allSelected
       })
       setSelectedCategories(newState)
     } else {
@@ -173,16 +163,18 @@ export default function SpotsPage() {
     setStatus('Loading spots...')
     const params = new URLSearchParams()
     
+    const modeToUse = filters?.mode || searchMode;
+
     // Handle different search modes
-    if (searchMode === 'nearby' && filters?.lat && filters?.lng && filters?.radiusKm) {
+    if (modeToUse === 'nearby' && filters?.lat && filters?.lng && filters?.radiusKm) {
       // Nearby search by radius
       params.set('lat', filters.lat)
       params.set('lng', filters.lng)
       params.set('radiusKm', filters.radiusKm)
-    } else if (searchMode === 'place' && filters?.search) {
+    } else if (modeToUse === 'place' && filters?.search) {
       // Place search by keyword
       params.set('q', filters.search)
-    } else if (searchMode === 'place' && filters?.lat && filters?.lng) {
+    } else if (modeToUse === 'place' && filters?.lat && filters?.lng) {
       // Place search by coordinates (fallback)
       params.set('lat', filters.lat)
       params.set('lng', filters.lng)
@@ -190,20 +182,85 @@ export default function SpotsPage() {
     
     params.set('sortBy', filters?.sortBy || sortBy)
     try {
+      let dbSpots = []
+
+      // 1. Always fetch from our database
       let path = '/api/v1/spots'
-      if (searchMode === 'place' && filters?.search) {
+      if (modeToUse === 'place' && filters?.search) {
         path = '/api/v1/spots/search'
       }
       const queryString = params.toString()
       const finalPath = queryString ? `${path}?${queryString}` : path
-      const res = await apiFetch(finalPath)
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Could not load spots.')
-      setSpots(data)
-      setStatus(`${data.length} spot${data.length === 1 ? '' : 's'} found.`)
-      if (data.length) setBounds(data.map(s => [s.latitude, s.longitude]))
+      try {
+        const res = await apiFetch(finalPath)
+        const data = await res.json()
+        if (res.ok) dbSpots = data
+      } catch (e) { console.error('DB spots error:', e) }
+
+      // 2. If nearby mode, also fetch global POIs from Nominatim
+      let globalSpots = []
+      if (modeToUse === 'nearby' && filters?.lat && filters?.lng && filters?.radiusKm) {
+        try {
+          // Use Nominatim reverse geocoding to find POIs around the location
+          const radiusMeters = parseFloat(filters.radiusKm) * 1000
+          const lat = parseFloat(filters.lat)
+          const lng = parseFloat(filters.lng)
+          // Calculate a bounding box from lat/lng and radius
+          const latDelta = radiusMeters / 111320
+          const lngDelta = radiusMeters / (111320 * Math.cos(lat * Math.PI / 180))
+          const viewbox = `${lng - lngDelta},${lat + latDelta},${lng + lngDelta},${lat - latDelta}`
+          
+          const nomRes = await fetch(
+            `https://nominatim.openstreetmap.org/search?q=restaurant+OR+cafe+OR+bar+OR+hotel+OR+attraction&format=json&limit=20&viewbox=${viewbox}&bounded=1`,
+            { headers: { 'Accept-Language': 'en' } }
+          )
+          const nomData = await nomRes.json()
+          if (nomData?.length > 0) {
+            // Get existing DB spot names to avoid duplicates
+            const dbNames = new Set(dbSpots.map(s => s.name?.toLowerCase()))
+            globalSpots = nomData
+              .filter(item => !dbNames.has(item.display_name?.split(',')[0]?.toLowerCase()))
+              .map((item, idx) => ({
+                id: `global-${idx}`,
+                name: item.display_name.split(',')[0],
+                type: mapNominatimType(item.type, item.class),
+                address: item.display_name.split(',').slice(1, 3).join(',').trim(),
+                latitude: parseFloat(item.lat),
+                longitude: parseFloat(item.lon),
+                averageRating: 0,
+                tags: [],
+                status: 'ACTIVE',
+                isGlobal: true
+              }))
+          }
+        } catch (e) { console.error('Nominatim nearby error:', e) }
+      }
+
+      const allSpots = [...dbSpots, ...globalSpots]
+      setSpots(allSpots)
+      const dbCount = dbSpots.length
+      const globalCount = globalSpots.length
+      let statusMsg = `${allSpots.length} spot${allSpots.length === 1 ? '' : 's'} found`
+      if (globalCount > 0) statusMsg += ` (${dbCount} from Radach, ${globalCount} nearby)`
+      statusMsg += '.'
+      setStatus(statusMsg)
+      if (allSpots.length) setBounds(allSpots.map(s => [s.latitude, s.longitude]))
     } catch (e) { setStatus(e.message) }
   }, [apiFetch, searchMode, sortBy])
+
+  // Helper to map Nominatim types to friendly category names
+  function mapNominatimType(type, cls) {
+    const typeMap = {
+      restaurant: 'Restaurant', cafe: 'Cafe', bar: 'Bar', pub: 'Bar',
+      hotel: 'Hotel', hostel: 'Hotel', motel: 'Hotel', guest_house: 'Hotel',
+      museum: 'Attraction', gallery: 'Attraction', theatre: 'Attraction', cinema: 'Attraction',
+      park: 'Attraction', garden: 'Attraction', zoo: 'Attraction',
+      beach: 'Beach', viewpoint: 'Viewpoint',
+      marketplace: 'Market', supermarket: 'Market',
+      fast_food: 'Restaurant', food_court: 'Food Hall',
+    }
+    return typeMap[type] || typeMap[cls] || 'Other'
+  }
 
   useEffect(() => {
     const pLat = searchParams.get('lat'), pLng = searchParams.get('lng'), pR = searchParams.get('radiusKm'), pSort = searchParams.get('sortBy') || 'popularity'
@@ -213,16 +270,16 @@ export default function SpotsPage() {
     
     if (pQ && pMode === 'place') {
       // Place search by keyword from URL
-      loadSpots({ search: pQ, sortBy: pSort })
+      loadSpots({ search: pQ, sortBy: pSort, mode: pMode })
     } else if (pLat && pLng && pR && pMode === 'nearby') {
       // Nearby search with radius
-      loadSpots({ lat: pLat, lng: pLng, radiusKm: pR, sortBy: pSort })
+      loadSpots({ lat: pLat, lng: pLng, radiusKm: pR, sortBy: pSort, mode: pMode })
     } else if (pLat && pLng && pMode === 'place') {
       // Place search by coordinates from URL
-      loadSpots({ lat: pLat, lng: pLng, sortBy: pSort })
+      loadSpots({ lat: pLat, lng: pLng, sortBy: pSort, mode: pMode })
     } else {
       // Default search - load popular spots
-      loadSpots({ sortBy: pSort })
+      loadSpots({ sortBy: pSort, mode: pMode })
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -247,17 +304,21 @@ export default function SpotsPage() {
         setLat(result.lat)
         setLng(result.lon)
         setPlace(result.display_name)
-        // Load spots for this location
-        loadSpots({ lat: result.lat, lng: result.lon, sortBy: sortBy })
+        // Load spots for this location - if nearby mode, include radius
+        if (searchMode === 'nearby' && radius) {
+          loadSpots({ lat: result.lat, lng: result.lon, radiusKm: radius, sortBy, mode: 'nearby' })
+        } else {
+          loadSpots({ lat: result.lat, lng: result.lon, sortBy })
+        }
       } else {
         setStatus('Place not found. Try a different search.')
       }
     } catch (e) {
       setStatus('Error searching for place.')
     }
-  }, [loadSpots, sortBy])
+  }, [loadSpots, sortBy, searchMode, radius])
 
-  // Place autocomplete - search spots in place mode, geocode places in nearby mode
+  // Place autocomplete - search existing spots for suggestions
   const handlePlaceInput = (q) => {
     setPlace(q)
     clearTimeout(geocodeTimer.current)
@@ -267,50 +328,60 @@ export default function SpotsPage() {
     }
     geocodeTimer.current = setTimeout(async () => {
       try {
-        if (searchMode === 'nearby') {
-          // Use Nominatim geocoding for nearby mode - search any place
-          const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5`, {
-            headers: { 'Accept-Language': 'en' }
-          })
-          const data = await res.json()
-          if (data && data.length > 0) {
-            // Transform geocoding results into suggestion format
-            const suggestions = data.map(item => ({
-              name: item.display_name,
-              latitude: item.lat,
-              longitude: item.lon,
-              type: 'Location',
-              address: item.display_name,
-              isGeocoded: true
-            }))
-            setSuggestions(suggestions)
-          } else {
-            setSuggestions([])
-          }
-        } else {
-          // Use our own spots API for suggestions in place mode
+        let combinedSuggestions = []
+
+        // 1. Fetch from local backend spots
+        try {
           const res = await apiFetch(`/api/v1/spots/search?q=${encodeURIComponent(q)}&limit=5`)
           const data = await res.json()
-          if (res.ok) {
-            setSuggestions(data || [])
-          } else {
-            setSuggestions([])
+          if (res.ok && data?.length > 0) {
+            combinedSuggestions = [...data]
           }
+        } catch (e) { console.error('Backend search error:', e) }
+
+        // 2. Also fetch from Nominatim for global locations (especially useful in nearby mode)
+        if (searchMode === 'nearby') {
+          try {
+            const nomRes = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=3`, {
+              headers: { 'Accept-Language': 'en' }
+            })
+            const nomData = await nomRes.json()
+            if (nomData?.length > 0) {
+              const formatted = nomData.map(item => ({
+                latitude: parseFloat(item.lat),
+                longitude: parseFloat(item.lon),
+                name: item.display_name.split(',')[0],
+                type: 'Global Location',
+                address: item.display_name,
+                isGlobal: true
+              }))
+              const existingNames = new Set(combinedSuggestions.map(s => s.name?.toLowerCase()))
+              const uniqueFormatted = formatted.filter(f => !existingNames.has(f.name?.toLowerCase()))
+              combinedSuggestions = [...combinedSuggestions, ...uniqueFormatted]
+            }
+          } catch (e) { console.error('Nominatim search error:', e) }
         }
+
+        setSuggestions(combinedSuggestions)
       } catch (error) {
         console.error('Error fetching suggestions:', error)
         setSuggestions([])
       }
-    }, 300)
+    }, searchMode === 'nearby' ? 800 : 300) // Longer debounce for nearby to respect Nominatim rate limits
   }
 
-  const selectSuggestion = (suggestion) => {
-    setPlace(suggestion.name)
-    setLat(suggestion.latitude || suggestion.lat)
-    setLng(suggestion.longitude || suggestion.lon)
+  const selectSuggestion = (spot) => {
+    setPlace(spot.name)
+    setLat(spot.latitude)
+    setLng(spot.longitude)
     setSuggestions([])
-    // Load spots for this location
-    loadSpots({ lat: suggestion.latitude || suggestion.lat, lng: suggestion.longitude || suggestion.lon, sortBy })
+    if (searchMode === 'nearby' && radius) {
+      // In nearby mode with radius set, do a nearby search around the selected location
+      loadSpots({ lat: spot.latitude, lng: spot.longitude, radiusKm: radius, sortBy, mode: 'nearby' })
+    } else {
+      // Load spots for this location
+      loadSpots({ lat: spot.latitude, lng: spot.longitude, sortBy })
+    }
   }
 
   const handleSearch = () => {
@@ -511,17 +582,21 @@ return (
                   <span>All</span>
                 </label>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', maxHeight: '300px', overflowY: 'auto' }}>
-                  {categories.map(cat => (
-                    <label key={cat.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500' }}>
-                      <input
-                        type="checkbox"
-                        checked={selectedCategories[cat.id]}
-                        onChange={() => toggleCategory(cat.id)}
-                        style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: 'var(--text-primary)' }}
-                      />
-                      <span>{cat.label}</span>
-                    </label>
-                  ))}
+                  {categoriesList.map(cat => {
+                    const norm = cat.name.trim().toLowerCase().replace('é', 'e')
+                    return (
+                      <label key={cat.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500' }}>
+                        <input
+                          type="checkbox"
+                          checked={!!selectedCategories[norm]}
+                          onChange={() => toggleCategory(norm)}
+                          style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: 'var(--text-primary)' }}
+                        />
+                        <img src={cat.iconUrl || '/icons/stash--pin-location-light.svg'} alt="" style={{ width: 16, height: 16, objectFit: 'contain' }} />
+                        <span>{cat.name}</span>
+                      </label>
+                    )
+                  })}
                 </div>
               </div>
             )}
@@ -534,19 +609,19 @@ return (
              zoomControl={false} /* Disable default zoom controls to customize position */
            >
              <TileLayer
-               url="https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png"
+                url={`https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png?api_key=${import.meta.env.VITE_STADIA_API_KEY}`}
                attribution='Map tiles by <a href="https://stadiamaps.com/">Stadia Maps</a>, <a href="https://openmaptiles.org/">OpenMapTiles</a>, and <a href="http://openstreetmap.org">OpenStreetMap</a> contributors'
              />
              {filteredSpots.map(s => (
-               <Marker key={s.id} position={[s.latitude, s.longitude]} icon={createMarkerIcon(s.type)}>
-                 <Popup>
-                   <strong>{s.name}</strong><br />
-                   <span style={{ color: 'var(--star)' }}>{s.averageRating > 0 ? ` ${s.averageRating.toFixed(1)}` : 'No ratings'}</span><br />
-                   {s.type} · {s.address}<br />
-                   <a href={`/spot/${s.id}`}>View details →</a>
-                 </Popup>
-               </Marker>
-             ))}
+                <Marker key={s.id} position={[s.latitude, s.longitude]} icon={createMarkerIcon(s.type)}>
+                  <Popup>
+                    <strong>{s.name}</strong>{s.isGlobal && <span style={{ fontSize: '0.7rem', color: '#888', marginLeft: '4px' }}>🌐</span>}<br />
+                    <span style={{ color: 'var(--star)' }}>{s.averageRating > 0 ? ` ${s.averageRating.toFixed(1)}` : s.isGlobal ? 'Global spot' : 'No ratings'}</span><br />
+                    {s.type} · {s.address}<br />
+                    {!s.isGlobal && <a href={`/spot/${s.id}`}>View details →</a>}
+                  </Popup>
+                </Marker>
+              ))}
              {lat && lng && radius && searchMode === 'nearby' && (
                <Circle center={[parseFloat(lat), parseFloat(lng)]} radius={parseFloat(radius) * 1000}
                  pathOptions={{ color: 'var(--border-color)', fillColor: 'var(--border-color)', fillOpacity: 0.08, weight: 2 }} />
@@ -582,7 +657,23 @@ return (
             {filteredSpots.length === 0 && status && !status.includes('Loading') && (
               <div className="empty-state">No spots found.</div>
             )}
-            {filteredSpots.map(s => <SpotCard key={s.id} spot={s} />)}
+            {filteredSpots.map(s => (
+              s.isGlobal ? (
+                <article key={s.id} className="spot-card glass" style={{ cursor: 'default' }}>
+                  <div className="spot-card-header">
+                    <div className="spot-card-title">
+                      <img src="/icons/stash--pin-location-light.svg" alt={`${s.type} icon`} className="spot-card-type-icon" />
+                      <div>
+                        <h3 className="spot-card-name">{s.name} <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 400 }}>🌐 Global</span></h3>
+                        <p className="spot-card-meta">{s.type} · {s.address}</p>
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              ) : (
+                <SpotCard key={s.id} spot={s} />
+              )
+            ))}
           </div>
         </div>
       </div>
