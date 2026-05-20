@@ -13,6 +13,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import jakarta.persistence.EntityManager;
 import com.radach.maps.dto.ReviewRequest;
 import com.radach.maps.dto.ReviewResponse;
 import com.radach.maps.exception.ResourceNotFoundException;
@@ -22,18 +23,26 @@ import com.radach.maps.model.Review.Status;
 import com.radach.maps.model.User;
 import com.radach.maps.repository.ReviewRepository;
 import com.radach.maps.repository.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 public class ReviewService {
 
+    private static final Logger log = LoggerFactory.getLogger(ReviewService.class);
+
     private final ReviewRepository reviewRepository;
     private final UserRepository userRepository;
     private final com.radach.maps.repository.SpotRepository spotRepository;
+    private final VibeAnalysisService vibeService;
+    private final EntityManager entityManager;
 
-    public ReviewService(ReviewRepository reviewRepository, UserRepository userRepository, com.radach.maps.repository.SpotRepository spotRepository) {
+    public ReviewService(ReviewRepository reviewRepository, UserRepository userRepository, com.radach.maps.repository.SpotRepository spotRepository, VibeAnalysisService vibeService, EntityManager entityManager) {
         this.reviewRepository = reviewRepository;
         this.userRepository = userRepository;
         this.spotRepository = spotRepository;
+        this.vibeService = vibeService;
+        this.entityManager = entityManager;
     }
 
     @Transactional
@@ -49,13 +58,26 @@ public class ReviewService {
         review.setReviewType(reviewType);
         review.setBody(request.body().trim());
         review.setRating(request.rating().doubleValue());
-        // All reviews start as PENDING — admin approves or rejects
-        review.setStatus(Status.PENDING);
 
-        Review saved = reviewRepository.save(review);
-
-        long approvedCount = reviewRepository.countByAuthorIdAndStatus(authorId, Status.APPROVED);
-        return new ReviewResponse(saved, author.getName(), author.getEmail(), approvedCount, author.isExpert());
+        // Expert reviews are auto-approved, user reviews go to moderation
+        if (author.isExpert()) {
+            review.setStatus(Status.APPROVED);
+            Review saved = reviewRepository.save(review);
+            // Flush and trigger vibe analysis immediately
+            entityManager.flush();
+            try {
+                vibeService.analyzeSpot(spotId);
+            } catch (Exception e) {
+                log.error("Vibe analysis failed for expert review on spot {}", spotId, e);
+            }
+            long approvedCount = reviewRepository.countByAuthorIdAndStatus(authorId, Status.APPROVED);
+            return new ReviewResponse(saved, author.getName(), author.getEmail(), approvedCount, true);
+        } else {
+            review.setStatus(Status.PENDING);
+            Review saved = reviewRepository.save(review);
+            long approvedCount = reviewRepository.countByAuthorIdAndStatus(authorId, Status.APPROVED);
+            return new ReviewResponse(saved, author.getName(), author.getEmail(), approvedCount, false);
+        }
     }
 
     public Page<ReviewResponse> getReviews(Long spotId, String type, int page, int size) {
@@ -97,17 +119,87 @@ public class ReviewService {
         return enrichReviewsList(reviews);
     }
 
+    /**
+     * Recompute vibe tags for the spot this review belongs to,
+     * using ALL approved reviews for that spot.
+     */
+    private void recomputeVibes(Review review) {
+        try {
+            vibeService.analyzeSpot(review.getSpotId());
+        } catch (Exception e) {
+            log.error("Vibe analysis failed for spot {}", review.getSpotId(), e);
+        }
+    }
+
     @Transactional
     public ReviewResponse updateStatus(Long reviewId, Status status) {
         Review review = reviewRepository.findById(reviewId)
                 .orElseThrow(() -> new ResourceNotFoundException("Review not found"));
+        boolean wasApproved = review.getStatus() == Status.APPROVED;
         review.setStatus(status);
         Review saved = reviewRepository.save(review);
+        
+        // Flush so the status change is visible to the vibe analysis query
+        entityManager.flush();
+
+        // Trigger vibe analysis when a review becomes approved OR was approved and got un-approved
+        if (status == Status.APPROVED || wasApproved) {
+            try {
+                recomputeVibes(saved);
+            } catch (Exception e) {
+                log.warn("Failed to recompute vibe tags for spot {} after review {} status change: {}", 
+                    saved.getSpotId(), saved.getId(), e.getMessage());
+            }
+        }
+
+        // Author may have been deleted; handle gracefully
+        User author = userRepository.findById(saved.getAuthorId()).orElse(null);
+        String authorName = author != null ? author.getName() : "Deleted User";
+        String authorEmail = author != null ? author.getEmail() : "";
+        boolean isExpert = author != null && author.isExpert();
+        long approvedCount = reviewRepository.countByAuthorIdAndStatus(saved.getAuthorId(), Status.APPROVED);
+        return new ReviewResponse(saved, authorName, authorEmail, approvedCount, isExpert);
+    }
+
+    /** Edit an existing review. */
+    @Transactional
+    public ReviewResponse updateReview(Long reviewId, Long requesterId, ReviewRequest request) {
+        Review review = reviewRepository.findById(reviewId)
+                .orElseThrow(() -> new ResourceNotFoundException("Review not found"));
+        if (!review.getAuthorId().equals(requesterId)) {
+            throw new org.springframework.security.access.AccessDeniedException("You can only edit your own reviews");
+        }
+        review.setBody(request.body().trim());
+        review.setRating(request.rating().doubleValue());
+        Review saved = reviewRepository.save(review);
+
+        // Recompute vibes if this review was already approved
+        if (saved.getStatus() == Status.APPROVED) {
+            recomputeVibes(saved);
+        }
 
         User author = userRepository.findById(saved.getAuthorId())
                 .orElseThrow(() -> new ResourceNotFoundException("Author not found"));
         long approvedCount = reviewRepository.countByAuthorIdAndStatus(saved.getAuthorId(), Status.APPROVED);
         return new ReviewResponse(saved, author.getName(), author.getEmail(), approvedCount, author.isExpert());
+    }
+
+    /** Delete a review. */
+    @Transactional
+    public void deleteReview(Long reviewId, Long requesterId) {
+        Review review = reviewRepository.findById(reviewId)
+                .orElseThrow(() -> new ResourceNotFoundException("Review not found"));
+        if (!review.getAuthorId().equals(requesterId)) {
+            throw new org.springframework.security.access.AccessDeniedException("You can only delete your own reviews");
+        }
+        Long spotId = review.getSpotId();
+        boolean wasApproved = review.getStatus() == Status.APPROVED;
+        reviewRepository.delete(review);
+
+        // Recompute vibes since an approved review was removed — use spotId captured before delete
+        if (wasApproved) {
+            vibeService.analyzeSpot(spotId);
+        }
     }
 
     /**

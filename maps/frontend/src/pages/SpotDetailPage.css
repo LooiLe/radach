@@ -1,7 +1,8 @@
 .detail-page { padding: 2rem 2rem 4rem; max-width: 900px; }
-.back-btn { margin-bottom: 1.5rem; }
 
-.detail-header { padding: 1.75rem; margin-bottom: 1.5rem; }
+.detail-page .back-btn { margin-bottom: 1.5rem; }
+
+.detail-header { padding: 1.75rem; margin-top: 0; margin-bottom: 1.5rem; background: #f8f9fc; border-color: rgba(17, 24, 39, 0.15) !important; box-shadow: 0 1px 4px rgba(0,0,0,0.04); }
 .detail-name { font-family: var(--font-display); font-size: clamp(1.5rem, 3vw, 2.2rem); font-weight: 900; margin-bottom: 0.6rem; }
 .detail-meta { display: flex; flex-wrap: wrap; gap: 1rem; color: var(--text-secondary); font-size: 0.88rem; margin-bottom: 1rem; align-items: center; }
 .detail-rating { color: var(--star); font-weight: 700; }
@@ -11,6 +12,12 @@
 .edit-row { display: flex; gap: 0.75rem; }
 .edit-row .field { flex: 1; }
 .edit-actions { display: flex; gap: 0.75rem; }
+
+.view-map-wrapper {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.5rem;
+}
 
 .section-heading { font-family: var(--font-display); font-size: 1.3rem; font-weight: 900; margin-bottom: 1rem; }
 

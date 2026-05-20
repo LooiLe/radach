@@ -6,6 +6,49 @@ import { formatRating } from '../components/StarRating'
 import StatusBadge from '../components/StatusBadge'
 import './SpotDetailPage.css'
 
+// Vibe tag keyword mapping for filtering reviews
+const VIBE_KEYWORDS = {
+  'cozy': ['cozy', 'cosy', 'intimate', 'warm atmosphere', 'snug'],
+  'romantic': ['romantic', 'date night', 'couples', 'candlelit', 'candle light'],
+  'lively': ['lively', 'bustling', 'energetic', 'happening', 'buzzy', 'vibrant'],
+  'chill': ['chill', 'laid.?back', 'relaxed', 'mellow', 'low.key', 'chilled'],
+  'aesthetic': ['aesthetic', 'beautiful decor', 'beautiful interior', 'stylish', 'gorgeous'],
+  'sunset views': ['sunset', 'sunsets', 'sun set', 'panoramic view', 'scenic', 'great view', 'nice view', 'breathtaking'],
+  'outdoor seating': ['outdoor', 'outdoor seating', 'terrace', 'patio', 'al fresco', 'alfresco', 'garden seating', 'rooftop'],
+  'good for studying': ['study', 'studying', 'get work done', 'work here', 'good wifi', 'good wi-fi', 'quiet enough to work', 'laptop friendly'],
+  'good for groups': ['group', 'groups', 'gathering', 'get together', 'party', 'large group', 'big group'],
+  'late night spot': ['late night', 'open late', 'opens late', 'after midnight', '2am', '3am', '4am', 'night owl'],
+  'breakfast spot': ['breakfast', 'brunch', 'morning', 'early'],
+  'budget friendly': ['budget', 'cheap', 'affordable', 'reasonably priced', 'good value', 'inexpensive', 'not expensive', 'under \\$', 'low price'],
+  'pricey': ['pricey', 'expensive', 'overpriced', 'costly', 'spendy', 'premium price', 'upscale', 'high end'],
+  'digital nomad friendly': ['digital nomad', 'remote work', 'good wifi', 'good wi-fi', 'power outlet', 'work from', 'coworking', 'co-working'],
+  'touristy': ['tourist', 'touristy', 'tourist trap', 'overrun', 'crowded with tourists', 'tourist spot'],
+  'local favorite': ['local', 'locals', 'hidden gem', 'authentic', 'off the beaten path', 'underrated'],
+  'family friendly': ['family', 'kids', 'children', 'child friendly', 'kid friendly', 'baby', 'stroller'],
+  'pet friendly': ['pet', 'dog', 'dog friendly', 'dogs welcome', 'pets', 'furry'],
+  'hidden gem': ['hidden gem', 'off the beaten path', 'undiscovered', 'secret spot', 'tucked away'],
+  'trendy': ['trendy', 'hip', 'cool', 'fashionable', 'insta.*famous', 'hottest'],
+  'quiet': ['quiet', 'peaceful', 'serene', 'tranquil', 'noiseless', 'silent', 'calm'],
+  'spacious': ['spacious', 'roomy', 'big', 'large', 'plenty of space', 'open space', 'airy'],
+  'fast service': ['fast service', 'quick', 'speedy', 'efficient', 'prompt', 'no wait', 'on point service'],
+  'instagrammable': ['instagram', 'insta', 'photo', 'picturesque', 'beautiful', 'pretty', 'snap', 'pics', 'instagramable'],
+
+  // New tags
+  'brunch': ['brunch', 'breakfast', 'morning', 'eggs benedict', 'pancakes', 'avocado toast', 'waffles'],
+  'burgers': ['burger', 'burgers', 'patty', 'fries', 'cheeseburger', 'bun'],
+  'pasta': ['pasta', 'spaghetti', 'carbonara', 'bolognese', 'noodles', 'fettuccine', 'penne'],
+  'coffee': ['coffee', 'latte', 'cappuccino', 'espresso', 'flat white', 'cold brew', 'mocha', 'brew'],
+  'matcha': ['matcha', 'green tea', 'matcha latte'],
+  'thai food': ['thai', 'pad thai', 'green curry', 'tom yum', 'massaman', 'som tum', 'thai food', 'spicy'],
+  'sushi': ['sushi', 'sashimi', 'maki', 'nigiri', 'roll', 'japanese'],
+  'pizza': ['pizza', 'margherita', 'pepperoni', 'neapolitan', 'wood.fire', 'thin crust'],
+  'seafood': ['seafood', 'fish', 'shrimp', 'oyster', 'crab', 'lobster', 'fresh fish'],
+  'desserts': ['dessert', 'cake', 'pastry', 'pie', 'ice cream', 'sweet', 'chocolate cake', 'tiramisu'],
+  'vegan friendly': ['vegan', 'plant.based', 'vegetarian', 'veggie', 'tofu', 'dairy.free'],
+  'beautiful view': ['beautiful view', 'great view', 'nice view', 'scenic', 'panoramic', 'stunning view', 'amazing view', 'breathtaking view', 'city view', 'ocean view', 'river view'],
+  'live music': ['live music', 'live band', 'dj', 'acoustic', 'concert', 'musician', 'jazz', 'performance']
+};
+
 export default function SpotDetailPage() {
   const { id } = useParams()
   const { apiFetch } = useApi()
@@ -14,9 +57,10 @@ export default function SpotDetailPage() {
   const [spot, setSpot] = useState(null)
   const [reviews, setReviews] = useState([])
   const [reviewBody, setReviewBody] = useState('')
-  const [rating, setRating] = useState(1)
+  const [rating, setRating] = useState(0)
   const [reviewMsg, setReviewMsg] = useState({ type: '', text: '' })
   const [saving, setSaving] = useState(false)
+  const [activeVibeFilters, setActiveVibeFilters] = useState([])
 
   // Admin edit fields
   const [editName, setEditName] = useState('')
@@ -116,7 +160,7 @@ export default function SpotDetailPage() {
 
   const submitReview = async () => {
     if (!reviewBody.trim()) { setReviewMsg({ type: 'error', text: 'Please write a review.' }); return }
-    if (rating === 0) { setReviewMsg({ type: 'error', text: 'Please select a rating.' }); return }
+    if (!rating || rating === 0) { setReviewMsg({ type: 'error', text: 'Please select a rating.' }); return }
     setReviewMsg({ type: '', text: '' }); setSaving(true)
     try {
       const res = await apiFetch(`/api/v1/spots/${id}/reviews`, {
@@ -124,7 +168,10 @@ export default function SpotDetailPage() {
       })
       const data = await res.json()
       if (res.ok) {
-        setReviewMsg({ type: 'success', text: '✓ Review submitted! Pending admin moderation.' })
+        const msg = data.status === 'APPROVED' 
+          ? '✓ Review submitted and published! (Expert reviewer)'
+          : '✓ Review submitted! Pending admin moderation.';
+        setReviewMsg({ type: 'success', text: msg })
         setReviewBody(''); setRating(0); loadReviews()
       } else { setReviewMsg({ type: 'error', text: data.error || 'Failed.' }) }
     } catch { setReviewMsg({ type: 'error', text: 'Could not reach server.' }) }
@@ -233,83 +280,86 @@ export default function SpotDetailPage() {
                 style={{ padding: '0.4rem' }}
               />
               {uploading && <p style={{ fontSize: '0.85rem', color: 'var(--primary)', marginTop: '0.5rem' }}>Uploading...</p>}
-            </div>
+</div>
 
             <div className="edit-actions">
-              <button className="btn btn-primary" onClick={() => { trackEvent('view'); navigate(`/spots?mode=nearby&lat=${spot.latitude}&lng=${spot.longitude}&radiusKm=0.1`) }}> View on map</button>
               <button className="btn btn-primary" onClick={saveSpot} disabled={saving}>{saving ? 'Saving...' : ' Save changes'}</button>
               <button className="btn btn-ghost" onClick={deleteSpot} disabled={saving} style={{ color: 'var(--text-error)' }}> Delete spot</button>
+            </div>
+
+            <div className="view-map-wrapper">
+              <button className="btn btn-ghost" onClick={() => { trackEvent('view'); navigate(`/spots?mode=nearby&lat=${spot.latitude}&lng=${spot.longitude}&radiusKm=2`) }}> View on map</button>
             </div>
           </div>
         ) : (
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div>
-                <h1 className="detail-name">{spot.name}</h1>
-                <div className="detail-meta">
-                  <span>{spot.type}</span>
-                  <span>{spot.address}</span>
-                  <span>{spot.latitude}, {spot.longitude}</span>
-                  <StatusBadge status={spot.status} />
-                  <span className="detail-rating">{formatRating(spot.averageRating)}</span>
-                </div>
-                {spot.websiteUrl && (
-                  <div style={{ marginTop: '0.5rem' }}>
-                    <a href={spot.websiteUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)', fontWeight: 'bold', textDecoration: 'none' }}>
-                      🔗 Visit Website / Social
-                    </a>
-                  </div>
-                )}
-              </div>
-              <div className="spot-card-actions" style={{ marginLeft: '1rem' }}>
-                <button className={`action-btn ${(spot.isLiked || spot.liked) ? 'active' : ''}`} onClick={async () => {
-                  if (!isAuthenticated) return navigate('/login')
-                  const newLiked = !(spot.isLiked || spot.liked)
-                  setSpot({ ...spot, isLiked: newLiked, liked: newLiked })
-                  try { await apiFetch(`/api/v1/spots/${spot.id}/like`, { method: 'POST' }) } 
-                  catch { setSpot({ ...spot, isLiked: !newLiked, liked: !newLiked }) }
-                }} aria-label="Like spot">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill={(spot.isLiked || spot.liked) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
-                  </svg>
-                </button>
-                <button className={`action-btn ${(spot.isSaved || spot.saved) ? 'active' : ''}`} onClick={async () => {
-                  if (!isAuthenticated) return navigate('/login')
-                  const newSaved = !(spot.isSaved || spot.saved)
-                  setSpot({ ...spot, isSaved: newSaved, saved: newSaved })
-                  try { 
-                    const res = await apiFetch(`/api/v1/spots/${spot.id}/save`, { method: 'POST' })
-                    const data = await res.json()
-                    console.log('SAVE RESPONSE:', data)
-                  } 
-                  catch { setSpot({ ...spot, isSaved: !newSaved, saved: !newSaved }) }
-                }} aria-label="Save spot">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill={(spot.isSaved || spot.saved) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"></path>
-                  </svg>
-                </button>
-              </div>
-            </div>
-            {spot.tags?.length > 0 && (
-              <div className="detail-tags">{spot.tags.map(t => <span key={t} className="spot-tag">{t}</span>)}</div>
-            )}
-            
-            {spot.photos?.length > 0 && (
-              <div style={{ marginTop: '1.5rem', marginBottom: '1.5rem' }}>
-                <h3 style={{ fontSize: '1.1rem', marginBottom: '0.8rem' }}>Photos</h3>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '10px' }}>
-                  {spot.photos.map((url, idx) => (
-                    <img key={idx} src={url} alt={`Spot photo ${idx + 1}`} style={{ width: '100%', height: '150px', objectFit: 'cover', borderRadius: '8px', cursor: 'pointer' }} onClick={() => window.open(url, '_blank')} />
-                  ))}
-                </div>
-              </div>
-            )}
+               <div>
+                 <h1 className="detail-name">{spot.name}</h1>
+                 <div className="detail-meta">
+                   <span>{spot.type}</span>
+                   <span>{spot.address}</span>
+                   <span>{spot.latitude}, {spot.longitude}</span>
+                   <StatusBadge status={spot.status} />
+                   <span className="detail-rating">{formatRating(spot.averageRating)}</span>
+                 </div>
+                 {spot.websiteUrl && (
+                   <div style={{ marginTop: '0.5rem' }}>
+                     <a href={spot.websiteUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)', fontWeight: 'bold', textDecoration: 'none' }}>
+                       🔗 Visit Website / Social
+                     </a>
+                   </div>
+                 )}
+               </div>
+               <div className="spot-card-actions" style={{ marginLeft: '1rem' }}>
+                 <button className={`action-btn ${(spot.isLiked || spot.liked) ? 'active' : ''}`} onClick={async () => {
+                   if (!isAuthenticated) return navigate('/login')
+                   const newLiked = !(spot.isLiked || spot.liked)
+                   setSpot({ ...spot, isLiked: newLiked, liked: newLiked })
+                   try { await apiFetch(`/api/v1/spots/${spot.id}/like`, { method: 'POST' }) } 
+                   catch { setSpot({ ...spot, isLiked: !newLiked, liked: !newLiked }) }
+                 }} aria-label="Like spot">
+                   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill={(spot.isLiked || spot.liked) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                     <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                   </svg>
+                 </button>
+                 <button className={`action-btn ${(spot.isSaved || spot.saved) ? 'active' : ''}`} onClick={async () => {
+                   if (!isAuthenticated) return navigate('/login')
+                   const newSaved = !(spot.isSaved || spot.saved)
+                   setSpot({ ...spot, isSaved: newSaved, saved: newSaved })
+                   try { 
+                     const res = await apiFetch(`/api/v1/spots/${spot.id}/save`, { method: 'POST' })
+                     const data = await res.json()
+                     console.log('SAVE RESPONSE:', data)
+                   } 
+                   catch { setSpot({ ...spot, isSaved: !newSaved, saved: !newSaved }) }
+                 }} aria-label="Save spot">
+                   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill={(spot.isSaved || spot.saved) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                     <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"></path>
+                   </svg>
+                 </button>
+               </div>
+             </div>
+             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', alignItems: 'center', marginBottom: '0.5rem' }}>
+               {spot.tags?.length > 0 && spot.tags.map(t => <span key={t} className="spot-tag">{t}</span>)}
+               <button className="btn btn-primary" style={{ fontSize: '0.85rem', padding: '0.3rem 0.8rem', marginLeft: 'auto' }} onClick={() => { trackEvent('view'); navigate(`/spots?q=${encodeURIComponent(spot.name)}`) }}>
+                 View on map
+               </button>
+             </div>
 
-            <button className="btn btn-primary" onClick={() => { trackEvent('view'); navigate(`/spots?mode=nearby&lat=${spot.latitude}&lng=${spot.longitude}&radiusKm=0.1`) }}>
-               View on map
-            </button>
-          </>
-        )}
+              {spot.photos?.length > 0 && (
+               <div style={{ marginTop: '1.5rem', marginBottom: '1.5rem' }}>
+                 <h3 style={{ fontSize: '1.1rem', marginBottom: '0.8rem' }}>Photos</h3>
+                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '10px' }}>
+                   {spot.photos.map((url, idx) => (
+                     <img key={idx} src={url} alt={`Spot photo ${idx + 1}`} style={{ width: '100%', height: '150px', objectFit: 'cover', borderRadius: '8px', cursor: 'pointer' }} onClick={() => window.open(url, '_blank')} />
+                   ))}
+                 </div>
+               </div>
+             )}
+
+           </>
+         )}
       </div>
 
 <h2 className="section-heading"> Reviews</h2>
@@ -342,25 +392,59 @@ export default function SpotDetailPage() {
         </div>
       </div>
 
-<div className="reviews-list">
-        {reviews.length === 0 && <div className="empty-state">No reviews yet. Be the first!</div>}
-        {reviews.map(r => (
-          <div key={r.id} className="review-card glass">
-            <div className="review-card-header">
-              <span className={`badge ${r.authorIsExpert ? 'badge-active' : 'badge-pending'}`}>
-                {r.authorIsExpert ? 'Expert' : 'User'}
-              </span>
-              <span className="review-rating">{r.rating.toFixed(1)}/5</span>
-            </div>
-            <p className="review-text">{r.body}</p>
-            <div className="review-author" style={{ marginTop: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Link to={`/user/${r.authorId}`} className="author-profile-link" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--primary)', fontWeight: '600', textDecoration: 'none', background: 'var(--bg-glass)', padding: '0.2rem 0.6rem', borderRadius: 'var(--radius-sm)', transition: 'background 0.2s' }}>
-                <span style={{ fontSize: '1.1rem' }}></span> {r.authorName || `User #${r.authorId}`}
-              </Link>
-              <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>· {new Date(r.createdAt).toLocaleDateString()}</span>
-            </div>
+      {spot.vibeTags?.length > 0 && (
+        <div className="glass" style={{ padding: '0.7rem 1rem', marginBottom: '1.5rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+            {spot.vibeTags.map(vt => {
+              const isActive = activeVibeFilters.includes(vt.name);
+              return (
+                <span key={vt.id} onClick={() => {
+                  setActiveVibeFilters(prev => 
+                    isActive ? prev.filter(name => name !== vt.name) : [...prev, vt.name]
+                  );
+                }} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem', background: isActive ? '#9ca3af' : 'white', color: isActive ? 'white' : '#1a1a2e', borderRadius: '999px', fontSize: '0.8rem', padding: '0.25rem 0.7rem', fontWeight: 500, lineHeight: 1.4, cursor: 'pointer', transition: 'all 0.15s', opacity: 0.85, border: '1px solid #e5e7eb' }} onMouseEnter={e => e.currentTarget.style.opacity = '1'} onMouseLeave={e => e.currentTarget.style.opacity = '0.85'}>
+                  {vt.emoji && <span>{vt.emoji}</span>}
+                  {vt.name}
+                </span>
+              );
+            })}
           </div>
-        ))}
+        </div>
+      )}
+
+<div className="reviews-list">
+        {(() => {
+          const filteredReviews = activeVibeFilters.length > 0
+            ? reviews.filter(r => {
+                const lower = r.body?.toLowerCase() || '';
+                // Check if review matches ANY of the selected tags
+                return activeVibeFilters.some(filterName => {
+                  const keywords = VIBE_KEYWORDS[filterName] || [filterName];
+                  return keywords.some(kw => lower.includes(kw.toLowerCase()));
+                });
+              })
+            : reviews;
+          if (filteredReviews.length === 0) {
+            return <div className="empty-state">{activeVibeFilters.length > 0 ? `No reviews match the selected tags.` : 'No reviews yet. Be the first!'}</div>;
+          }
+          return filteredReviews.map(r => (
+            <div key={r.id} className="review-card glass">
+              <div className="review-card-header">
+                <span className={`badge ${r.authorIsExpert ? 'badge-active' : 'badge-pending'}`}>
+                  {r.authorIsExpert ? 'Expert' : 'User'}
+                </span>
+                <span className="review-rating">{r.rating.toFixed(1)}/5</span>
+              </div>
+              <p className="review-text">{r.body}</p>
+              <div className="review-author" style={{ marginTop: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Link to={`/user/${r.authorId}`} className="author-profile-link" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--primary)', fontWeight: '600', textDecoration: 'none', background: 'var(--bg-glass)', padding: '0.2rem 0.6rem', borderRadius: 'var(--radius-sm)', transition: 'background 0.2s' }}>
+                  <span style={{ fontSize: '1.1rem' }}></span> {r.authorName || `User #${r.authorId}`}
+                </Link>
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>· {new Date(r.createdAt).toLocaleDateString()}</span>
+              </div>
+            </div>
+          ));
+        })()}
       </div>
     </div>
   )
