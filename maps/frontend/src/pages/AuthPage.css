@@ -73,7 +73,12 @@
 .auth-subtitle a { color: var(--text-primary); font-weight: 600; }
 
 .auth-form .field { margin-bottom: 1.2rem; }
-.auth-submit { width: 100%; padding: 0.85rem; margin-top: 0.5rem; font-size: 0.95rem; }
+.auth-submit {
+  width: 100%;
+  padding: 0.85rem;
+  margin-top: 0.5rem;
+  font-size: 0.95rem;
+}
 .auth-form .msg { margin-top: 1rem; }
 
 @media (max-width: 800px) {

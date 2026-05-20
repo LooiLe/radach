@@ -14,11 +14,28 @@
   box-shadow: none;
 }
 
-.navbar-left { display: flex; align-items: center; gap: 0.75rem; }
-.navbar-right { display: flex; align-items: center; gap: 0.5rem; }
+.navbar-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
 
-.navbar-logo { display: flex; align-items: center; }
-.navbar-logo-img { height: 32px; width: auto; border-radius: 6px; }
+.navbar-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.navbar-logo {
+  display: flex;
+  align-items: center;
+}
+
+.navbar-logo-img {
+  height: 32px;
+  width: auto;
+  border-radius: 6px;
+}
 
 /* Hamburger */
 .hamburger {
@@ -32,13 +49,18 @@
   align-items: center;
   justify-content: center;
 }
-.hamburger:hover { background: var(--bg-glass); }
+
+.hamburger:hover {
+  background: var(--bg-glass);
+}
+
 .hamburger-icon {
   display: flex;
   flex-direction: column;
   gap: 5px;
   width: 20px;
 }
+
 .hamburger-icon span {
   display: block;
   height: 2px;
@@ -47,9 +69,19 @@
   transition: all 0.3s var(--ease);
   transform-origin: center;
 }
-.hamburger-icon.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
-.hamburger-icon.open span:nth-child(2) { opacity: 0; transform: scaleX(0); }
-.hamburger-icon.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+.hamburger-icon.open span:nth-child(1) {
+  transform: translateY(7px) rotate(45deg);
+}
+
+.hamburger-icon.open span:nth-child(2) {
+  opacity: 0;
+  transform: scaleX(0);
+}
+
+.hamburger-icon.open span:nth-child(3) {
+  transform: translateY(-7px) rotate(-45deg);
+}
 
 /* Overlay */
 .menu-overlay {
@@ -78,7 +110,10 @@
   transform: translateX(-100%);
   transition: transform 0.3s var(--ease);
 }
-.menu-drawer.open { transform: translateX(0); }
+
+.menu-drawer.open {
+  transform: translateX(0);
+}
 
 .menu-item {
   display: flex;
@@ -97,8 +132,22 @@
   font-family: var(--font-body);
   cursor: pointer;
 }
-.menu-item:hover { background: var(--bg-glass); color: var(--text-primary); }
-.menu-item.active { color: var(--text-primary); }
-.menu-icon { font-size: 1.1rem; }
 
-.menu-divider { height: 1px; background: var(--border); margin: 0.4rem 1rem; }
+.menu-item:hover {
+  background: var(--bg-glass);
+  color: var(--text-primary);
+}
+
+.menu-item.active {
+  color: var(--text-primary);
+}
+
+.menu-icon {
+  font-size: 1.1rem;
+}
+
+.menu-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 0.4rem 1rem;
+}

@@ -2,6 +2,7 @@ package com.radach.maps.repository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -17,4 +18,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     @Query("SELECT u FROM User u WHERE LOWER(u.email) LIKE LOWER(CONCAT('%', :query, '%')) OR LOWER(u.name) LIKE LOWER(CONCAT('%', :query, '%')) ORDER BY u.id")
     List<User> searchByNameOrEmail(@Param("query") String query);
+
+    @Query("SELECT u.id FROM User u WHERE u.isExpert = true")
+    Set<Long> findExpertIds();
 }

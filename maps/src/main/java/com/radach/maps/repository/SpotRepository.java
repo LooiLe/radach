@@ -96,6 +96,16 @@ public interface SpotRepository extends JpaRepository<Spot, Long> {
             """, nativeQuery = true)
     List<Spot> findByTagIds(@Param("tagIds") List<Long> tagIds);
 
+    /** Find spots by vibe tag name (via the spot_vibe_tags + vibe_tag_definitions join). */
+    @Query(value = """
+            SELECT DISTINCT s.* FROM spots s
+            JOIN spot_vibe_tags svt ON svt.spot_id = s.id
+            JOIN vibe_tag_definitions vtd ON vtd.id = svt.vibe_tag_id
+            WHERE LOWER(vtd.name) = LOWER(:vibeName) AND s.status = 'ACTIVE'
+            ORDER BY svt.confidence DESC, s.rank_score DESC
+            """, nativeQuery = true)
+    List<Spot> findByVibeTagName(@Param("vibeName") String vibeName);
+
     List<Spot> findTop20ByStatusOrderByRankScoreDesc(com.radach.maps.model.SpotStatus status);
 
     List<Spot> findAllByStatusOrderByRankScoreDesc(com.radach.maps.model.SpotStatus status);
@@ -103,6 +113,90 @@ public interface SpotRepository extends JpaRepository<Spot, Long> {
     List<Spot> findAllByStatus(com.radach.maps.model.SpotStatus status);
 
     List<Spot> findByStatusOrderByCreatedAtAsc(com.radach.maps.model.SpotStatus status);
+
+    @Query(value = """
+            SELECT s.*
+            FROM spots s
+            WHERE s.status = 'ACTIVE'
+            ORDER BY (
+                COALESCE((SELECT COUNT(*) FROM spot_events e JOIN users u ON u.id = e.user_id WHERE e.spot_id = s.id AND e.event_type = 'VIEW' AND e.created_at >= :since AND u.is_expert = true), 0)
+                + COALESCE((SELECT SUM(r.rating) FROM reviews r JOIN users u ON u.id = r.author_id WHERE r.spot_id = s.id AND r.status = 'APPROVED' AND u.is_expert = true), 0) * 3
+                + COALESCE((SELECT SUM(r.rating) FROM reviews r JOIN users u ON u.id = r.author_id WHERE r.spot_id = s.id AND r.status = 'APPROVED' AND r.created_at >= :since AND u.is_expert = true), 0) * 5
+                + COALESCE((SELECT COUNT(*) FROM user_spot_interactions ui JOIN users u ON u.id = ui.user_id WHERE ui.spot_id = s.id AND ui.is_liked = true AND ui.updated_at >= :since AND u.is_expert = true), 0) * 5
+                + COALESCE((SELECT COUNT(*) FROM user_spot_interactions ui JOIN users u ON u.id = ui.user_id WHERE ui.spot_id = s.id AND ui.is_saved = true AND ui.updated_at >= :since AND u.is_expert = true), 0) * 10
+            ) DESC, s.rank_score DESC
+            LIMIT 20
+            """, nativeQuery = true)
+    List<Spot> findExpertTrending(@Param("since") Instant since);
+
+    @Query(value = """
+            SELECT s.*
+            FROM spots s
+            WHERE s.status = 'ACTIVE'
+              AND (
+                  6371.0 * 2.0 * asin(
+                      sqrt(
+                          power(sin(radians(latitude - :lat) / 2.0), 2.0)
+                          + cos(radians(:lat)) * cos(radians(latitude))
+                          * power(sin(radians(longitude - :lng) / 2.0), 2.0)
+                      )
+                  )
+              ) <= :radiusKm
+            ORDER BY (
+                COALESCE((SELECT COUNT(*) FROM spot_events e JOIN users u ON u.id = e.user_id WHERE e.spot_id = s.id AND e.event_type = 'VIEW' AND e.created_at >= :since AND u.is_expert = true), 0)
+                + COALESCE((SELECT SUM(r.rating) FROM reviews r JOIN users u ON u.id = r.author_id WHERE r.spot_id = s.id AND r.status = 'APPROVED' AND u.is_expert = true), 0) * 3
+                + COALESCE((SELECT SUM(r.rating) FROM reviews r JOIN users u ON u.id = r.author_id WHERE r.spot_id = s.id AND r.status = 'APPROVED' AND r.created_at >= :since AND u.is_expert = true), 0) * 5
+                + COALESCE((SELECT COUNT(*) FROM user_spot_interactions ui JOIN users u ON u.id = ui.user_id WHERE ui.spot_id = s.id AND ui.is_liked = true AND ui.updated_at >= :since AND u.is_expert = true), 0) * 5
+                + COALESCE((SELECT COUNT(*) FROM user_spot_interactions ui JOIN users u ON u.id = ui.user_id WHERE ui.spot_id = s.id AND ui.is_saved = true AND ui.updated_at >= :since AND u.is_expert = true), 0) * 10
+            ) DESC, s.rank_score DESC
+            LIMIT 20
+            """, nativeQuery = true)
+    List<Spot> findExpertTrendingWithinRadius(@Param("lat") double lat, @Param("lng") double lng, @Param("radiusKm") double radiusKm, @Param("since") Instant since);
+
+    @Query(value = """
+            SELECT s.*
+            FROM spots s
+            WHERE s.status = 'ACTIVE'
+            ORDER BY (
+                COALESCE((SELECT SUM(r.rating * CASE WHEN r.author_id IN :firstDegree THEN 5 WHEN r.author_id IN :secondDegree THEN 4 ELSE 0 END) 
+                          FROM reviews r WHERE r.spot_id = s.id AND r.status = 'APPROVED' AND (r.author_id IN :firstDegree OR r.author_id IN :secondDegree)), 0) * 3
+                + COALESCE((SELECT SUM(r.rating * CASE WHEN r.author_id IN :firstDegree THEN 5 WHEN r.author_id IN :secondDegree THEN 4 ELSE 0 END) 
+                            FROM reviews r WHERE r.spot_id = s.id AND r.status = 'APPROVED' AND r.created_at >= :since AND (r.author_id IN :firstDegree OR r.author_id IN :secondDegree)), 0) * 5
+                + COALESCE((SELECT SUM(CASE WHEN ui.user_id IN :firstDegree THEN 5 WHEN ui.user_id IN :secondDegree THEN 4 ELSE 0 END) 
+                            FROM user_spot_interactions ui WHERE ui.spot_id = s.id AND ui.is_liked = true AND ui.updated_at >= :since AND (ui.user_id IN :firstDegree OR ui.user_id IN :secondDegree)), 0) * 5
+                + COALESCE((SELECT SUM(CASE WHEN ui.user_id IN :firstDegree THEN 5 WHEN ui.user_id IN :secondDegree THEN 4 ELSE 0 END) 
+                            FROM user_spot_interactions ui WHERE ui.spot_id = s.id AND ui.is_saved = true AND ui.updated_at >= :since AND (ui.user_id IN :firstDegree OR ui.user_id IN :secondDegree)), 0) * 10
+            ) DESC, s.rank_score DESC
+            LIMIT 20
+            """, nativeQuery = true)
+    List<Spot> findPersonalizedTrending(@Param("firstDegree") java.util.Collection<Long> firstDegree, @Param("secondDegree") java.util.Collection<Long> secondDegree, @Param("since") Instant since);
+
+    @Query(value = """
+            SELECT s.*
+            FROM spots s
+            WHERE s.status = 'ACTIVE'
+              AND (
+                  6371.0 * 2.0 * asin(
+                      sqrt(
+                          power(sin(radians(latitude - :lat) / 2.0), 2.0)
+                          + cos(radians(:lat)) * cos(radians(latitude))
+                          * power(sin(radians(longitude - :lng) / 2.0), 2.0)
+                      )
+                  )
+              ) <= :radiusKm
+            ORDER BY (
+                COALESCE((SELECT SUM(r.rating * CASE WHEN r.author_id IN :firstDegree THEN 5 WHEN r.author_id IN :secondDegree THEN 4 ELSE 0 END) 
+                          FROM reviews r WHERE r.spot_id = s.id AND r.status = 'APPROVED' AND (r.author_id IN :firstDegree OR r.author_id IN :secondDegree)), 0) * 3
+                + COALESCE((SELECT SUM(r.rating * CASE WHEN r.author_id IN :firstDegree THEN 5 WHEN r.author_id IN :secondDegree THEN 4 ELSE 0 END) 
+                            FROM reviews r WHERE r.spot_id = s.id AND r.status = 'APPROVED' AND r.created_at >= :since AND (r.author_id IN :firstDegree OR r.author_id IN :secondDegree)), 0) * 5
+                + COALESCE((SELECT SUM(CASE WHEN ui.user_id IN :firstDegree THEN 5 WHEN ui.user_id IN :secondDegree THEN 4 ELSE 0 END) 
+                            FROM user_spot_interactions ui WHERE ui.spot_id = s.id AND ui.is_liked = true AND ui.updated_at >= :since AND (ui.user_id IN :firstDegree OR ui.user_id IN :secondDegree)), 0) * 5
+                + COALESCE((SELECT SUM(CASE WHEN ui.user_id IN :firstDegree THEN 5 WHEN ui.user_id IN :secondDegree THEN 4 ELSE 0 END) 
+                            FROM user_spot_interactions ui WHERE ui.spot_id = s.id AND ui.is_saved = true AND ui.updated_at >= :since AND (ui.user_id IN :firstDegree OR ui.user_id IN :secondDegree)), 0) * 10
+            ) DESC, s.rank_score DESC
+            LIMIT 20
+            """, nativeQuery = true)
+    List<Spot> findPersonalizedTrendingWithinRadius(@Param("lat") double lat, @Param("lng") double lng, @Param("radiusKm") double radiusKm, @Param("firstDegree") java.util.Collection<Long> firstDegree, @Param("secondDegree") java.util.Collection<Long> secondDegree, @Param("since") Instant since);
 
     /**
      * Single SQL to recompute all rank scores with weighted formula.

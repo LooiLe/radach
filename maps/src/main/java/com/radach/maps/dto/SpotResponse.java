@@ -23,20 +23,26 @@ public record SpotResponse(
         @com.fasterxml.jackson.annotation.JsonProperty("isSaved") boolean isSaved,
         Long submitterId,
         String submitterName,
-        boolean submitterIsExpert
+        boolean submitterIsExpert,
+        List<VibeTagDTO> vibeTags
 ) {
     /** Convenience constructor from entity + computed average rating (assumes no interactions). */
     public SpotResponse(Spot spot, Double averageRating) {
-        this(spot, averageRating, false, false, null, null, false);
+        this(spot, averageRating, false, false, null, null, false, List.of());
     }
     
     /** Convenience constructor from entity + computed average rating + user interactions. */
     public SpotResponse(Spot spot, Double averageRating, boolean isLiked, boolean isSaved) {
-        this(spot, averageRating, isLiked, isSaved, null, null, false);
+        this(spot, averageRating, isLiked, isSaved, null, null, false, List.of());
     }
 
     /** Full constructor with submitter info. */
     public SpotResponse(Spot spot, Double averageRating, boolean isLiked, boolean isSaved, Long submitterId, String submitterName, boolean submitterIsExpert) {
+        this(spot, averageRating, isLiked, isSaved, submitterId, submitterName, submitterIsExpert, List.of());
+    }
+
+    /** Full constructor with all fields including vibe tags. */
+    public SpotResponse(Spot spot, Double averageRating, boolean isLiked, boolean isSaved, Long submitterId, String submitterName, boolean submitterIsExpert, List<VibeTagDTO> vibeTags) {
         this(
                 spot.getId(),
                 spot.getName(),
@@ -55,7 +61,8 @@ public record SpotResponse(
                 isSaved,
                 submitterId,
                 submitterName,
-                submitterIsExpert
+                submitterIsExpert,
+                vibeTags
         );
     }
 }

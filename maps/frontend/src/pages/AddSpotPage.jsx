@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useApi } from '../hooks/useApi';
 import { useAuth } from '../context/AuthContext';
 import './AddSpotPage.css';
 
 export default function AddSpotPage() {
+  const navigate = useNavigate();
   const { apiFetch } = useApi();
   const { isAdmin } = useAuth();
   const [categories, setCategories] = useState([]);
@@ -173,6 +175,13 @@ export default function AddSpotPage() {
   return (
     <div className="add-spot-page animate-fade-up">
       <div className="add-spot-container glass">
+        <button className="btn btn-ghost" onClick={() => navigate(-1)} style={{ marginBottom: '1rem', padding: '0.5rem', minWidth: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="19" y1="12" x2="5" y2="12"></line>
+            <polyline points="12 19 5 12 12 5"></polyline>
+          </svg>
+          Back
+        </button>
         <h1 className="page-title" style={{ marginTop: 0 }}>Add a new spot</h1>
         <p className="page-sub">Contribute to the map! New spots may require admin approval.</p>
 

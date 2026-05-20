@@ -62,8 +62,9 @@ public class SpotController {
             @RequestParam(required = false) Double lat,
             @RequestParam(required = false) Double lng,
             @RequestParam(required = false) Double radiusKm,
+            @RequestParam(required = false, defaultValue = "personalized") String type,
             org.springframework.security.core.Authentication auth) {
-        return spotService.getTrending(getUserIdOrNull(auth), lat, lng, radiusKm);
+        return spotService.getTrending(getUserIdOrNull(auth), lat, lng, radiusKm, type);
     }
 
     @GetMapping("/search")

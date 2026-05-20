@@ -59,4 +59,8 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
             @Param("limit") int limit);
 
     void deleteBySpotId(Long spotId);
+
+    /** Fetch all distinct spot IDs that have at least one approved review — used by vibe analysis. */
+    @Query("SELECT DISTINCT r.spotId FROM Review r WHERE r.status = 'APPROVED'")
+    List<Long> findDistinctSpotIdsWithApprovedReviews();
 }

@@ -56,8 +56,21 @@ export default function AdminDashboardPage() {
       if (res.ok) {
         setReviews(prev => prev.filter(r => r.id !== id))
         setPendingCount(c => c - 1)
+      } else {
+        const errorText = await res.text()
+        console.error(`Failed to ${statusVal} review ${id}:`, res.status, errorText)
+        if (res.status === 404) {
+          alert(`Review ${id} not found. It may have been deleted.`)
+        } else if (res.status === 403) {
+          alert('Permission denied. Please ensure you are logged in as an admin.')
+        } else {
+          alert(`Failed to ${statusVal} review: ${res.status}`)
+        }
       }
-    } catch { /* ignore */ }
+    } catch (err) {
+      console.error(`Error ${statusVal} review ${id}:`, err)
+      alert(`Error: ${err.message}`)
+    }
   }
 
   // === EXPERT APPLICATIONS TAB ===

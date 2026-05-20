@@ -38,4 +38,7 @@ public interface SpotEventRepository extends JpaRepository<SpotEvent, Long> {
     List<SpotEvent> findRecentByUserIds(
             @Param("userIds") Collection<Long> userIds,
             @Param("limit") int limit);
+
+    @Query("SELECT e.spotId, COUNT(e) FROM SpotEvent e WHERE e.userId IN :expertIds AND e.eventType = 'VIEW' GROUP BY e.spotId")
+    List<Object[]> countViewsByExpertIds(@Param("expertIds") Collection<Long> expertIds);
 }

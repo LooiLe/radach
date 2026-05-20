@@ -86,7 +86,7 @@ public class EmailService {
                 <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 24px;">
                   <h2 style="color: #1a1a2e; margin-bottom: 8px;">Verify your email</h2>
                   <p style="color: #555; font-size: 15px; line-height: 1.5;">
-                    Use the code below to complete your Radach Maps registration. It expires in 5 minutes.
+                    Use the code below to complete your Unlike Asia registration. It expires in 5 minutes.
                   </p>
                   <div style="background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%); border-radius: 12px; padding: 24px; text-align: center; margin: 24px 0;">
                     <span style="font-size: 36px; font-weight: 700; letter-spacing: 8px; color: #fff;">%s</span>
