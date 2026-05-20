@@ -58,8 +58,9 @@ export default function SpotDetailPage() {
   const [reviews, setReviews] = useState([])
   const [reviewBody, setReviewBody] = useState('')
   const [rating, setRating] = useState(0)
-  const [reviewMsg, setReviewMsg] = useState({ type: '', text: '' })
   const [saving, setSaving] = useState(false)
+  const [reviewMsg, setReviewMsg] = useState({ type: '', text: '' })
+  const [reviewFilter, setReviewFilter] = useState('all') // 'all', 'expert', 'user'
   const [activeVibeFilters, setActiveVibeFilters] = useState([])
 
   // Admin edit fields
@@ -80,10 +81,10 @@ export default function SpotDetailPage() {
       // Cleanup newly uploaded photos if component unmounts before saving
       if (newlyUploaded.current.length > 0) {
         newlyUploaded.current.forEach(url => {
-          fetch(`/api/v1/upload?url=${encodeURIComponent(url)}`, { 
+          fetch(`/api/v1/upload?url=${encodeURIComponent(url)}`, {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-          }).catch(() => {});
+          }).catch(() => { });
         });
       }
     };
@@ -168,7 +169,7 @@ export default function SpotDetailPage() {
       })
       const data = await res.json()
       if (res.ok) {
-        const msg = data.status === 'APPROVED' 
+        const msg = data.status === 'APPROVED'
           ? '✓ Review submitted and published! (Expert reviewer)'
           : '✓ Review submitted! Pending admin moderation.';
         setReviewMsg({ type: 'success', text: msg })
@@ -191,10 +192,10 @@ export default function SpotDetailPage() {
         })
       })
       const data = await res.json()
-      if (res.ok) { 
-        setSpot(data); 
+      if (res.ok) {
+        setSpot(data);
         newlyUploaded.current = []; // Clear tracking so they aren't deleted on unmount
-        alert('✓ Spot updated!') 
+        alert('✓ Spot updated!')
       }
       else { alert(data.error || 'Failed.') }
     } catch { alert('Server error.') }
@@ -233,7 +234,7 @@ export default function SpotDetailPage() {
               <div className="field"><label className="label">Name</label><input className="input" value={editName} onChange={e => setEditName(e.target.value)} /></div>
               <div className="field"><label className="label">Type</label>
                 <select className="input select" value={editType} onChange={e => setEditType(e.target.value)}>
-                  {['Restaurant','Food Hall','Café','Bar','Market','Other'].map(t => <option key={t} value={t}>{t}</option>)}
+                  {['Restaurant', 'Food Hall', 'Café', 'Bar', 'Market', 'Other'].map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
             </div>
@@ -254,14 +255,14 @@ export default function SpotDetailPage() {
 
             <div className="field" style={{ marginTop: '1rem', marginBottom: '1.5rem' }}>
               <label className="label">Photos</label>
-              
+
               {editPhotos.length > 0 && (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '10px', marginBottom: '1rem' }}>
                   {editPhotos.map((url, idx) => (
                     <div key={idx} style={{ position: 'relative' }}>
                       <img src={url} alt={`Spot photo ${idx + 1}`} style={{ width: '100%', height: '120px', objectFit: 'cover', borderRadius: '8px' }} />
-                      <button 
-                        type="button" 
+                      <button
+                        type="button"
                         onClick={() => removePhoto(idx)}
                         style={{ position: 'absolute', top: 5, right: 5, background: 'rgba(0,0,0,0.6)', color: 'white', border: 'none', borderRadius: '50%', width: 24, height: 24, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }}
                       >✕</button>
@@ -269,18 +270,18 @@ export default function SpotDetailPage() {
                   ))}
                 </div>
               )}
-              
-              <input 
-                type="file" 
-                multiple 
-                accept="image/*" 
-                onChange={handleFileChange} 
+
+              <input
+                type="file"
+                multiple
+                accept="image/*"
+                onChange={handleFileChange}
                 disabled={uploading}
                 className="input"
                 style={{ padding: '0.4rem' }}
               />
               {uploading && <p style={{ fontSize: '0.85rem', color: 'var(--primary)', marginTop: '0.5rem' }}>Uploading...</p>}
-</div>
+            </div>
 
             <div className="edit-actions">
               <button className="btn btn-primary" onClick={() => { trackEvent('view'); navigate(`/spots?mode=nearby&lat=${spot.latitude}&lng=${spot.longitude}&radiusKm=0.1`) }}> View on map</button>
@@ -296,83 +297,77 @@ export default function SpotDetailPage() {
         ) : (
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-               <div>
-                 <h1 className="detail-name">{spot.name}</h1>
-                 <div className="detail-meta">
-                   <span>{spot.type}</span>
-                   <span>{spot.address}</span>
-                   <span>{spot.latitude}, {spot.longitude}</span>
-                   <StatusBadge status={spot.status} />
-                   <span className="detail-rating">{formatRating(spot.averageRating)}</span>
-                 </div>
-                 {spot.websiteUrl && (
-                   <div style={{ marginTop: '0.5rem' }}>
-                     <a href={spot.websiteUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)', fontWeight: 'bold', textDecoration: 'none' }}>
-                       🔗 Visit Website / Social
-                     </a>
-                   </div>
-                 )}
-               </div>
-               <div className="spot-card-actions" style={{ marginLeft: '1rem' }}>
-                 <button className={`action-btn ${(spot.isLiked || spot.liked) ? 'active' : ''}`} onClick={async () => {
-                   if (!isAuthenticated) return navigate('/login')
-                   const newLiked = !(spot.isLiked || spot.liked)
-                   setSpot({ ...spot, isLiked: newLiked, liked: newLiked })
-                   try { await apiFetch(`/api/v1/spots/${spot.id}/like`, { method: 'POST' }) } 
-                   catch { setSpot({ ...spot, isLiked: !newLiked, liked: !newLiked }) }
-                 }} aria-label="Like spot">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill={(spot.isLiked || spot.liked) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                     <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
-                   </svg>
-                 </button>
-                 <button className={`action-btn ${(spot.isSaved || spot.saved) ? 'active' : ''}`} onClick={async () => {
-                   if (!isAuthenticated) return navigate('/login')
-                   const newSaved = !(spot.isSaved || spot.saved)
-                   setSpot({ ...spot, isSaved: newSaved, saved: newSaved })
-                   try { 
-                     const res = await apiFetch(`/api/v1/spots/${spot.id}/save`, { method: 'POST' })
-                     const data = await res.json()
-                     console.log('SAVE RESPONSE:', data)
-                   } 
-                   catch { setSpot({ ...spot, isSaved: !newSaved, saved: !newSaved }) }
-                 }} aria-label="Save spot">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill={(spot.isSaved || spot.saved) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                     <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"></path>
-                   </svg>
-                 </button>
-               </div>
-             </div>
-             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', alignItems: 'center', marginBottom: '0.5rem' }}>
-               {spot.tags?.length > 0 && spot.tags.map(t => <span key={t} className="spot-tag">{t}</span>)}
-               <button className="btn btn-primary" style={{ fontSize: '0.85rem', padding: '0.3rem 0.8rem', marginLeft: 'auto' }} onClick={() => { trackEvent('view'); navigate(`/spots?q=${encodeURIComponent(spot.name)}`) }}>
-                 View on map
-               </button>
-             </div>
+              <div>
+                <h1 className="detail-name">{spot.name}</h1>
+                <div className="detail-meta">
+                  <span>{spot.type}</span>
+                  <span>{spot.address}</span>
+                  <span>{spot.latitude}, {spot.longitude}</span>
+                  <StatusBadge status={spot.status} />
+                  <span className="detail-rating">{formatRating(spot.averageRating)}</span>
+                </div>
+                {spot.websiteUrl && (
+                  <div style={{ marginTop: '0.5rem' }}>
+                    <a href={spot.websiteUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)', fontWeight: 'bold', textDecoration: 'none' }}>
+                      🔗 Visit Website / Social
+                    </a>
+                  </div>
+                )}
+              </div>
+              <div className="spot-card-actions" style={{ marginLeft: '1rem' }}>
+                <button className={`action-btn ${(spot.isLiked || spot.liked) ? 'active' : ''}`} onClick={async () => {
+                  if (!isAuthenticated) return navigate('/login')
+                  const newLiked = !(spot.isLiked || spot.liked)
+                  setSpot({ ...spot, isLiked: newLiked, liked: newLiked })
+                  try { await apiFetch(`/api/v1/spots/${spot.id}/like`, { method: 'POST' }) }
+                  catch { setSpot({ ...spot, isLiked: !newLiked, liked: !newLiked }) }
+                }} aria-label="Like spot">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill={(spot.isLiked || spot.liked) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                  </svg>
+                </button>
+                <button className={`action-btn ${(spot.isSaved || spot.saved) ? 'active' : ''}`} onClick={async () => {
+                  if (!isAuthenticated) return navigate('/login')
+                  const newSaved = !(spot.isSaved || spot.saved)
+                  setSpot({ ...spot, isSaved: newSaved, saved: newSaved })
+                  try {
+                    const res = await apiFetch(`/api/v1/spots/${spot.id}/save`, { method: 'POST' })
+                    const data = await res.json()
+                    console.log('SAVE RESPONSE:', data)
+                  }
+                  catch { setSpot({ ...spot, isSaved: !newSaved, saved: !newSaved }) }
+                }} aria-label="Save spot">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill={(spot.isSaved || spot.saved) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"></path>
+                  </svg>
+                </button>
+              </div>
+            </div>
 
-              {spot.photos?.length > 0 && (
-               <div style={{ marginTop: '1.5rem', marginBottom: '1.5rem' }}>
-                 <h3 style={{ fontSize: '1.1rem', marginBottom: '0.8rem' }}>Photos</h3>
-                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '10px' }}>
-                   {spot.photos.map((url, idx) => (
-                     <img key={idx} src={url} alt={`Spot photo ${idx + 1}`} style={{ width: '100%', height: '150px', objectFit: 'cover', borderRadius: '8px', cursor: 'pointer' }} onClick={() => window.open(url, '_blank')} />
-                   ))}
-                 </div>
-               </div>
-             )}
+            {spot.photos?.length > 0 && (
+              <div style={{ marginTop: '1.5rem', marginBottom: '1.5rem' }}>
+                <h3 style={{ fontSize: '1.1rem', marginBottom: '0.8rem' }}>Photos</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '10px' }}>
+                  {spot.photos.map((url, idx) => (
+                    <img key={idx} src={url} alt={`Spot photo ${idx + 1}`} style={{ width: '100%', height: '150px', objectFit: 'cover', borderRadius: '8px', cursor: 'pointer' }} onClick={() => window.open(url, '_blank')} />
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
               <button className="btn btn-primary" onClick={() => { trackEvent('view'); navigate(`/spots?mode=nearby&lat=${spot.latitude}&lng=${spot.longitude}&radiusKm=0.1`) }}>
-                 View on map
+                View on map
               </button>
               <button className="btn btn-ghost" style={{ border: '1px solid var(--border-color)' }} onClick={() => navigate(`/directions/${spot.id}`)}>
-                 Directions
+                Directions
               </button>
             </div>
           </>
         )}
       </div>
 
-<h2 className="section-heading"> Reviews</h2>
+      <h2 className="section-heading"> Reviews</h2>
 
       <div className="review-form glass">
         <textarea className="textarea" value={reviewBody} onChange={e => setReviewBody(e.target.value)}
@@ -409,7 +404,7 @@ export default function SpotDetailPage() {
               const isActive = activeVibeFilters.includes(vt.name);
               return (
                 <span key={vt.id} onClick={() => {
-                  setActiveVibeFilters(prev => 
+                  setActiveVibeFilters(prev =>
                     isActive ? prev.filter(name => name !== vt.name) : [...prev, vt.name]
                   );
                 }} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem', background: isActive ? '#9ca3af' : 'white', color: isActive ? 'white' : '#1a1a2e', borderRadius: '999px', fontSize: '0.8rem', padding: '0.25rem 0.7rem', fontWeight: 500, lineHeight: 1.4, cursor: 'pointer', transition: 'all 0.15s', opacity: 0.85, border: '1px solid #e5e7eb' }} onMouseEnter={e => e.currentTarget.style.opacity = '1'} onMouseLeave={e => e.currentTarget.style.opacity = '0.85'}>
@@ -422,18 +417,40 @@ export default function SpotDetailPage() {
         </div>
       )}
 
-<div className="reviews-list">
+      <div className="reviews-list">
+        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+          <button 
+            className={`btn ${reviewFilter === 'all' ? 'btn-primary' : 'btn-ghost'}`} 
+            onClick={() => setReviewFilter('all')}
+          >All Reviews</button>
+          <button 
+            className={`btn ${reviewFilter === 'expert' ? 'btn-primary' : 'btn-ghost'}`} 
+            onClick={() => setReviewFilter('expert')}
+          >Experts</button>
+          <button 
+            className={`btn ${reviewFilter === 'user' ? 'btn-primary' : 'btn-ghost'}`} 
+            onClick={() => setReviewFilter('user')}
+          >Users</button>
+        </div>
         {(() => {
-          const filteredReviews = activeVibeFilters.length > 0
-            ? reviews.filter(r => {
-                const lower = r.body?.toLowerCase() || '';
-                // Check if review matches ANY of the selected tags
-                return activeVibeFilters.some(filterName => {
-                  const keywords = VIBE_KEYWORDS[filterName] || [filterName];
-                  return keywords.some(kw => lower.includes(kw.toLowerCase()));
-                });
-              })
-            : reviews;
+          let filteredReviews = reviews;
+          
+          if (reviewFilter === 'expert') {
+            filteredReviews = filteredReviews.filter(r => r.authorIsExpert);
+          } else if (reviewFilter === 'user') {
+            filteredReviews = filteredReviews.filter(r => !r.authorIsExpert);
+          }
+
+          if (activeVibeFilters.length > 0) {
+            filteredReviews = filteredReviews.filter(r => {
+              const lower = r.body?.toLowerCase() || '';
+              // Check if review matches ANY of the selected tags
+              return activeVibeFilters.some(filterName => {
+                const keywords = VIBE_KEYWORDS[filterName] || [filterName];
+                return keywords.some(kw => lower.includes(kw.toLowerCase()));
+              });
+            });
+          }
           if (filteredReviews.length === 0) {
             return <div className="empty-state">{activeVibeFilters.length > 0 ? `No reviews match the selected tags.` : 'No reviews yet. Be the first!'}</div>;
           }

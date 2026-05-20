@@ -259,85 +259,55 @@ public class SpotService {
         return findById(saved.getId(), null);
     }
 
-    public List<SpotResponse> getTrending(Long authenticatedUserId, Double lat, Double lng, Double radiusKm) {
+    public List<SpotResponse> getTrending(Long authenticatedUserId, Double lat, Double lng, Double radiusKm, String type) {
         boolean geoSearch = lat != null && lng != null && radiusKm != null;
+        java.time.Instant since = java.time.Instant.now().minus(java.time.Duration.ofDays(7));
 
-        if (authenticatedUserId == null) {
-            // Unauthenticated ranking
+        if ("expert".equalsIgnoreCase(type)) {
+            // Expert Reviews trending (accessible to everyone)
             List<Spot> spots = geoSearch
-                    ? spotRepository.findWithinRadius(lat, lng, radiusKm)
-                    : spotRepository.findTop20ByStatusOrderByRankScoreDesc(SpotStatus.ACTIVE);
-            
-            if (geoSearch) {
-                // Geo search returns all spots in radius ordered by distance, need to sort by global score and take top 20
-                spots = spots.stream()
-                        .sorted((s1, s2) -> Integer.compare(s2.getRankScore(), s1.getRankScore()))
-                        .limit(20)
-                        .toList();
+                    ? spotRepository.findExpertTrendingWithinRadius(lat, lng, radiusKm, since)
+                    : spotRepository.findExpertTrending(since);
+            return withRatingsAndInteractions(spots, authenticatedUserId);
+        } else {
+            // Personalized trending based on friends
+            if (authenticatedUserId == null) {
+                // Unauthenticated personalized ranking = global fallback
+                List<Spot> spots = geoSearch
+                        ? spotRepository.findWithinRadiusOrderByRankScoreDesc(lat, lng, radiusKm)
+                        : spotRepository.findTop20ByStatusOrderByRankScoreDesc(SpotStatus.ACTIVE);
+                
+                if (geoSearch) {
+                    spots = spots.stream().limit(20).toList();
+                }
+                return withRatingsAndInteractions(spots, null);
             }
-            return sortTrending(withRatingsAndInteractions(spots, null));
-        }
 
-        // Personalized trending based on friends
-        Set<Long> firstDegree = friendshipService.getFirstDegreeConnections(authenticatedUserId);
-        Set<Long> secondDegree = friendshipService.getSecondDegreeConnections(authenticatedUserId);
-
-        // spotId -> score
-        Map<Long, Integer> dynamicScores = new java.util.HashMap<>();
-
-        // Helper to get connection multiplier
-        java.util.function.Function<Long, Integer> getMultiplier = (authorId) -> {
-            if (firstDegree.contains(authorId) || authorId.equals(authenticatedUserId)) return 5;
-            if (secondDegree.contains(authorId)) return 4;
-            return 1;
-        };
-
-        // 1. Add Review Scores — weighted by actual rating (1–5).
-        //    Formula: sumOfRatings × 2 × friendMultiplier
-        //    e.g. a 5-star review from a 1st-degree friend = 5 × 2 × 5 = 50
-        //         a 1-star review from a stranger         = 1 × 2 × 1 = 2
-        List<Object[]> ratingData = reviewRepository.sumApprovedRatingsGroupedBySpotAndAuthor();
-        for (Object[] row : ratingData) {
-            Long spotId = (Long) row[0];
-            Long authorId = (Long) row[1];
-            double ratingSum = ((Number) row[2]).doubleValue();
-            int scoreAddition = (int) (ratingSum * 2 * getMultiplier.apply(authorId));
-            dynamicScores.merge(spotId, scoreAddition, Integer::sum);
-        }
-
-        // 2. Add Like and Save Scores (Base Like = 5, Base Save = 10)
-        List<Object[]> interactions = interactionRepository.findAllActiveInteractions();
-        for (Object[] row : interactions) {
-            Long spotId = (Long) row[0];
-            Long authorId = (Long) row[1];
-            boolean isLiked = (Boolean) row[2];
-            boolean isSaved = (Boolean) row[3];
+            Set<Long> firstDegree = friendshipService.getFirstDegreeConnections(authenticatedUserId);
+            Set<Long> secondDegree = friendshipService.getSecondDegreeConnections(authenticatedUserId);
             
-            int multiplier = getMultiplier.apply(authorId);
-            int scoreAddition = 0;
-            if (isLiked) scoreAddition += 5 * multiplier;
-            if (isSaved) scoreAddition += 10 * multiplier;
-            
-            dynamicScores.merge(spotId, scoreAddition, Integer::sum);
+            if (firstDegree.isEmpty() && secondDegree.isEmpty()) {
+                // Fallback to global if they have no friends
+                List<Spot> spots = geoSearch
+                        ? spotRepository.findWithinRadiusOrderByRankScoreDesc(lat, lng, radiusKm)
+                        : spotRepository.findTop20ByStatusOrderByRankScoreDesc(SpotStatus.ACTIVE);
+                
+                if (geoSearch) {
+                    spots = spots.stream().limit(20).toList();
+                }
+                return withRatingsAndInteractions(spots, authenticatedUserId);
+            }
+
+            // Safe collections for SQL IN clause to prevent syntax errors
+            Set<Long> safeFirstDegree = firstDegree.isEmpty() ? Set.of(-1L) : firstDegree;
+            Set<Long> safeSecondDegree = secondDegree.isEmpty() ? Set.of(-1L) : secondDegree;
+
+            List<Spot> spots = geoSearch
+                    ? spotRepository.findPersonalizedTrendingWithinRadius(lat, lng, radiusKm, safeFirstDegree, safeSecondDegree, since)
+                    : spotRepository.findPersonalizedTrending(safeFirstDegree, safeSecondDegree, since);
+
+            return withRatingsAndInteractions(spots, authenticatedUserId);
         }
-
-        List<Spot> allSpots = geoSearch
-                ? spotRepository.findWithinRadius(lat, lng, radiusKm)
-                : spotRepository.findAllByStatus(SpotStatus.ACTIVE);
-
-        List<Spot> sortedSpots = allSpots.stream()
-                .sorted((s1, s2) -> {
-                    int score1 = dynamicScores.getOrDefault(s1.getId(), 0);
-                    int score2 = dynamicScores.getOrDefault(s2.getId(), 0);
-                    if (score1 != score2) {
-                        return Integer.compare(score2, score1);
-                    }
-                    return Integer.compare(s2.getRankScore(), s1.getRankScore()); // fallback to global rank score
-                })
-                .limit(20)
-                .toList();
-
-        return sortTrending(withRatingsAndInteractions(sortedSpots, authenticatedUserId));
     }
 
     private List<SpotResponse> sortTrending(List<SpotResponse> responses) {
