@@ -153,9 +153,14 @@ public class VibeAnalysisService {
         spotVibeRepo.deleteBySpotId(spotId);
         List<VibeTagDefinition> allDefs = vibeDefRepo.findAll();
 
-        for (Map.Entry<String, Float> entry : scores.entrySet()) {
-            if (entry.getValue() <= 0) continue;
+        // Sort scores descending by confidence and limit to top 12
+        List<Map.Entry<String, Float>> topScores = scores.entrySet().stream()
+                .filter(e -> e.getValue() > 0)
+                .sorted(Map.Entry.<String, Float>comparingByValue().reversed())
+                .limit(12)
+                .collect(Collectors.toList());
 
+        for (Map.Entry<String, Float> entry : topScores) {
             // Find the definition by name
             Optional<VibeTagDefinition> defOpt = allDefs.stream()
                     .filter(d -> d.getName().equals(entry.getKey()))
@@ -171,7 +176,7 @@ public class VibeAnalysisService {
             spotVibeRepo.save(svt);
         }
 
-        log.info("Analyzed spot {} → {} vibe tags", spotId, scores.size());
+        log.info("Analyzed spot {} → {} vibe tags", spotId, topScores.size());
     }
 
     /**
