@@ -56,6 +56,7 @@ export default function SpotDetailPage() {
   const navigate = useNavigate()
   const [spot, setSpot] = useState(null)
   const [reviews, setReviews] = useState([])
+  const [events, setEvents] = useState([])
   const [reviewBody, setReviewBody] = useState('')
   const [rating, setRating] = useState(0)
   const [saving, setSaving] = useState(false)
@@ -119,7 +120,14 @@ export default function SpotDetailPage() {
     } catch { /* ignore */ }
   }, [apiFetch, id])
 
-  useEffect(() => { loadSpot(); loadReviews() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  const loadEvents = useCallback(async () => {
+    try {
+      const res = await apiFetch(`/api/v1/events/spot/${id}`)
+      if (res.ok) setEvents(await res.json())
+    } catch { /* ignore */ }
+  }, [apiFetch, id])
+
+  useEffect(() => { loadSpot(); loadReviews(); loadEvents(); }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const trackEvent = async (type) => {
     try { await apiFetch(`/api/v1/spots/${id}/${type}`, { method: 'POST' }) } catch { /* ok */ }
@@ -414,6 +422,25 @@ export default function SpotDetailPage() {
           </>
         )}
       </div>
+
+      {events.length > 0 && (
+        <>
+          <h2 className="section-heading"> Upcoming Events</h2>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
+            {events.map(event => (
+              <div key={event.id} className="glass" style={{ padding: '1rem', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)' }}>
+                {event.imageUrl && <img src={event.imageUrl} alt={event.title} style={{ width: '100%', height: '120px', objectFit: 'cover', borderRadius: 'var(--radius-sm)', marginBottom: '0.75rem' }} />}
+                <h3 style={{ fontSize: '1.05rem', margin: '0 0 0.5rem 0' }}>{event.title}</h3>
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
+                  📅 {new Date(event.startTime).toLocaleDateString()}
+                </div>
+                {event.description && <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{event.description}</p>}
+                <Link to="/events" className="btn btn-ghost btn-sm" style={{ marginTop: '0.5rem', padding: '0.4rem 0' }}>View in Events Tab</Link>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
       <h2 className="section-heading"> Reviews</h2>
 

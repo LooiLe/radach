@@ -37,6 +37,34 @@ export default function AdminDashboardPage() {
     } catch { /* ignore */ }
   }
 
+  // === EVENTS TAB ===
+  const [pendingEvents, setPendingEvents] = useState([])
+  const [pendingEventsCount, setPendingEventsCount] = useState(0)
+
+  const loadPendingEvents = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/v1/admin/events/pending')
+      const data = await res.json()
+      if (res.ok) { setPendingEvents(data); setPendingEventsCount(data.length) }
+    } catch { /* ignore */ }
+  }, [apiFetch])
+
+  const eventAction = async (id, action) => {
+    try {
+      let res;
+      if (action === 'APPROVE') {
+        res = await apiFetch(`/api/v1/admin/events/${id}/status?status=ACTIVE`, { method: 'PATCH' })
+      } else if (action === 'REJECT') {
+        if (!window.confirm("Are you sure you want to completely delete this event?")) return;
+        res = await apiFetch(`/api/v1/admin/events/${id}`, { method: 'DELETE' })
+      }
+      if (res && res.ok) {
+        setPendingEvents(prev => prev.filter(e => e.id !== id))
+        setPendingEventsCount(c => c - 1)
+      }
+    } catch { /* ignore */ }
+  }
+
   // === REVIEWS TAB ===
   const [reviews, setReviews] = useState([])
   const [pendingCount, setPendingCount] = useState(0)
@@ -251,10 +279,11 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     loadPendingReviews()
     loadPendingSpots()
+    loadPendingEvents()
     loadExpertApps()
     loadCategories()
     if (isSuperAdmin) loadUsers()
-  }, [loadPendingReviews, loadPendingSpots, loadExpertApps, loadCategories, loadUsers, isSuperAdmin])
+  }, [loadPendingReviews, loadPendingSpots, loadPendingEvents, loadExpertApps, loadCategories, loadUsers, isSuperAdmin])
 
   const roleBadgeCls = (r) => r === 'SUPER_ADMIN' ? 'badge-role' : r === 'ADMIN' ? 'badge-pending' : 'badge-inactive'
 
@@ -268,6 +297,9 @@ export default function AdminDashboardPage() {
         </button>
         <button className={`admin-tab ${tab === 'spots' ? 'active' : ''}`} onClick={() => setTab('spots')}>
           Verify Spots {pendingSpotsCount > 0 && <span className="pending-badge">{pendingSpotsCount}</span>}
+        </button>
+        <button className={`admin-tab ${tab === 'events' ? 'active' : ''}`} onClick={() => setTab('events')}>
+          Verify Events {pendingEventsCount > 0 && <span className="pending-badge">{pendingEventsCount}</span>}
         </button>
         <button className={`admin-tab ${tab === 'experts' ? 'active' : ''}`} onClick={() => setTab('experts')}>
           Expert Applications {expertAppsCount > 0 && <span className="pending-badge">{expertAppsCount}</span>}
@@ -344,6 +376,40 @@ export default function AdminDashboardPage() {
               <div className="pending-actions">
                 <button className="btn btn-primary" onClick={() => spotAction(s.id, 'APPROVE')}>Approve</button>
                 <button className="btn btn-danger" onClick={() => spotAction(s.id, 'REJECT')}>Reject</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tab === 'events' && (
+        <div className="admin-reviews">
+          {pendingEvents.length === 0 && <p style={{ color: 'var(--success)', fontWeight: 600, textAlign: 'center', marginTop: '2rem' }}>All events moderated. Nothing pending.</p>}
+          {pendingEvents.map(e => (
+            <div key={e.id} className="pending-review glass">
+              <div className="pending-body">
+                <p className="pending-meta">Event #{e.id} · Spot #{e.spotId}</p>
+                <h3 className="pending-text" style={{margin: '0 0 0.5rem'}}>
+                  {e.title}
+                </h3>
+                <p className="pending-author" style={{marginBottom: '0.5rem'}}>
+                  Start: {new Date(e.startTime).toLocaleString()}
+                </p>
+                {e.description && <p className="pending-text" style={{ fontSize: '0.9rem', marginBottom: '0.5rem' }}>{e.description}</p>}
+                {e.submittedBy && (
+                  <p className="pending-author" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+                    <span>Submitted by: </span>
+                    <strong>
+                      <Link to={`/user/${e.submittedBy}`} style={{ color: 'var(--text-primary)', textDecoration: 'none' }} className="hover-link">
+                        {e.submitterName || `User #${e.submittedBy}`}
+                      </Link>
+                    </strong>
+                  </p>
+                )}
+              </div>
+              <div className="pending-actions">
+                <button className="btn btn-primary" onClick={() => eventAction(e.id, 'APPROVE')}>Approve</button>
+                <button className="btn btn-danger" onClick={() => eventAction(e.id, 'REJECT')}>Reject</button>
               </div>
             </div>
           ))}

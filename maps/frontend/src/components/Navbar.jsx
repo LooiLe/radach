@@ -74,6 +74,9 @@ export default function Navbar() {
         <Link to="/feed" className={`menu-item ${isActive('/feed') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
           <span className="menu-icon"></span> Friend Feed
         </Link>
+        <Link to="/events" className={`menu-item ${isActive('/events') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
+          <span className="menu-icon"></span> Events
+        </Link>
         {isAuthenticated && (
           <Link to={`/user/${userId}`} className={`menu-item ${isActive(`/user/${userId}`) ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
             <span className="menu-icon"></span> My Profile
