@@ -59,11 +59,17 @@ export default function Navbar() {
          <Link to="/spots" className={`menu-item ${isActive('/spots') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
            <span className="menu-icon"></span> All Spots
          </Link>
+         <Link to="/events" className={`menu-item ${isActive('/events') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
+           <span className="menu-icon"></span> Events
+         </Link>
+         <Link to="/feed" className={`menu-item ${isActive('/feed') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
+          <span className="menu-icon"></span> Feed
+        </Link>
          <Link to="/trending" className={`menu-item ${isActive('/trending') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
            <span className="menu-icon"></span> Trending
          </Link>
          <Link to="/search" className={`menu-item ${isActive('/search') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
-           <span className="menu-icon"></span> Search
+           <span className="menu-icon"></span> Search for users
          </Link>
          <Link to="/friends" className={`menu-item ${isActive('/friends') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
            <span className="menu-icon"></span> Friends
@@ -71,12 +77,15 @@ export default function Navbar() {
         <Link to="/saved" className={`menu-item ${isActive('/saved') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
           <span className="menu-icon"></span> Saved Spots
         </Link>
+<<<<<<< Updated upstream
         <Link to="/feed" className={`menu-item ${isActive('/feed') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
           <span className="menu-icon"></span> Friend Feed
         </Link>
         <Link to="/events" className={`menu-item ${isActive('/events') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
           <span className="menu-icon"></span> Events
         </Link>
+=======
+>>>>>>> Stashed changes
         {isAuthenticated && (
           <Link to={`/user/${userId}`} className={`menu-item ${isActive(`/user/${userId}`) ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
             <span className="menu-icon"></span> My Profile
