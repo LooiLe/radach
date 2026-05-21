@@ -33,6 +33,9 @@ public class User {
     @Column(nullable = false)
     private boolean isExpert = false;
 
+    @Column(nullable = false)
+    private boolean privateAccount = false;
+
     @Column(length = 500)
     private String bio;
 
@@ -66,6 +69,9 @@ public class User {
 
     public boolean isExpert() { return isExpert; }
     public void setExpert(boolean expert) { this.isExpert = expert; }
+
+    public boolean isPrivateAccount() { return privateAccount; }
+    public void setPrivateAccount(boolean privateAccount) { this.privateAccount = privateAccount; }
 
     public String getBio() { return bio; }
     public void setBio(String bio) { this.bio = bio; }

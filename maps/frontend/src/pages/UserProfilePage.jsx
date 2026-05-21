@@ -29,10 +29,10 @@ const navigate = useNavigate()
   const [applyMsg, setApplyMsg] = useState({ type: '', text: '' })
   const [myApplications, setMyApplications] = useState([])
 
-  // Edit profile form (for experts)
+  // Edit profile form (for experts and users)
   const [showEditForm, setShowEditForm] = useState(false)
   const [editForm, setEditForm] = useState({
-    bio: '', professionalTitle: '', organization: '', yearsExperience: '', specializations: '', portfolioUrl: ''
+    bio: '', privateAccount: false, professionalTitle: '', organization: '', yearsExperience: '', specializations: '', portfolioUrl: ''
   })
   const [editMsg, setEditMsg] = useState({ type: '', text: '' })
 
@@ -49,6 +49,7 @@ const navigate = useNavigate()
       // Pre-fill edit form
       setEditForm({
         bio: userData.bio || '',
+        privateAccount: userData.privateAccount || false,
         professionalTitle: userData.professionalTitle || '',
         organization: userData.organization || '',
         yearsExperience: userData.yearsExperience || '',
@@ -206,7 +207,18 @@ const navigate = useNavigate()
                 <div className="glass" style={{ padding: '1.5rem' }}>
                   <h3 style={{ marginBottom: '1rem' }}>Edit Your Profile</h3>
                   <div className="edit-profile-grid">
-                    <div className="field">
+                    <div className="field" style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <input 
+                        type="checkbox" 
+                        id="privateAccountToggle"
+                        checked={editForm.privateAccount}
+                        onChange={e => setEditForm({ ...editForm, privateAccount: e.target.checked })} 
+                      />
+                      <label htmlFor="privateAccountToggle" style={{ margin: 0, fontWeight: 500 }}>
+                        Private Account (Hide posts and activity from non-friends)
+                      </label>
+                    </div>
+                    <div className="field" style={{ gridColumn: '1 / -1' }}>
                       <label className="label">Bio</label>
                       <textarea className="textarea" value={editForm.bio} onChange={e => setEditForm({ ...editForm, bio: e.target.value })} maxLength={500} placeholder="Write something about yourself..." />
                     </div>

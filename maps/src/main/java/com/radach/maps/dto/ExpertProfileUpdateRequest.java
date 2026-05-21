@@ -4,6 +4,7 @@ import jakarta.validation.constraints.Size;
 
 public record ExpertProfileUpdateRequest(
         @Size(max = 500) String bio,
+        Boolean privateAccount,
         @Size(max = 100) String professionalTitle,
         @Size(max = 100) String organization,
         Integer yearsExperience,
