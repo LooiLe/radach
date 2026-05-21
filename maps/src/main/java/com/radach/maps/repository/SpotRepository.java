@@ -120,8 +120,8 @@ public interface SpotRepository extends JpaRepository<Spot, Long> {
             WHERE s.status = 'ACTIVE'
             ORDER BY (
                 COALESCE((SELECT COUNT(*) FROM spot_events e JOIN users u ON u.id = e.user_id WHERE e.spot_id = s.id AND e.event_type = 'VIEW' AND e.created_at >= :since AND u.is_expert = true), 0)
-                + COALESCE((SELECT SUM(r.rating) FROM reviews r JOIN users u ON u.id = r.author_id WHERE r.spot_id = s.id AND r.status = 'APPROVED' AND u.is_expert = true), 0) * 3
-                + COALESCE((SELECT SUM(r.rating) FROM reviews r JOIN users u ON u.id = r.author_id WHERE r.spot_id = s.id AND r.status = 'APPROVED' AND r.created_at >= :since AND u.is_expert = true), 0) * 5
+                + COALESCE((SELECT AVG(r.rating) FROM reviews r JOIN users u ON u.id = r.author_id WHERE r.spot_id = s.id AND r.status = 'APPROVED' AND u.is_expert = true), 0) * 10
+                + COALESCE((SELECT AVG(r.rating) FROM reviews r JOIN users u ON u.id = r.author_id WHERE r.spot_id = s.id AND r.status = 'APPROVED' AND r.created_at >= :since AND u.is_expert = true), 0) * 20
                 + COALESCE((SELECT COUNT(*) FROM user_spot_interactions ui JOIN users u ON u.id = ui.user_id WHERE ui.spot_id = s.id AND ui.is_liked = true AND ui.updated_at >= :since AND u.is_expert = true), 0) * 5
                 + COALESCE((SELECT COUNT(*) FROM user_spot_interactions ui JOIN users u ON u.id = ui.user_id WHERE ui.spot_id = s.id AND ui.is_saved = true AND ui.updated_at >= :since AND u.is_expert = true), 0) * 10
             ) DESC, s.rank_score DESC
@@ -144,8 +144,8 @@ public interface SpotRepository extends JpaRepository<Spot, Long> {
               ) <= :radiusKm
             ORDER BY (
                 COALESCE((SELECT COUNT(*) FROM spot_events e JOIN users u ON u.id = e.user_id WHERE e.spot_id = s.id AND e.event_type = 'VIEW' AND e.created_at >= :since AND u.is_expert = true), 0)
-                + COALESCE((SELECT SUM(r.rating) FROM reviews r JOIN users u ON u.id = r.author_id WHERE r.spot_id = s.id AND r.status = 'APPROVED' AND u.is_expert = true), 0) * 3
-                + COALESCE((SELECT SUM(r.rating) FROM reviews r JOIN users u ON u.id = r.author_id WHERE r.spot_id = s.id AND r.status = 'APPROVED' AND r.created_at >= :since AND u.is_expert = true), 0) * 5
+                + COALESCE((SELECT AVG(r.rating) FROM reviews r JOIN users u ON u.id = r.author_id WHERE r.spot_id = s.id AND r.status = 'APPROVED' AND u.is_expert = true), 0) * 10
+                + COALESCE((SELECT AVG(r.rating) FROM reviews r JOIN users u ON u.id = r.author_id WHERE r.spot_id = s.id AND r.status = 'APPROVED' AND r.created_at >= :since AND u.is_expert = true), 0) * 20
                 + COALESCE((SELECT COUNT(*) FROM user_spot_interactions ui JOIN users u ON u.id = ui.user_id WHERE ui.spot_id = s.id AND ui.is_liked = true AND ui.updated_at >= :since AND u.is_expert = true), 0) * 5
                 + COALESCE((SELECT COUNT(*) FROM user_spot_interactions ui JOIN users u ON u.id = ui.user_id WHERE ui.spot_id = s.id AND ui.is_saved = true AND ui.updated_at >= :since AND u.is_expert = true), 0) * 10
             ) DESC, s.rank_score DESC
@@ -158,10 +158,10 @@ public interface SpotRepository extends JpaRepository<Spot, Long> {
             FROM spots s
             WHERE s.status = 'ACTIVE'
             ORDER BY (
-                COALESCE((SELECT SUM(r.rating * CASE WHEN r.author_id IN :firstDegree THEN 5 WHEN r.author_id IN :secondDegree THEN 4 ELSE 0 END) 
-                          FROM reviews r WHERE r.spot_id = s.id AND r.status = 'APPROVED' AND (r.author_id IN :firstDegree OR r.author_id IN :secondDegree)), 0) * 3
-                + COALESCE((SELECT SUM(r.rating * CASE WHEN r.author_id IN :firstDegree THEN 5 WHEN r.author_id IN :secondDegree THEN 4 ELSE 0 END) 
-                            FROM reviews r WHERE r.spot_id = s.id AND r.status = 'APPROVED' AND r.created_at >= :since AND (r.author_id IN :firstDegree OR r.author_id IN :secondDegree)), 0) * 5
+                COALESCE((SELECT AVG(r.rating * CASE WHEN r.author_id IN :firstDegree THEN 5 WHEN r.author_id IN :secondDegree THEN 4 ELSE 0 END) 
+                          FROM reviews r WHERE r.spot_id = s.id AND r.status = 'APPROVED' AND (r.author_id IN :firstDegree OR r.author_id IN :secondDegree)), 0) * 10
+                + COALESCE((SELECT AVG(r.rating * CASE WHEN r.author_id IN :firstDegree THEN 5 WHEN r.author_id IN :secondDegree THEN 4 ELSE 0 END) 
+                            FROM reviews r WHERE r.spot_id = s.id AND r.status = 'APPROVED' AND r.created_at >= :since AND (r.author_id IN :firstDegree OR r.author_id IN :secondDegree)), 0) * 20
                 + COALESCE((SELECT SUM(CASE WHEN ui.user_id IN :firstDegree THEN 5 WHEN ui.user_id IN :secondDegree THEN 4 ELSE 0 END) 
                             FROM user_spot_interactions ui WHERE ui.spot_id = s.id AND ui.is_liked = true AND ui.updated_at >= :since AND (ui.user_id IN :firstDegree OR ui.user_id IN :secondDegree)), 0) * 5
                 + COALESCE((SELECT SUM(CASE WHEN ui.user_id IN :firstDegree THEN 5 WHEN ui.user_id IN :secondDegree THEN 4 ELSE 0 END) 
@@ -185,10 +185,10 @@ public interface SpotRepository extends JpaRepository<Spot, Long> {
                   )
               ) <= :radiusKm
             ORDER BY (
-                COALESCE((SELECT SUM(r.rating * CASE WHEN r.author_id IN :firstDegree THEN 5 WHEN r.author_id IN :secondDegree THEN 4 ELSE 0 END) 
-                          FROM reviews r WHERE r.spot_id = s.id AND r.status = 'APPROVED' AND (r.author_id IN :firstDegree OR r.author_id IN :secondDegree)), 0) * 3
-                + COALESCE((SELECT SUM(r.rating * CASE WHEN r.author_id IN :firstDegree THEN 5 WHEN r.author_id IN :secondDegree THEN 4 ELSE 0 END) 
-                            FROM reviews r WHERE r.spot_id = s.id AND r.status = 'APPROVED' AND r.created_at >= :since AND (r.author_id IN :firstDegree OR r.author_id IN :secondDegree)), 0) * 5
+                COALESCE((SELECT AVG(r.rating * CASE WHEN r.author_id IN :firstDegree THEN 5 WHEN r.author_id IN :secondDegree THEN 4 ELSE 0 END) 
+                          FROM reviews r WHERE r.spot_id = s.id AND r.status = 'APPROVED' AND (r.author_id IN :firstDegree OR r.author_id IN :secondDegree)), 0) * 10
+                + COALESCE((SELECT AVG(r.rating * CASE WHEN r.author_id IN :firstDegree THEN 5 WHEN r.author_id IN :secondDegree THEN 4 ELSE 0 END) 
+                            FROM reviews r WHERE r.spot_id = s.id AND r.status = 'APPROVED' AND r.created_at >= :since AND (r.author_id IN :firstDegree OR r.author_id IN :secondDegree)), 0) * 20
                 + COALESCE((SELECT SUM(CASE WHEN ui.user_id IN :firstDegree THEN 5 WHEN ui.user_id IN :secondDegree THEN 4 ELSE 0 END) 
                             FROM user_spot_interactions ui WHERE ui.spot_id = s.id AND ui.is_liked = true AND ui.updated_at >= :since AND (ui.user_id IN :firstDegree OR ui.user_id IN :secondDegree)), 0) * 5
                 + COALESCE((SELECT SUM(CASE WHEN ui.user_id IN :firstDegree THEN 5 WHEN ui.user_id IN :secondDegree THEN 4 ELSE 0 END) 
@@ -200,12 +200,11 @@ public interface SpotRepository extends JpaRepository<Spot, Long> {
 
     /**
      * Single SQL to recompute all rank scores with weighted formula.
-     * Reviews are weighted by their actual rating (1–5) via SUM(rating)
-     * so a 5-star review contributes 5× more than a 1-star review.
+     * Reviews are weighted by their average rating (1-5).
      *
      *   - Views in last 7 days:          × 1  (baseline traffic signal)
-     *   - Approved reviews (all-time):   SUM(rating) × 3  (5-star → 15 pts, 1-star → 3 pts)
-     *   - Recent reviews (7 days):       SUM(rating) × 5  (5-star → 25 pts, 1-star → 5 pts)
+     *   - Approved reviews avg (all-time): AVG(rating) × 10
+     *   - Recent reviews avg (7 days):     AVG(rating) × 20
      *   - Likes in last 7 days:          × 5  (lightweight engagement)
      *   - Saves in last 7 days:          × 10 (stronger intent signal)
      */
@@ -213,8 +212,8 @@ public interface SpotRepository extends JpaRepository<Spot, Long> {
     @Query(value = """
             UPDATE spots SET rank_score = (
                 COALESCE((SELECT COUNT(*) FROM spot_events e WHERE e.spot_id = spots.id AND e.event_type = 'VIEW' AND e.created_at >= :since), 0)
-                + COALESCE((SELECT SUM(r.rating) FROM reviews r WHERE r.spot_id = spots.id AND r.status = 'APPROVED'), 0) * 3
-                + COALESCE((SELECT SUM(r.rating) FROM reviews r WHERE r.spot_id = spots.id AND r.status = 'APPROVED' AND r.created_at >= :since), 0) * 5
+                + COALESCE((SELECT AVG(r.rating) FROM reviews r WHERE r.spot_id = spots.id AND r.status = 'APPROVED'), 0) * 10
+                + COALESCE((SELECT AVG(r.rating) FROM reviews r WHERE r.spot_id = spots.id AND r.status = 'APPROVED' AND r.created_at >= :since), 0) * 20
                 + COALESCE((SELECT COUNT(*) FROM user_spot_interactions u WHERE u.spot_id = spots.id AND u.is_liked = true AND u.updated_at >= :since), 0) * 5
                 + COALESCE((SELECT COUNT(*) FROM user_spot_interactions u WHERE u.spot_id = spots.id AND u.is_saved = true AND u.updated_at >= :since), 0) * 10
             )

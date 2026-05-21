@@ -56,24 +56,21 @@ export default function Navbar() {
       {/* Slide-out menu */}
       {menuOpen && <div className="menu-overlay" onClick={() => setMenuOpen(false)} />}
       <div className={`menu-drawer ${menuOpen ? 'open' : ''}`}>
-         <Link to="/spots" className={`menu-item ${isActive('/spots') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
-           <span className="menu-icon"></span> All Spots
-         </Link>
-         <Link to="/events" className={`menu-item ${isActive('/events') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
-           <span className="menu-icon"></span> Events
-         </Link>
-         <Link to="/feed" className={`menu-item ${isActive('/feed') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
+        <Link to="/spots" className={`menu-item ${isActive('/spots') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
+          <span className="menu-icon"></span> Spots
+        </Link>
+        <Link to="/events" className={`menu-item ${isActive('/events') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
+          <span className="menu-icon"></span> Events
+        </Link>
+        <Link to="/feed" className={`menu-item ${isActive('/feed') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
           <span className="menu-icon"></span> Feed
         </Link>
-         <Link to="/trending" className={`menu-item ${isActive('/trending') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
-           <span className="menu-icon"></span> Trending
-         </Link>
-         <Link to="/search" className={`menu-item ${isActive('/search') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
-           <span className="menu-icon"></span> Search for users
-         </Link>
-         <Link to="/friends" className={`menu-item ${isActive('/friends') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
-           <span className="menu-icon"></span> Friends
-         </Link>
+        <Link to="/search" className={`menu-item ${isActive('/search') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
+          <span className="menu-icon"></span> Search for users
+        </Link>
+        <Link to="/friends" className={`menu-item ${isActive('/friends') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
+          <span className="menu-icon"></span> Friends
+        </Link>
         <Link to="/saved" className={`menu-item ${isActive('/saved') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
           <span className="menu-icon"></span> Saved Spots
         </Link>

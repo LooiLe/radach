@@ -7,7 +7,6 @@ import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import SpotsPage from './pages/SpotsPage'
-import TrendingPage from './pages/TrendingPage'
 import SpotDetailPage from './pages/SpotDetailPage'
 import AdminDashboardPage from './pages/AdminDashboardPage'
 import FriendsPage from './pages/FriendsPage'
@@ -30,7 +29,6 @@ export default function App() {
          <Route path="/register" element={<RegisterPage />} />
          <Route path="/spots" element={<ProtectedRoute><SpotsPage /></ProtectedRoute>} />
          <Route path="/search" element={<ProtectedRoute><SearchPage /></ProtectedRoute>} />
-         <Route path="/trending" element={<ProtectedRoute><TrendingPage /></ProtectedRoute>} />
          <Route path="/friends" element={<ProtectedRoute><FriendsPage /></ProtectedRoute>} />
          <Route path="/saved" element={<ProtectedRoute><SavedSpotsPage /></ProtectedRoute>} />
          <Route path="/feed" element={<ProtectedRoute><FeedPage /></ProtectedRoute>} />
