@@ -1,21 +1,12 @@
 package com.radach.maps.service;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.time.Instant;
+import java.util.*;
 import java.util.stream.Collectors;
 
+import com.radach.maps.model.*;
+import com.radach.maps.repository.*;
 import org.springframework.stereotype.Service;
-
-import com.radach.maps.model.Review;
-import com.radach.maps.model.Spot;
-import com.radach.maps.model.SpotEvent;
-import com.radach.maps.model.UserSpotInteraction;
-import com.radach.maps.repository.ReviewRepository;
-import com.radach.maps.repository.SpotEventRepository;
-import com.radach.maps.repository.SpotRepository;
-import com.radach.maps.repository.UserSpotInteractionRepository;
-import com.radach.maps.repository.UserRepository;
 
 @Service
 public class FeedService {
@@ -26,6 +17,9 @@ public class FeedService {
     private final FriendshipService friendshipService;
     private final UserRepository userRepository;
     private final SpotRepository spotRepository;
+    private final FeedPostRepository feedPostRepository;
+    private final PostLikeRepository postLikeRepository;
+    private final PostCommentRepository postCommentRepository;
 
     public FeedService(
             SpotEventRepository spotEventRepository,
@@ -33,7 +27,10 @@ public class FeedService {
             UserSpotInteractionRepository interactionRepository,
             FriendshipService friendshipService,
             UserRepository userRepository,
-            SpotRepository spotRepository
+            SpotRepository spotRepository,
+            FeedPostRepository feedPostRepository,
+            PostLikeRepository postLikeRepository,
+            PostCommentRepository postCommentRepository
     ) {
         this.spotEventRepository = spotEventRepository;
         this.reviewRepository = reviewRepository;
@@ -41,107 +38,187 @@ public class FeedService {
         this.friendshipService = friendshipService;
         this.userRepository = userRepository;
         this.spotRepository = spotRepository;
+        this.feedPostRepository = feedPostRepository;
+        this.postLikeRepository = postLikeRepository;
+        this.postCommentRepository = postCommentRepository;
     }
 
     /**
-     * Build a friend activity feed for the given user.
-     * Returns up to `limit` recent activities from the user's first-degree friends.
+     * Build the feed based on filter.
+     * filter can be "friends", "experts", "global", "all", "user".
      */
-    public List<FeedItem> getFeed(Long userId, int limit) {
+    public List<FeedItem> getFeed(Long userId, String filter, int limit, Long targetUserId) {
+        if (filter == null) filter = "global";
+
+        List<FeedItem> items = new ArrayList<>();
+        Set<Long> relevantUserIds = new HashSet<>();
+        
+        List<User> allUsersList = userRepository.findAll();
+        Map<Long, User> userMap = allUsersList.stream().collect(Collectors.toMap(User::getId, u -> u));
+
         Set<Long> friendIds = friendshipService.getFirstDegreeConnections(userId);
-        if (friendIds.isEmpty()) return List.of();
 
-        // Pre-fetch user names
-        Map<Long, String> userNames = userRepository.findAllById(friendIds).stream()
-                .collect(Collectors.toMap(u -> u.getId(), u -> u.getName()));
-
-        java.util.List<FeedItem> items = new java.util.ArrayList<>();
-
-        // Collect all spot IDs we'll need to look up
-        java.util.Set<Long> allSpotIds = new java.util.HashSet<>();
-
-        // 1. Recent reviews by friends
-        List<Review> friendReviews = reviewRepository.findRecentByAuthorIds(friendIds, limit);
-        for (Review r : friendReviews) {
-            allSpotIds.add(r.getSpotId());
+        if (filter.equalsIgnoreCase("friends")) {
+            relevantUserIds.addAll(friendIds);
+        } else if (filter.equalsIgnoreCase("experts")) {
+            relevantUserIds = allUsersList.stream()
+                    .filter(User::isExpert)
+                    .map(User::getId)
+                    .collect(Collectors.toSet());
+        } else if (filter.equalsIgnoreCase("user") && targetUserId != null) {
+            relevantUserIds.add(targetUserId);
+        } else {
+            // Global / All
+            relevantUserIds = allUsersList.stream()
+                    .filter(u -> u.isExpert() || !u.isPrivateAccount() || friendIds.contains(u.getId()))
+                    .map(User::getId)
+                    .collect(Collectors.toSet());
         }
 
-        // 2. Recent spot events by friends (views, saves)
-        List<SpotEvent> friendEvents = spotEventRepository.findRecentByUserIds(friendIds, limit);
-        for (SpotEvent e : friendEvents) {
-            if (e.getUserId() != null) allSpotIds.add(e.getSpotId());
+        if (relevantUserIds.isEmpty()) return List.of();
+
+        Set<Long> allSpotIds = new HashSet<>();
+
+        // 1. Fetch Reviews
+        List<Review> reviews = reviewRepository.findRecentByAuthorIds(relevantUserIds, limit);
+        for (Review r : reviews) allSpotIds.add(r.getSpotId());
+
+        // 2. Fetch interactions (only if friends filter, to avoid spamming global feed with likes/views)
+        List<SpotEvent> events = new ArrayList<>();
+        List<UserSpotInteraction> interactions = new ArrayList<>();
+        if (filter.equalsIgnoreCase("friends") || filter.equalsIgnoreCase("user")) {
+            // if filter is "user", we can also show interactions of that user
+            Set<Long> idsToFetch = filter.equalsIgnoreCase("user") ? Set.of(targetUserId) : friendIds;
+            
+            events = spotEventRepository.findRecentByUserIds(idsToFetch, limit);
+            for (SpotEvent e : events) {
+                if (e.getUserId() != null) allSpotIds.add(e.getSpotId());
+            }
+
+            interactions = interactionRepository.findRecentByUserIds(idsToFetch, limit);
+            for (UserSpotInteraction i : interactions) {
+                allSpotIds.add(i.getSpotId());
+            }
         }
 
-        // 3. Recent likes/saves by friends
-        List<UserSpotInteraction> friendInteractions = interactionRepository.findRecentByUserIds(friendIds, limit);
-        for (UserSpotInteraction i : friendInteractions) {
-            allSpotIds.add(i.getSpotId());
+        // 3. Fetch FeedPosts
+        List<FeedPost> feedPosts = feedPostRepository.findByAuthorIdInOrderByCreatedAtDesc(relevantUserIds);
+        if (feedPosts.size() > limit) {
+            feedPosts = feedPosts.subList(0, limit);
         }
 
-        // Pre-fetch all spots in one query
+        // Prefetch spots
         Map<Long, Spot> spotMap = spotRepository.findAllById(allSpotIds).stream()
                 .collect(Collectors.toMap(Spot::getId, s -> s));
 
-        // Build feed items with spot details
-        for (Review r : friendReviews) {
+        // Prefetch post likes & comments
+        List<Long> postIds = feedPosts.stream().map(FeedPost::getId).toList();
+        Map<Long, List<PostLike>> likesMap = postLikeRepository.findByPostIdIn(postIds).stream()
+                .collect(Collectors.groupingBy(PostLike::getPostId));
+        Map<Long, List<PostComment>> commentsMap = postCommentRepository.findByPostIdInOrderByCreatedAtAsc(postIds).stream()
+                .collect(Collectors.groupingBy(PostComment::getPostId));
+
+        // Assemble FeedItems
+        for (Review r : reviews) {
             Spot spot = spotMap.get(r.getSpotId());
+            User author = userMap.get(r.getAuthorId());
             items.add(new FeedItem(
+                    null, // Not a FeedPost
                     r.getAuthorId(),
-                    userNames.getOrDefault(r.getAuthorId(), "Friend"),
+                    author != null ? author.getName() : "Unknown",
+                    author != null && author.isExpert(),
                     "REVIEW",
                     r.getSpotId(),
                     spot != null ? spot.getName() : "Unknown spot",
                     spot != null ? spot.getAddress() : null,
-                    "left a " + r.getRating() + "-star review",
-                    r.getCreatedAt()
+                    r.getBody(),
+                    r.getCreatedAt(),
+                    null, 0, false, List.of()
             ));
         }
 
-        for (SpotEvent e : friendEvents) {
+        for (SpotEvent e : events) {
             if (e.getUserId() == null) continue;
             Spot spot = spotMap.get(e.getSpotId());
-            String action = switch (e.getEventType()) {
-                case VIEW -> "viewed";
-                case SAVE -> "saved";
-            };
+            User author = userMap.get(e.getUserId());
+            String action = e.getEventType() == SpotEvent.EventType.VIEW ? "viewed" : "saved";
             items.add(new FeedItem(
+                    null,
                     e.getUserId(),
-                    userNames.getOrDefault(e.getUserId(), "Friend"),
+                    author != null ? author.getName() : "Unknown",
+                    author != null && author.isExpert(),
                     e.getEventType().name(),
                     e.getSpotId(),
                     spot != null ? spot.getName() : "Unknown spot",
                     spot != null ? spot.getAddress() : null,
                     action,
-                    e.getCreatedAt()
+                    e.getCreatedAt(),
+                    null, 0, false, List.of()
             ));
         }
 
-        for (UserSpotInteraction i : friendInteractions) {
+        for (UserSpotInteraction i : interactions) {
             Spot spot = spotMap.get(i.getSpotId());
+            User author = userMap.get(i.getUserId());
             if (i.isLiked()) {
                 items.add(new FeedItem(
+                        null,
                         i.getUserId(),
-                        userNames.getOrDefault(i.getUserId(), "Friend"),
+                        author != null ? author.getName() : "Unknown",
+                        author != null && author.isExpert(),
                         "LIKE",
                         i.getSpotId(),
                         spot != null ? spot.getName() : "Unknown spot",
                         spot != null ? spot.getAddress() : null,
                         "liked",
-                        i.getUpdatedAt()
+                        i.getUpdatedAt(),
+                        null, 0, false, List.of()
                 ));
             }
             if (i.isSaved()) {
                 items.add(new FeedItem(
+                        null,
                         i.getUserId(),
-                        userNames.getOrDefault(i.getUserId(), "Friend"),
+                        author != null ? author.getName() : "Unknown",
+                        author != null && author.isExpert(),
                         "SAVE",
                         i.getSpotId(),
                         spot != null ? spot.getName() : "Unknown spot",
                         spot != null ? spot.getAddress() : null,
                         "saved",
-                        i.getUpdatedAt()
+                        i.getUpdatedAt(),
+                        null, 0, false, List.of()
                 ));
             }
+        }
+
+        for (FeedPost p : feedPosts) {
+            User author = userMap.get(p.getAuthorId());
+            List<PostLike> postLikes = likesMap.getOrDefault(p.getId(), List.of());
+            boolean hasLiked = postLikes.stream().anyMatch(l -> l.getUserId().equals(userId));
+            List<CommentRecord> postComments = commentsMap.getOrDefault(p.getId(), List.of()).stream()
+                    .map(c -> {
+                        User cAuthor = userMap.get(c.getAuthorId());
+                        return new CommentRecord(c.getId(), c.getAuthorId(), cAuthor != null ? cAuthor.getName() : "Unknown", c.getContent(), c.getCreatedAt());
+                    })
+                    .toList();
+
+            items.add(new FeedItem(
+                    p.getId(),
+                    p.getAuthorId(),
+                    author != null ? author.getName() : "Unknown",
+                    author != null && author.isExpert(),
+                    "POST",
+                    null,
+                    null,
+                    null,
+                    p.getContent(),
+                    p.getCreatedAt(),
+                    p.getMediaUrls(),
+                    postLikes.size(),
+                    hasLiked,
+                    postComments
+            ));
         }
 
         // Sort by timestamp descending and limit
@@ -151,14 +228,28 @@ public class FeedService {
                 .toList();
     }
 
+    public record CommentRecord(
+            Long id,
+            Long authorId,
+            String authorName,
+            String content,
+            Instant createdAt
+    ) {}
+
     public record FeedItem(
+            Long postId,
             Long userId,
             String userName,
-            String activityType,
+            boolean isExpert,
+            String activityType, // REVIEW, LIKE, SAVE, VIEW, POST
             Long spotId,
             String spotName,
             String spotAddress,
             String description,
-            java.time.Instant timestamp
+            Instant timestamp,
+            List<String> mediaUrls,
+            int likeCount,
+            boolean hasLiked,
+            List<CommentRecord> comments
     ) {}
 }

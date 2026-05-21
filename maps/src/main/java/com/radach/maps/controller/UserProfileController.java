@@ -21,6 +21,7 @@ import com.radach.maps.model.User;
 import com.radach.maps.repository.UserRepository;
 import com.radach.maps.service.AuthenticatedUserService;
 import com.radach.maps.service.ReviewService;
+import com.radach.maps.service.FeedService;
 
 import jakarta.validation.Valid;
 
@@ -31,11 +32,13 @@ public class UserProfileController {
     private final UserRepository userRepository;
     private final ReviewService reviewService;
     private final AuthenticatedUserService authenticatedUserService;
+    private final FeedService feedService;
 
-    public UserProfileController(UserRepository userRepository, ReviewService reviewService, AuthenticatedUserService authenticatedUserService) {
+    public UserProfileController(UserRepository userRepository, ReviewService reviewService, AuthenticatedUserService authenticatedUserService, FeedService feedService) {
         this.userRepository = userRepository;
         this.reviewService = reviewService;
         this.authenticatedUserService = authenticatedUserService;
+        this.feedService = feedService;
     }
 
     @GetMapping("/{id}")
@@ -48,6 +51,7 @@ public class UserProfileController {
         profile.put("name", user.getName());
         profile.put("email", user.getEmail());
         profile.put("isExpert", user.isExpert());
+        profile.put("privateAccount", user.isPrivateAccount());
         profile.put("bio", user.getBio());
         profile.put("professionalTitle", user.getProfessionalTitle());
         profile.put("organization", user.getOrganization());
@@ -67,6 +71,18 @@ public class UserProfileController {
         return reviewService.getUserReviews(id, page, size);
     }
 
+    @GetMapping("/{id}/feed")
+    public ResponseEntity<java.util.List<FeedService.FeedItem>> getUserFeed(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "30") int limit,
+            Authentication auth
+    ) {
+        Long requesterId = auth != null && auth.isAuthenticated() && !auth.getName().equals("anonymousUser") ? 
+            authenticatedUserService.getUserId(auth) : null;
+        
+        return ResponseEntity.ok(feedService.getFeed(requesterId, "user", Math.min(limit, 100), id));
+    }
+
     @PutMapping("/me/profile")
     public ResponseEntity<Map<String, Object>> updateMyProfile(
             @Valid @RequestBody ExpertProfileUpdateRequest request,
@@ -79,6 +95,9 @@ public class UserProfileController {
         // All users can set their bio; expert-specific fields only if isExpert
         if (request.bio() != null) {
             user.setBio(request.bio().trim());
+        }
+        if (request.privateAccount() != null) {
+            user.setPrivateAccount(request.privateAccount());
         }
         if (user.isExpert()) {
             if (request.professionalTitle() != null) user.setProfessionalTitle(request.professionalTitle().trim());
@@ -94,6 +113,7 @@ public class UserProfileController {
         profile.put("name", user.getName());
         profile.put("email", user.getEmail());
         profile.put("isExpert", user.isExpert());
+        profile.put("privateAccount", user.isPrivateAccount());
         profile.put("bio", user.getBio());
         profile.put("professionalTitle", user.getProfessionalTitle());
         profile.put("organization", user.getOrganization());

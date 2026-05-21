@@ -32,9 +32,10 @@ public class FeedController {
     @PreAuthorize("isAuthenticated()")
     public List<FeedService.FeedItem> getFeed(
             Authentication auth,
+            @RequestParam(required = false, defaultValue = "global") String filter,
             @RequestParam(defaultValue = "30") int limit
     ) {
         Long userId = authenticatedUserService.getUserId(auth);
-        return feedService.getFeed(userId, Math.min(limit, 100));
+        return feedService.getFeed(userId, filter, Math.min(limit, 100), null);
     }
 }
