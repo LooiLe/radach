@@ -9,6 +9,7 @@ export default function Navbar() {
   const { apiFetch } = useApi()
   const [menuOpen, setMenuOpen] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
+  const [pendingAdminCount, setPendingAdminCount] = useState(0)
   const location = useLocation()
   const navigate = useNavigate()
 
@@ -20,8 +21,16 @@ export default function Navbar() {
         const data = await res.json()
         setUnreadCount(data.count)
       }
+      
+      if (isAdmin || isSuperAdmin) {
+        const adminRes = await apiFetch('/api/v1/admin/dashboard/pending-count')
+        if (adminRes.ok) {
+          const adminData = await adminRes.json()
+          setPendingAdminCount(adminData.count)
+        }
+      }
     } catch { /* ignore */ }
-  }, [apiFetch, isAuthenticated])
+  }, [apiFetch, isAuthenticated, isAdmin, isSuperAdmin])
 
   useEffect(() => {
     loadUnreadCount()
@@ -115,6 +124,7 @@ export default function Navbar() {
             <div className="menu-divider" />
             <Link to="/admin" className={`menu-item ${isActive('/admin') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
               <span className="menu-icon"></span> {isSuperAdmin ? 'Super Admin' : 'Admin'}
+              {pendingAdminCount > 0 && <span className="notification-badge">{pendingAdminCount > 99 ? '99+' : pendingAdminCount}</span>}
             </Link>
           </>
         )}
