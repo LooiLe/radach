@@ -316,6 +316,12 @@ a:hover {
   border: 1px solid rgba(248, 113, 113, 0.2);
 }
 
+.badge-ended {
+  background: var(--bg-glass);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+
 .badge-role {
   background: var(--border-color);
   color: var(--text-secondary);

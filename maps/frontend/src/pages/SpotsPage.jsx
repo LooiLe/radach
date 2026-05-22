@@ -42,6 +42,20 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
 })
 
+// Helper to map Nominatim types to friendly category names
+function mapNominatimType(type, cls) {
+  const typeMap = {
+    restaurant: 'Restaurant', cafe: 'Cafe', bar: 'Bar', pub: 'Bar',
+    hotel: 'Hotel', hostel: 'Hotel', motel: 'Hotel', guest_house: 'Hotel',
+    museum: 'Attraction', gallery: 'Attraction', theatre: 'Attraction', cinema: 'Attraction',
+    park: 'Attraction', garden: 'Attraction', zoo: 'Attraction',
+    beach: 'Beach', viewpoint: 'Viewpoint',
+    marketplace: 'Market', supermarket: 'Market',
+    fast_food: 'Restaurant', food_court: 'Food Hall',
+  }
+  return typeMap[type] || typeMap[cls] || 'Other'
+}
+
 function FitBounds({ bounds }) {
   const map = useMap()
   useEffect(() => {
@@ -50,48 +64,48 @@ function FitBounds({ bounds }) {
   return null
 }
 
+// Zoom controls component using useMap hook
+function ZoomControls() {
+  const map = useMap()
+
+  const handleZoomIn = (e) => {
+    e.preventDefault()
+    if (map) map.zoomIn()
+  }
+
+  const handleZoomOut = (e) => {
+    e.preventDefault()
+    if (map) map.zoomOut()
+  }
+
+  return (
+    <div className="leaflet-control-zoom" style={{ position: 'absolute', bottom: '20px', left: '20px', zIndex: 1000, display: 'flex', flexDirection: 'column', gap: '5px' }}>
+      <button
+        type="button"
+        className="leaflet-control-zoom-in"
+        title="Zoom in"
+        onClick={handleZoomIn}
+      >
+        +
+      </button>
+      <button
+        type="button"
+        className="leaflet-control-zoom-out"
+        title="Zoom out"
+        onClick={handleZoomOut}
+      >
+        –
+      </button>
+    </div>
+  )
+}
+
 export default function SpotsPage() {
   const { apiFetch } = useApi()
   const [spots, setSpots] = useState([])
   const [status, setStatus] = useState('Loading spots...')
   const [searchParams] = useSearchParams()
-  const [searchMode, setSearchMode] = useState('place')
-
-  // Zoom controls component using useMap hook
-  const ZoomControls = () => {
-    const map = useMap()
-
-    const handleZoomIn = (e) => {
-      e.preventDefault()
-      if (map) map.zoomIn()
-    }
-
-    const handleZoomOut = (e) => {
-      e.preventDefault()
-      if (map) map.zoomOut()
-    }
-
-    return (
-      <div className="leaflet-control-zoom" style={{ position: 'absolute', bottom: '20px', left: '20px', zIndex: 1000, display: 'flex', flexDirection: 'column', gap: '5px' }}>
-        <button
-          type="button"
-          className="leaflet-control-zoom-in"
-          title="Zoom in"
-          onClick={handleZoomIn}
-        >
-          +
-        </button>
-        <button
-          type="button"
-          className="leaflet-control-zoom-out"
-          title="Zoom out"
-          onClick={handleZoomOut}
-        >
-          –
-        </button>
-      </div>
-    )
-  }
+  const [searchMode, setSearchMode] = useState(() => searchParams.get('mode') || 'place')
 
   // Geo search state
   const [place, setPlace] = useState('')
@@ -108,6 +122,8 @@ export default function SpotsPage() {
   const [selectedCategories, setSelectedCategories] = useState({ all: true })
   const [filterDropdownOpen, setFilterDropdownOpen] = useState(false)
   const [searchModeDropdownOpen, setSearchModeDropdownOpen] = useState(false)
+
+
 
   useEffect(() => {
     async function fetchCatList() {
@@ -163,25 +179,38 @@ export default function SpotsPage() {
     setStatus('Loading spots...')
     const params = new URLSearchParams()
 
-    const modeToUse = filters?.mode || searchMode;
-
-    // Handle different search modes
-    if (modeToUse === 'nearby' && filters?.lat && filters?.lng && filters?.radiusKm) {
-      // Nearby search by radius
-      params.set('lat', filters.lat)
-      params.set('lng', filters.lng)
-      params.set('radiusKm', filters.radiusKm)
-    } else if (modeToUse === 'place' && filters?.search) {
-      // Place search by keyword
-      params.set('q', filters.search)
-    } else if (modeToUse === 'place' && filters?.lat && filters?.lng) {
-      // Place search by coordinates (fallback)
-      params.set('lat', filters.lat)
-      params.set('lng', filters.lng)
-      params.set('radiusKm', filters.radiusKm || '5')
-    }
-
+    const modeToUse = filters?.mode || searchMode
     const currentSortBy = filters?.sortBy || sortBy
+    const isTrendingSort = ['popularity', 'trending_friends', 'trending_experts'].includes(currentSortBy)
+
+    const currentLat = filters?.lat !== undefined ? filters.lat : lat
+    const currentLng = filters?.lng !== undefined ? filters.lng : lng
+    const currentRadius = filters?.radiusKm !== undefined ? filters.radiusKm : radius
+
+    const hasLocation = !!(currentLat && currentLng)
+    const currentSearch = filters?.search !== undefined ? filters.search : (hasLocation ? '' : place)
+
+    // Build query params
+    if (currentSearch) {
+      params.set('q', currentSearch)
+    } else if (isTrendingSort) {
+      if (hasLocation) {
+        params.set('lat', currentLat)
+        params.set('lng', currentLng)
+        params.set('radiusKm', currentRadius || '10')
+      }
+    } else {
+      // Normal search mode behavior
+      if (modeToUse === 'nearby' && hasLocation && currentRadius) {
+        params.set('lat', currentLat)
+        params.set('lng', currentLng)
+        params.set('radiusKm', currentRadius)
+      } else if (modeToUse === 'place' && hasLocation) {
+        params.set('lat', currentLat)
+        params.set('lng', currentLng)
+        params.set('radiusKm', currentRadius || '5')
+      }
+    }
 
     // Don't send custom trending sort keys to standard endpoints
     if (currentSortBy && !currentSortBy.startsWith('trending_')) {
@@ -193,11 +222,11 @@ export default function SpotsPage() {
 
       // 1. Always fetch from our database
       let path = '/api/v1/spots'
-      if (currentSortBy === 'trending_friends' || currentSortBy === 'trending_experts') {
+      if (currentSearch) {
+        path = '/api/v1/spots/search'
+      } else if (currentSortBy === 'trending_friends' || currentSortBy === 'trending_experts') {
         path = '/api/v1/spots/trending'
         params.set('type', currentSortBy === 'trending_friends' ? 'personalized' : 'expert')
-      } else if (modeToUse === 'place' && filters?.search) {
-        path = '/api/v1/spots/search'
       }
       const queryString = params.toString()
       const finalPath = queryString ? `${path}?${queryString}` : path
@@ -207,18 +236,23 @@ export default function SpotsPage() {
         if (res.ok) dbSpots = data
       } catch (e) { console.error('DB spots error:', e) }
 
-      // 2. If nearby mode, also fetch global POIs from Nominatim
+      // 2. If nearby mode is active, also fetch global POIs from Nominatim
       let globalSpots = []
-      if (modeToUse === 'nearby' && filters?.lat && filters?.lng && filters?.radiusKm) {
+      const isNearbyGeo = hasLocation && modeToUse === 'nearby'
+      const fetchLat = currentLat
+      const fetchLng = currentLng
+      const fetchRadius = currentRadius || '10'
+
+      if (isNearbyGeo && fetchRadius) {
         try {
           // Use Nominatim reverse geocoding to find POIs around the location
-          const radiusMeters = parseFloat(filters.radiusKm) * 1000
-          const lat = parseFloat(filters.lat)
-          const lng = parseFloat(filters.lng)
+          const radiusMeters = parseFloat(fetchRadius) * 1000
+          const latVal = parseFloat(fetchLat)
+          const lngVal = parseFloat(fetchLng)
           // Calculate a bounding box from lat/lng and radius
           const latDelta = radiusMeters / 111320
-          const lngDelta = radiusMeters / (111320 * Math.cos(lat * Math.PI / 180))
-          const viewbox = `${lng - lngDelta},${lat + latDelta},${lng + lngDelta},${lat - latDelta}`
+          const lngDelta = radiusMeters / (111320 * Math.cos(latVal * Math.PI / 180))
+          const viewbox = `${lngVal - lngDelta},${latVal + latDelta},${lngVal + lngDelta},${latVal - latDelta}`
 
           const nomRes = await fetch(
             `https://nominatim.openstreetmap.org/search?q=restaurant+OR+cafe+OR+bar+OR+hotel+OR+attraction&format=json&limit=20&viewbox=${viewbox}&bounded=1`,
@@ -256,27 +290,73 @@ export default function SpotsPage() {
       setStatus(statusMsg)
       if (allSpots.length) setBounds(allSpots.map(s => [s.latitude, s.longitude]))
     } catch (e) { setStatus(e.message) }
-  }, [apiFetch, searchMode, sortBy])
+  }, [apiFetch, searchMode, sortBy, lat, lng, radius, place])
 
-  // Helper to map Nominatim types to friendly category names
-  function mapNominatimType(type, cls) {
-    const typeMap = {
-      restaurant: 'Restaurant', cafe: 'Cafe', bar: 'Bar', pub: 'Bar',
-      hotel: 'Hotel', hostel: 'Hotel', motel: 'Hotel', guest_house: 'Hotel',
-      museum: 'Attraction', gallery: 'Attraction', theatre: 'Attraction', cinema: 'Attraction',
-      park: 'Attraction', garden: 'Attraction', zoo: 'Attraction',
-      beach: 'Beach', viewpoint: 'Viewpoint',
-      marketplace: 'Market', supermarket: 'Market',
-      fast_food: 'Restaurant', food_court: 'Food Hall',
+  const handleLocateMe = () => {
+    setStatus('Getting your location...')
+    setSuggestions([])
+
+    const fallbackToIpLocation = async (reason) => {
+      setStatus(`HTML5 Geolocation unavailable (${reason}). Trying IP-based location...`)
+      try {
+        const res = await fetch('https://get.geojs.io/v1/ip/geo.json')
+        const data = await res.json()
+        if (data.latitude && data.longitude) {
+          const uLat = parseFloat(data.latitude)
+          const uLng = parseFloat(data.longitude)
+          setLat(uLat)
+          setLng(uLng)
+          setRadius('10')
+          setPlace(data.city || 'Your location')
+          setStatus(`Showing spots near ${data.city || 'your region'} (IP-based estimate).`)
+          loadSpots({ lat: uLat, lng: uLng, radiusKm: '10' })
+        } else {
+          throw new Error('Invalid IP data')
+        }
+      } catch {
+        setStatus('Unable to retrieve location. HTML5 Geolocation requires HTTPS, and IP fallback failed.')
+        setSpots([])
+      }
     }
-    return typeMap[type] || typeMap[cls] || 'Other'
+
+    if (!navigator.geolocation) {
+      fallbackToIpLocation('Requires HTTPS or localhost')
+      return
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const uLat = pos.coords.latitude
+        const uLng = pos.coords.longitude
+        setLat(uLat)
+        setLng(uLng)
+        setRadius('10')
+        setPlace('Your location')
+        setStatus('Showing spots near you.')
+        loadSpots({ lat: uLat, lng: uLng, radiusKm: '10' })
+      },
+      (err) => {
+        fallbackToIpLocation(err.message || 'Permission denied')
+      },
+      { timeout: 5000, maximumAge: 60000 }
+    )
+  }
+
+  const handleClearSearch = () => {
+    setPlace('')
+    setLat('')
+    setLng('')
+    setRadius('')
+    setSuggestions([])
+    setStatus('Loading spots...')
+    loadSpots({ lat: '', lng: '', radiusKm: '', search: '' })
   }
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
     const pLat = searchParams.get('lat'), pLng = searchParams.get('lng'), pR = searchParams.get('radiusKm'), pSort = searchParams.get('sortBy') || 'popularity'
     const pMode = searchParams.get('mode') || 'place' // default to place search
     const pQ = searchParams.get('q')
-    setSearchMode(pMode)
 
     if (pQ && pMode === 'place') {
       // Place search by keyword from URL
@@ -292,42 +372,26 @@ export default function SpotsPage() {
       loadSpots({ sortBy: pSort, mode: pMode })
       loadSpots({ sortBy: pSort, mode: pMode })
     }
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Update status message based on filtered spots
-  useEffect(() => {
-    if (spots.length === 0) return
-    setStatus(`${filteredSpots.length} spot${filteredSpots.length === 1 ? '' : 's'} found.`)
-  }, [filteredSpots, spots.length])
-
-  // Geocode a place name to get lat/lng
-  const geocodePlace = useCallback(async (query) => {
-    if (!query || query.length < 2) return
-
-    setStatus(`Searching for "${query}"...`)
-    try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`, {
-        headers: { 'Accept-Language': 'en' }
-      })
-      const data = await res.json()
-      if (data && data.length > 0) {
-        const result = data[0]
-        setLat(result.lat)
-        setLng(result.lon)
-        setPlace(result.display_name)
-        // Load spots for this location - if nearby mode, include radius
-        if (searchMode === 'nearby' && radius) {
-          loadSpots({ lat: result.lat, lng: result.lon, radiusKm: radius, sortBy, mode: 'nearby' })
-        } else {
-          loadSpots({ lat: result.lat, lng: result.lon, sortBy })
+  // Computed status text to avoid setState-in-effect lint warning
+  const getStatusText = () => {
+    if (status.endsWith('found.') || status.includes('spot found') || status.includes('spots found')) {
+      let msg = `${filteredSpots.length} spot${filteredSpots.length === 1 ? '' : 's'} found`
+      if (spots.length > 0) {
+        const globalCount = spots.filter(s => s.isGlobal).length
+        if (globalCount > 0) {
+          const filteredDbCount = filteredSpots.filter(s => !s.isGlobal).length
+          const filteredGlobalCount = filteredSpots.filter(s => s.isGlobal).length
+          msg += ` (${filteredDbCount} from Radach, ${filteredGlobalCount} nearby)`
         }
-      } else {
-        setStatus('Place not found. Try a different search.')
       }
-    } catch (e) {
-      setStatus('Error searching for place.')
+      msg += '.'
+      return msg
     }
-  }, [loadSpots, sortBy, searchMode, radius])
+    return status
+  }
 
   // Place autocomplete - search existing spots for suggestions
   const handlePlaceInput = (q) => {
@@ -350,7 +414,7 @@ export default function SpotsPage() {
           }
         } catch (e) { console.error('Backend search error:', e) }
 
-        // 2. Also fetch from Nominatim for global locations (especially useful in nearby mode)
+        // 2. Only fetch from Nominatim in 'nearby' mode (place mode = database only)
         if (searchMode === 'nearby') {
           try {
             const nomRes = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=3`, {
@@ -362,9 +426,9 @@ export default function SpotsPage() {
                 latitude: parseFloat(item.lat),
                 longitude: parseFloat(item.lon),
                 name: item.display_name.split(',')[0],
-                type: 'Global Location',
+                type: 'City/Region',
                 address: item.display_name,
-                isGlobal: true
+                isCityDestination: true
               }))
               const existingNames = new Set(combinedSuggestions.map(s => s.name?.toLowerCase()))
               const uniqueFormatted = formatted.filter(f => !existingNames.has(f.name?.toLowerCase()))
@@ -378,7 +442,7 @@ export default function SpotsPage() {
         console.error('Error fetching suggestions:', error)
         setSuggestions([])
       }
-    }, searchMode === 'nearby' ? 800 : 300) // Longer debounce for nearby to respect Nominatim rate limits
+    }, 400)
   }
 
   const selectSuggestion = (spot) => {
@@ -386,29 +450,55 @@ export default function SpotsPage() {
     setLat(spot.latitude)
     setLng(spot.longitude)
     setSuggestions([])
-    if (searchMode === 'nearby' && radius) {
+    if (spot.isCityDestination) {
+      setRadius('50')
+      loadSpots({ lat: spot.latitude, lng: spot.longitude, radiusKm: '50', sortBy })
+    } else if (searchMode === 'nearby' && radius) {
       // In nearby mode with radius set, do a nearby search around the selected location
       loadSpots({ lat: spot.latitude, lng: spot.longitude, radiusKm: radius, sortBy, mode: 'nearby' })
     } else {
-      // Load spots for this location
-      loadSpots({ lat: spot.latitude, lng: spot.longitude, sortBy })
+      // Load and display ONLY this specific spot
+      setRadius('')
+      setStatus('Loading spot details...')
+      apiFetch(`/api/v1/spots/${spot.id}`)
+        .then(res => res.json())
+        .then(data => {
+          setSpots([data])
+          setStatus('1 spot found.')
+          setBounds([[data.latitude, data.longitude]])
+        })
+        .catch(err => {
+          console.error(err)
+          setSpots([spot])
+          setStatus('1 spot found.')
+          setBounds([[spot.latitude, spot.longitude]])
+        })
     }
   }
 
-  const handleSearch = () => {
+  const handleSearch = async () => {
     if (searchMode === 'nearby') {
       if (!lat || !lng || !radius) {
-        setStatus('Search for a place first, then set a radius.');
+        setStatus('Search for a place first, then set a radius.')
         return
       }
       loadSpots({ lat, lng, radiusKm: radius, sortBy })
     } else {
-      // Place search mode - search by keyword
-      if (!place) {
-        setStatus('Enter a place to search.');
-        return;
+      // Place mode: database-only search
+      const query = place.trim()
+      if (!query) {
+        setStatus('Enter a place name to search.')
+        return
       }
-      loadSpots({ search: place, sortBy })
+
+      setStatus('Searching...')
+      setSuggestions([])
+
+      // In place mode, only search the database — no Nominatim
+      setLat('')
+      setLng('')
+      setRadius('')
+      loadSpots({ search: query, lat: '', lng: '', radiusKm: '', mode: 'place' })
     }
   }
 
@@ -417,108 +507,106 @@ export default function SpotsPage() {
   return (
     <div className="spots-page">
       <div className="spots-map">
-        {/* Search bar at top left of map */}
-        <div
-          className="map-search-bar"
-          style={{
-            position: 'absolute',
-            top: '1rem',
-            left: '1rem',
-            zIndex: 500,
-            display: 'flex',
-            gap: '0.5rem',
-            alignItems: 'flex-start'
-          }}
-        >
-          <div
-            style={{
-              position: 'relative',
-              flex: 1,
-              minWidth: 300
-            }}
-          >
+        {/* Unified Search & Location Bar */}
+        <div className="map-search-container">
+          <div className="map-search-bar-wrapper">
             <input
-              className="input"
+              className="input map-search-input"
               value={place}
               onChange={e => handlePlaceInput(e.target.value)}
-              placeholder="Search for a place..."
+              onKeyDown={e => { if (e.key === 'Enter') handleSearch() }}
+              placeholder="Search spots or cities..."
               autoComplete="off"
-              style={{ paddingLeft: '12px', paddingRight: '80px' }}
             />
-            {/* Search icon embedded on right side (clickable) */}
+            
+            {/* Clear Button (rendered unconditionally for smooth transitions & stable positioning) */}
             <button
               type="button"
+              className={`map-search-icon-btn clear-btn${(place || lat || lng) ? ' active' : ''}`}
+              onClick={handleClearSearch}
+              title="Clear search & location"
+              aria-label="Clear search"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+
+            {/* Search Action Button */}
+            <button
+              type="button"
+              className="map-search-icon-btn search-btn"
               onClick={handleSearch}
-              style={{
-                position: 'absolute',
-                right: '44px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                background: 'none',
-                border: 'none',
-                padding: '4px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                opacity: 0.6,
-                zIndex: 1
-              }}
+              title="Search"
               aria-label="Search"
             >
-              <img src="/icons/fluent--search-16-regular.svg" alt="Search" style={{ width: '18px', height: '18px' }} />
+              <img src="/icons/fluent--search-16-regular.svg" alt="Search" />
             </button>
-            {/* Ellipsis icon embedded on rightmost side */}
+
+            {/* Options Ellipsis Button */}
             <button
               type="button"
+              className="map-search-icon-btn options-btn"
               onClick={() => setSearchModeDropdownOpen(!searchModeDropdownOpen)}
-              style={{
-                position: 'absolute',
-                right: '8px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                background: 'none',
-                border: 'none',
-                padding: '4px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                opacity: 0.6,
-                zIndex: 1
-              }}
+              title="Search mode options"
               aria-label="Search options"
             >
-              <img src="/icons/stash--ellipsis-v-light.svg" alt="Options" style={{ width: '18px', height: '18px' }} />
+              <img src="/icons/stash--ellipsis-v-light.svg" alt="Options" />
             </button>
+
             {suggestions.length > 0 && (
-              <div
-                className="suggestions-dropdown"
-                style={{
-                  position: 'absolute',
-                  top: '100%',
-                  left: 0,
-                  right: 0,
-                  marginTop: '0.25rem',
-                  background: 'var(--bg-surface)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius-md)',
-                  zIndex: 1000
-                }}
-              >
+              <div className="suggestions-dropdown">
                 {suggestions.map((s, i) => (
                   <div
                     key={i}
                     className="suggestion-item"
                     onClick={() => selectSuggestion(s)}
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}
                   >
-                    <div className="suggestion-name">{s.name}</div>
-                    <div className="suggestion-full">{s.type} · {s.address}</div>
+                    <div className="suggestion-icon" style={{ display: 'flex', alignItems: 'center', opacity: 0.6, color: 'var(--text-secondary)' }}>
+                      {s.isCityDestination ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect>
+                          <line x1="9" y1="22" x2="9" y2="16"></line>
+                          <line x1="15" y1="22" x2="15" y2="16"></line>
+                          <line x1="9" y1="16" x2="15" y2="16"></line>
+                          <path d="M8 6h2v2H8V6zm0 4h2v2H8v-2zm8-4h2v2h-2V6zm0 4h2v2h-2v-2z"></path>
+                        </svg>
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                          <circle cx="12" cy="10" r="3"></circle>
+                        </svg>
+                      )}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className="suggestion-name" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</div>
+                      <div className="suggestion-full" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.type} · {s.address}</div>
+                    </div>
                   </div>
                 ))}
               </div>
             )}
           </div>
+
+          {/* Locate Me Button */}
+          <button
+            type="button"
+            className="locate-me-btn glass-btn"
+            onClick={handleLocateMe}
+            title="Locate me / Near me"
+            aria-label="Locate me"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <circle cx="12" cy="12" r="3"></circle>
+              <line x1="12" y1="1" x2="12" y2="3"></line>
+              <line x1="12" y1="21" x2="12" y2="23"></line>
+              <line x1="1" y1="12" x2="3" y2="12"></line>
+              <line x1="21" y1="12" x2="23" y2="12"></line>
+            </svg>
+          </button>
 
           {/* Mode popup on right side of search bar (same level) */}
           {searchModeDropdownOpen && (
@@ -633,7 +721,7 @@ export default function SpotsPage() {
               </Popup>
             </Marker>
           ))}
-          {lat && lng && radius && searchMode === 'nearby' && (
+          {lat && lng && radius && (
             <Circle center={[parseFloat(lat), parseFloat(lng)]} radius={parseFloat(radius) * 1000}
               pathOptions={{ color: 'var(--border-color)', fillColor: 'var(--border-color)', fillOpacity: 0.08, weight: 2 }} />
           )}
@@ -645,7 +733,7 @@ export default function SpotsPage() {
 
       <div className="spots-sidebar">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem', marginBottom: '1rem' }}>
-          <p className="spots-status" style={{ margin: 0 }}>{status}</p>
+          <p className="spots-status" style={{ margin: 0 }}>{getStatusText()}</p>
           <select className="input select" style={{ width: 'auto', padding: '0.4rem 2.5rem 0.4rem 1rem' }}
             value={sortBy}
             onChange={e => {
@@ -665,6 +753,8 @@ export default function SpotsPage() {
             <option value="distance" disabled={!(lat && lng && radius)}> Distance</option>
           </select>
         </div>
+
+
 
         <div className="spots-list">
           {filteredSpots.length === 0 && status && !status.includes('Loading') && (

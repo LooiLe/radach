@@ -39,6 +39,9 @@ public class EventServiceTest {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private FriendshipService friendshipService;
+
     private User user1;
     private User user2;
     private User admin;
@@ -219,5 +222,128 @@ public class EventServiceTest {
 
         assertThatThrownBy(() -> eventService.getEvent(event.id(), user1.getId()))
             .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    public void testUpcomingEventsSortingByTrending() {
+        // Create 3 active events
+        EventResponse eventA = eventService.submitEvent(new EventRequest(
+            spot.id(), "Event A", "Desc A", Instant.now().plusSeconds(3600), Instant.now().plusSeconds(7200), null, null
+        ), admin.getId(), true);
+        
+        EventResponse eventB = eventService.submitEvent(new EventRequest(
+            spot.id(), "Event B", "Desc B", Instant.now().plusSeconds(7200), Instant.now().plusSeconds(10800), null, null
+        ), admin.getId(), true);
+        
+        EventResponse eventC = eventService.submitEvent(new EventRequest(
+            spot.id(), "Event C", "Desc C", Instant.now().plusSeconds(10800), Instant.now().plusSeconds(14400), null, null
+        ), admin.getId(), true);
+
+        // 1. Global trending test (no user context)
+        // Event A: Liked by user1 (weight 5)
+        eventService.toggleLike(eventA.id(), user1.getId());
+        
+        // Event B: Calendar added by user1 (weight 10)
+        eventService.toggleCalendar(eventB.id(), user1.getId());
+        
+        // Event C: No interactions (weight 0)
+
+        // Fetch global trending
+        List<EventResponse> globalTrending = eventService.getUpcomingEvents(null, null, null, "trending", null);
+        assertThat(globalTrending).hasSize(3);
+        assertThat(globalTrending.get(0).id()).isEqualTo(eventB.id()); // 10 score
+        assertThat(globalTrending.get(1).id()).isEqualTo(eventA.id()); // 5 score
+        assertThat(globalTrending.get(2).id()).isEqualTo(eventC.id()); // 0 score
+
+        // 2. Personalized trending test (user1 has user2 as friend)
+        var friendship = friendshipService.sendRequest(user1.getId(), user2.getId());
+        friendshipService.acceptRequest(user2.getId(), friendship.getId());
+
+        // Event C: Liked by user2 (1st-degree friend of user1, weight 5 * 5 = 25 points)
+        eventService.toggleLike(eventC.id(), user2.getId());
+
+        // Fetch trending personalized for user1
+        List<EventResponse> personalizedTrending = eventService.getUpcomingEvents(null, null, null, "trending", user1.getId());
+        assertThat(personalizedTrending).hasSize(3);
+        assertThat(personalizedTrending.get(0).id()).isEqualTo(eventC.id()); // 25 score
+        assertThat(personalizedTrending.get(1).id()).isEqualTo(eventA.id()); // 0 score (user1's own like is not in connection weights, fallback to date order)
+        assertThat(personalizedTrending.get(2).id()).isEqualTo(eventB.id()); // 0 score (user1's own calendar is not in connection weights, fallback to date order)
+    }
+
+    @Test
+    public void testUpcomingEventsMonthOnlyFilter() {
+        int currentYear = java.time.LocalDate.now(java.time.ZoneOffset.UTC).getYear();
+        // Create an event in June of current year
+        Instant juneStart = Instant.parse(currentYear + "-06-15T12:00:00Z");
+        Instant juneEnd = Instant.parse(currentYear + "-06-15T14:00:00Z");
+        EventResponse eventA = eventService.submitEvent(new EventRequest(
+            spot.id(), "June Event", "Desc", juneStart, juneEnd, null, null
+        ), admin.getId(), true);
+
+        // Fetch events for Month 6 (June), year = null
+        List<EventResponse> events = eventService.getUpcomingEvents(null, 6, null, "date", null);
+        
+        // Assert we got our June Event
+        assertThat(events).hasSize(1);
+        assertThat(events.get(0).id()).isEqualTo(eventA.id());
+    }
+
+    @Test
+    public void testUpcomingEventsIncludesPastRecurringEvents() {
+        // Create an event that starts 2 days ago but repeats monthly
+        Instant pastRecurringStart = Instant.now().minus(java.time.Duration.ofDays(2));
+        Instant pastRecurringEnd = pastRecurringStart.plusSeconds(7200);
+        EventResponse recurringEvent = eventService.submitEvent(new EventRequest(
+            spot.id(), "Past Recurring Event", "Desc", pastRecurringStart, pastRecurringEnd, "FREQ=MONTHLY", null
+        ), admin.getId(), true);
+
+        // Create an event that starts 2 days ago but does NOT repeat
+        Instant pastNonRecurringStart = Instant.now().minus(java.time.Duration.ofDays(2));
+        Instant pastNonRecurringEnd = pastNonRecurringStart.plusSeconds(7200);
+        EventResponse nonRecurringEvent = eventService.submitEvent(new EventRequest(
+            spot.id(), "Past Non-Recurring Event", "Desc", pastNonRecurringStart, pastNonRecurringEnd, null, null
+        ), admin.getId(), true);
+
+        // Fetch upcoming events
+        List<EventResponse> events = eventService.getUpcomingEvents(null, null, null, "date", null);
+
+        // Assert that recurring event is included, and non-recurring is excluded
+        List<Long> eventIds = events.stream().map(EventResponse::id).toList();
+        assertThat(eventIds).contains(recurringEvent.id());
+        assertThat(eventIds).doesNotContain(nonRecurringEvent.id());
+    }
+
+    @Test
+    public void testUpcomingEventsExcludesFinishedOneOffAndRecurringEvents() {
+        // 1. One-off event in the past (starts 5 days ago, ends 4 days ago)
+        Instant pastOneOffStart = Instant.now().minus(java.time.Duration.ofDays(5));
+        Instant pastOneOffEnd = pastOneOffStart.plusSeconds(7200);
+        EventResponse pastOneOffEvent = eventService.submitEvent(new EventRequest(
+            spot.id(), "Past One-Off Event", "Desc", pastOneOffStart, pastOneOffEnd, null, null
+        ), admin.getId(), true);
+
+        // 2. Recurring event that has ended (starts 10 days ago, ended 5 days ago via UNTIL)
+        Instant pastRecurringStart = Instant.now().minus(java.time.Duration.ofDays(10));
+        Instant pastRecurringEnd = pastRecurringStart.plusSeconds(7200);
+        // Formatted date for UNTIL (5 days ago in UTC)
+        java.time.format.DateTimeFormatter fmt = java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'").withZone(java.time.ZoneOffset.UTC);
+        String untilStr = fmt.format(Instant.now().minus(java.time.Duration.ofDays(5)));
+        EventResponse finishedRecurringEvent = eventService.submitEvent(new EventRequest(
+            spot.id(), "Finished Recurring Event", "Desc", pastRecurringStart, pastRecurringEnd, "FREQ=DAILY;UNTIL=" + untilStr, null
+        ), admin.getId(), true);
+
+        // 3. Active recurring event (starts 10 days ago, has no UNTIL, repeats daily)
+        EventResponse activeRecurringEvent = eventService.submitEvent(new EventRequest(
+            spot.id(), "Active Recurring Event", "Desc", pastRecurringStart, pastRecurringEnd, "FREQ=DAILY", null
+        ), admin.getId(), true);
+
+        // Fetch upcoming events
+        List<EventResponse> events = eventService.getUpcomingEvents(null, null, null, "date", null);
+        List<Long> eventIds = events.stream().map(EventResponse::id).toList();
+
+        // Assertions
+        assertThat(eventIds).doesNotContain(pastOneOffEvent.id());
+        assertThat(eventIds).doesNotContain(finishedRecurringEvent.id());
+        assertThat(eventIds).contains(activeRecurringEvent.id());
     }
 }

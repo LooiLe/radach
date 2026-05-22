@@ -349,16 +349,49 @@ export default function AdminDashboardPage() {
           {pendingSpots.map(s => (
             <div key={s.id} className="pending-review glass">
               <div className="pending-body">
-                <p className="pending-meta">Spot #{s.id} · Type: {s.type}</p>
-                <h3 className="pending-text" style={{margin: '0 0 0.5rem'}}>
-                  <Link to={`/spot/${s.id}`} style={{ color: 'var(--primary)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <p className="pending-meta">Spot #{s.id}</p>
+                <h3 className="pending-text" style={{ margin: '0 0 0.5rem' }}>
+                  <Link to={`/spot/${s.id}`} style={{ color: 'var(--primary)', textDecoration: 'none' }} className="hover-link">
                     {s.name}
                   </Link>
                 </h3>
-                <p className="pending-author" style={{marginBottom: '0.5rem'}}>{s.address}</p>
-                <p className="pending-author">
-                  Coordinates: {s.latitude}, {s.longitude} | Tags: {s.tags?.join(', ') || 'none'}
+
+                {s.photos && s.photos.length > 0 && (
+                  <div style={{ marginBottom: '0.75rem' }}>
+                    <a href={s.photos[0]} target="_blank" rel="noreferrer" style={{ display: 'inline-block' }}>
+                      <img 
+                        src={s.photos[0]} 
+                        alt={s.name} 
+                        style={{ 
+                          maxWidth: '100%', 
+                          maxHeight: '200px', 
+                          objectFit: 'cover', 
+                          borderRadius: 'var(--radius-md)', 
+                          border: '1px solid var(--border)' 
+                        }} 
+                      />
+                    </a>
+                  </div>
+                )}
+
+                <p className="pending-author" style={{ marginBottom: '0.5rem' }}>
+                  📍 {s.address}
                 </p>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem 1.5rem', fontSize: '0.9rem', marginBottom: '0.75rem' }} className="pending-author">
+                  <div><strong>Type:</strong> {s.type}</div>
+                  <div><strong>Coordinates:</strong> {s.latitude}, {s.longitude}</div>
+                  <div><strong>Tags:</strong> {s.tags && s.tags.length > 0 ? s.tags.join(', ') : 'None'}</div>
+                  {s.websiteUrl && (
+                    <div>
+                      <strong>Website:</strong>{' '}
+                      <a href={s.websiteUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)', textDecoration: 'none' }} className="hover-link">
+                        {s.websiteUrl}
+                      </a>
+                    </div>
+                  )}
+                </div>
+
                 {s.submitterId && (
                   <p className="pending-author" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
                     <span>Submitted by: </span>
@@ -388,14 +421,56 @@ export default function AdminDashboardPage() {
           {pendingEvents.map(e => (
             <div key={e.id} className="pending-review glass">
               <div className="pending-body">
-                <p className="pending-meta">Event #{e.id} · Spot #{e.spotId}</p>
+                <p className="pending-meta">Event #{e.id}</p>
                 <h3 className="pending-text" style={{margin: '0 0 0.5rem'}}>
                   {e.title}
                 </h3>
-                <p className="pending-author" style={{marginBottom: '0.5rem'}}>
-                  Start: {new Date(e.startTime).toLocaleString()}
-                </p>
+
+                {e.imageUrl && (
+                  <div style={{ marginBottom: '0.75rem' }}>
+                    <a href={e.imageUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-block' }}>
+                      <img 
+                        src={e.imageUrl} 
+                        alt={e.title} 
+                        style={{ 
+                          maxWidth: '100%', 
+                          maxHeight: '200px', 
+                          objectFit: 'cover', 
+                          borderRadius: 'var(--radius-md)', 
+                          border: '1px solid var(--border)' 
+                        }} 
+                      />
+                    </a>
+                  </div>
+                )}
+
+                {e.spotName && (
+                  <p className="pending-author" style={{ marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.25rem', flexWrap: 'wrap' }}>
+                    <span>📍 Location: </span>
+                    <strong>
+                      <Link to={`/spot/${e.spotId}`} style={{ color: 'var(--primary)', textDecoration: 'none' }} className="hover-link">
+                        {e.spotName}
+                      </Link>
+                    </strong>
+                    {e.spotAddress && <span style={{ color: 'var(--text-muted)' }}>({e.spotAddress})</span>}
+                  </p>
+                )}
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem 1.5rem', fontSize: '0.9rem', marginBottom: '0.75rem' }} className="pending-author">
+                  <div><strong>Start:</strong> {new Date(e.startTime).toLocaleString()}</div>
+                  <div><strong>End:</strong> {e.endTime ? new Date(e.endTime).toLocaleString() : '—'}</div>
+                  <div><strong>Repeats:</strong> {
+                    e.recurrenceRule === 'FREQ=DAILY' ? 'Daily' :
+                    e.recurrenceRule === 'FREQ=WEEKLY' ? 'Weekly' :
+                    e.recurrenceRule === 'FREQ=WEEKLY;INTERVAL=2' ? 'Bi-weekly' :
+                    e.recurrenceRule === 'FREQ=MONTHLY' ? 'Monthly' :
+                    e.recurrenceRule === 'FREQ=YEARLY' ? 'Yearly' :
+                    e.recurrenceRule || 'None'
+                  }</div>
+                </div>
+
                 {e.description && <p className="pending-text" style={{ fontSize: '0.9rem', marginBottom: '0.5rem' }}>{e.description}</p>}
+                
                 {e.submittedBy && (
                   <p className="pending-author" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
                     <span>Submitted by: </span>

@@ -61,17 +61,66 @@
 .suggestions-dropdown {
   position: absolute;
   top: 100%;
-  left: 0;
-  right: 0;
-  z-index: 1000;
+  left: 4px;
+  right: 4px;
+  z-index: 1010;
   background: var(--bg-surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  box-shadow: none;
-  max-height: 240px;
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+  max-height: 280px;
   overflow-y: auto;
-  margin-top: 4px;
-  animation: slideDown 0.2s var(--ease);
+  margin-top: 6px;
+  padding: 6px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  animation: slideDown 0.25s var(--ease) forwards;
+}
+
+.suggestion-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 0.85rem;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  border-bottom: none;
+  transition: background 0.2s var(--ease), transform 0.15s var(--ease);
+}
+
+.suggestion-item:hover {
+  background: var(--border-color);
+  transform: translateX(2px);
+}
+
+.suggestion-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(17, 24, 39, 0.04);
+  color: var(--text-secondary);
+  transition: all 0.2s var(--ease);
+  flex-shrink: 0;
+}
+
+.suggestion-item:hover .suggestion-icon {
+  background: var(--text-primary);
+  color: var(--bg-surface);
+}
+
+.suggestion-name {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+}
+
+.suggestion-full {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-top: 2px;
 }
 
 /* Map filter dropdown */
@@ -93,6 +142,9 @@
   padding: 1rem;
   min-width: 220px;
   z-index: 1000;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
 .map-filter-dropdown > div {
@@ -121,19 +173,166 @@
   accent-color: var(--text-primary);
 }
 
-.suggestion-item {
-  padding: 0.7rem 0.85rem;
-  cursor: pointer;
-  border-bottom: 1px solid var(--border);
-  transition: background 0.1s;
+/* Unified Map Search Layout */
+.map-search-container {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  z-index: 500;
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  width: calc(100% - 2rem);
+  max-width: 420px;
 }
-.suggestion-item:last-child { border-bottom: none; }
-.suggestion-item:hover { background: var(--bg-glass); }
-.suggestion-name { font-weight: 600; font-size: 0.85rem; }
-.suggestion-full { font-size: 0.72rem; color: var(--text-muted); margin-top: 2px; }
+
+.map-search-bar-wrapper {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  background: var(--bg-glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: 3px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  transition: border-color 0.25s var(--ease), background-color 0.25s var(--ease), box-shadow 0.25s var(--ease);
+}
+
+.map-search-bar-wrapper:focus-within {
+  border-color: var(--text-muted);
+  background: var(--bg-input-focus);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+}
+
+.map-search-input {
+  flex: 1;
+  border: none !important;
+  background: transparent !important;
+  padding: 0.5rem 46px 0.5rem 1rem !important; /* Space for absolute clear button */
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  height: 38px;
+  border-radius: var(--radius-pill) !important;
+}
+
+.map-search-input:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.map-search-icon-btn {
+  background: transparent;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: background-color 0.2s var(--ease), color 0.2s var(--ease), transform 0.1s var(--ease);
+  flex-shrink: 0;
+}
+
+.map-search-icon-btn img {
+  width: 18px;
+  height: 18px;
+  opacity: 0.75;
+  transition: opacity 0.2s var(--ease);
+}
+
+.map-search-icon-btn:hover {
+  background: var(--border-color);
+  color: var(--text-primary);
+}
+
+.map-search-icon-btn:hover img {
+  opacity: 1;
+}
+
+.map-search-icon-btn:active {
+  transform: scale(0.92);
+}
+
+.map-search-icon-btn.clear-btn {
+  color: var(--text-muted);
+  position: absolute;
+  right: 76px; /* Positioned directly inside input field, before the search and options buttons */
+  top: 50%;
+  transform: translateY(-50%) scale(0.8);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s var(--ease), transform 0.2s var(--ease), background-color 0.2s var(--ease), color 0.2s var(--ease);
+}
+
+.map-search-icon-btn.clear-btn.active {
+  opacity: 1;
+  transform: translateY(-50%) scale(1);
+  pointer-events: auto;
+}
+
+.map-search-icon-btn.clear-btn:hover {
+  color: var(--error);
+  background: var(--error-bg);
+}
+
+/* Locate Me Button */
+.locate-me-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--bg-glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: var(--text-secondary);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  transition: all 0.25s var(--ease);
+  flex-shrink: 0;
+}
+
+.locate-me-btn:hover {
+  border-color: var(--border-hover);
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+}
+
+.locate-me-btn:active {
+  transform: scale(0.92);
+}
+
+.locate-me-btn svg {
+  transition: transform 0.4s var(--ease);
+}
+
+.locate-me-btn:hover svg {
+  transform: rotate(90deg);
+}
 
 @media (max-width: 960px) {
   .spots-page { flex-direction: column; height: calc(100vh - 64px); }
   .spots-map { flex: none; height: 40vh; min-height: 250px; border-right: none; border-bottom: 1px solid var(--border); }
   .spots-sidebar { width: 100%; flex: 1; }
+  .map-search-container { max-width: 340px; }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

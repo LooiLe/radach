@@ -42,9 +42,10 @@ public class EventController {
             @RequestParam(required = false) String city,
             @RequestParam(required = false) Integer month,
             @RequestParam(required = false) Integer year,
+            @RequestParam(required = false, defaultValue = "date") String sortBy,
             Authentication auth) {
         Long userId = getUserIdOrNull(auth);
-        return eventService.getUpcomingEvents(city, month, year, userId);
+        return eventService.getUpcomingEvents(city, month, year, sortBy, userId);
     }
 
     /** Get events for a specific spot. Public endpoint. */

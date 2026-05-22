@@ -275,11 +275,7 @@ public class SpotService {
                 // Unauthenticated personalized ranking = global fallback
                 List<Spot> spots = geoSearch
                         ? spotRepository.findWithinRadiusOrderByRankScoreDesc(lat, lng, radiusKm)
-                        : spotRepository.findTop20ByStatusOrderByRankScoreDesc(SpotStatus.ACTIVE);
-                
-                if (geoSearch) {
-                    spots = spots.stream().limit(20).toList();
-                }
+                        : spotRepository.findAllByStatusOrderByRankScoreDesc(SpotStatus.ACTIVE);
                 return withRatingsAndInteractions(spots, null);
             }
 
@@ -290,11 +286,7 @@ public class SpotService {
                 // Fallback to global if they have no friends
                 List<Spot> spots = geoSearch
                         ? spotRepository.findWithinRadiusOrderByRankScoreDesc(lat, lng, radiusKm)
-                        : spotRepository.findTop20ByStatusOrderByRankScoreDesc(SpotStatus.ACTIVE);
-                
-                if (geoSearch) {
-                    spots = spots.stream().limit(20).toList();
-                }
+                        : spotRepository.findAllByStatusOrderByRankScoreDesc(SpotStatus.ACTIVE);
                 return withRatingsAndInteractions(spots, authenticatedUserId);
             }
 

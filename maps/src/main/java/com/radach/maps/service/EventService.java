@@ -18,6 +18,7 @@ import com.radach.maps.model.EventLike;
 import com.radach.maps.model.EventStatus;
 import com.radach.maps.model.Spot;
 import com.radach.maps.model.User;
+import java.util.Set;
 import com.radach.maps.repository.CalendarEntryRepository;
 import com.radach.maps.repository.EventLikeRepository;
 import com.radach.maps.repository.EventRepository;
@@ -32,30 +33,33 @@ public class EventService {
     private final CalendarEntryRepository calendarEntryRepository;
     private final SpotRepository spotRepository;
     private final UserRepository userRepository;
+    private final FriendshipService friendshipService;
 
     public EventService(EventRepository eventRepository,
                         EventLikeRepository eventLikeRepository,
                         CalendarEntryRepository calendarEntryRepository,
                         SpotRepository spotRepository,
-                        UserRepository userRepository) {
+                        UserRepository userRepository,
+                        FriendshipService friendshipService) {
         this.eventRepository = eventRepository;
         this.eventLikeRepository = eventLikeRepository;
         this.calendarEntryRepository = calendarEntryRepository;
         this.spotRepository = spotRepository;
         this.userRepository = userRepository;
+        this.friendshipService = friendshipService;
     }
 
     /**
      * List upcoming ACTIVE events with optional filters.
      */
-    public List<EventResponse> getUpcomingEvents(String city, Integer month, Integer year, Long currentUserId) {
+    public List<EventResponse> getUpcomingEvents(String city, Integer month, Integer year, String sortBy, Long currentUserId) {
         Instant now = Instant.now();
 
-        // Determine date range
         Instant rangeStart;
         Instant rangeEnd;
-        if (month != null && year != null) {
-            YearMonth ym = YearMonth.of(year, month);
+        if (month != null) {
+            int queryYear = (year != null) ? year : java.time.LocalDate.now(java.time.ZoneOffset.UTC).getYear();
+            YearMonth ym = YearMonth.of(queryYear, month);
             rangeStart = ym.atDay(1).atStartOfDay(ZoneOffset.UTC).toInstant();
             rangeEnd = ym.plusMonths(1).atDay(1).atStartOfDay(ZoneOffset.UTC).toInstant();
         } else if (year != null) {
@@ -63,19 +67,54 @@ public class EventService {
             rangeEnd = YearMonth.of(year + 1, 1).atDay(1).atStartOfDay(ZoneOffset.UTC).toInstant();
         } else {
             rangeStart = now;
-            rangeEnd = now.plusSeconds(365L * 24 * 3600); // next year
+            rangeEnd = now.plusSeconds(10L * 365 * 24 * 3600); // 10 years
         }
 
         List<Event> events;
-        if (city != null && !city.isBlank()) {
-            events = eventRepository.findByStatusAndCityAndTimeBetween(
-                    EventStatus.ACTIVE.name(), city.trim(), rangeStart, rangeEnd);
+        boolean sortTrending = "trending".equalsIgnoreCase(sortBy);
+
+        if (sortTrending) {
+            Instant since = now.minus(java.time.Duration.ofDays(7));
+            Set<Long> firstDegree = Set.of();
+            Set<Long> secondDegree = Set.of();
+            if (currentUserId != null) {
+                firstDegree = friendshipService.getFirstDegreeConnections(currentUserId);
+                secondDegree = friendshipService.getSecondDegreeConnections(currentUserId);
+            }
+
+            if (!firstDegree.isEmpty() || !secondDegree.isEmpty()) {
+                Set<Long> safeFirstDegree = firstDegree.isEmpty() ? Set.of(-1L) : firstDegree;
+                Set<Long> safeSecondDegree = secondDegree.isEmpty() ? Set.of(-1L) : secondDegree;
+                if (city != null && !city.isBlank()) {
+                    events = eventRepository.findPersonalizedTrendingByStatusAndCityAndTimeBetween(
+                            EventStatus.ACTIVE.name(), city.trim(), rangeStart, rangeEnd, safeFirstDegree, safeSecondDegree, since);
+                } else {
+                    events = eventRepository.findPersonalizedTrendingByStatusAndTimeBetween(
+                            EventStatus.ACTIVE.name(), rangeStart, rangeEnd, safeFirstDegree, safeSecondDegree, since);
+                }
+            } else {
+                if (city != null && !city.isBlank()) {
+                    events = eventRepository.findByStatusAndCityAndTimeBetweenOrderByTrendingDesc(
+                            EventStatus.ACTIVE.name(), city.trim(), rangeStart, rangeEnd, since);
+                } else {
+                    events = eventRepository.findByStatusAndTimeBetweenOrderByTrendingDesc(
+                            EventStatus.ACTIVE.name(), rangeStart, rangeEnd, since);
+                }
+            }
         } else {
-            events = eventRepository.findByStatusAndStartTimeBetween(
-                    EventStatus.ACTIVE, rangeStart, rangeEnd);
+            if (city != null && !city.isBlank()) {
+                events = eventRepository.findByStatusAndCityAndTimeBetween(
+                        EventStatus.ACTIVE.name(), city.trim(), rangeStart, rangeEnd);
+            } else {
+                events = eventRepository.findByStatusAndStartTimeBetween(
+                        EventStatus.ACTIVE, rangeStart, rangeEnd);
+            }
         }
 
-        return events.stream().map(e -> toResponse(e, currentUserId)).toList();
+        return events.stream()
+                .filter(e -> !isEventEnded(e, now))
+                .map(e -> toResponse(e, currentUserId))
+                .toList();
     }
 
     /**
@@ -294,6 +333,11 @@ public class EventService {
             inCalendar = calendarEntryRepository.existsByUserIdAndEventId(currentUserId, event.getId());
         }
 
+        String responseStatus = event.getStatus().name();
+        if (event.getStatus() == EventStatus.ACTIVE && isEventEnded(event, Instant.now())) {
+            responseStatus = "ENDED";
+        }
+
         return new EventResponse(
                 event.getId(),
                 event.getSpotId(),
@@ -305,7 +349,7 @@ public class EventService {
                 event.getEndTime(),
                 event.getRecurrenceRule(),
                 event.getImageUrl(),
-                event.getStatus().name(),
+                responseStatus,
                 event.getSubmittedBy(),
                 submitterName,
                 event.getLikeCount(),
@@ -313,5 +357,43 @@ public class EventService {
                 inCalendar,
                 event.getCreatedAt()
         );
+    }
+
+    private boolean isEventEnded(Event event, Instant now) {
+        if (event.getRecurrenceRule() == null || event.getRecurrenceRule().isBlank()) {
+            Instant end = event.getEndTime() != null ? event.getEndTime() : event.getStartTime();
+            return end != null && end.isBefore(now);
+        } else {
+            String rule = event.getRecurrenceRule();
+            if (rule.contains("UNTIL=")) {
+                int index = rule.indexOf("UNTIL=");
+                String sub = rule.substring(index + 6);
+                int endOfUntil = sub.indexOf(";");
+                String untilStr = endOfUntil != -1 ? sub.substring(0, endOfUntil) : sub;
+                try {
+                    Instant untilInstant;
+                    if (untilStr.endsWith("Z")) {
+                        untilStr = untilStr.substring(0, untilStr.length() - 1);
+                    }
+                    if (untilStr.contains("T")) {
+                        java.time.LocalDateTime ldt = java.time.LocalDateTime.parse(
+                                untilStr,
+                                java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss")
+                        );
+                        untilInstant = ldt.toInstant(ZoneOffset.UTC);
+                    } else {
+                        java.time.LocalDate ld = java.time.LocalDate.parse(
+                                untilStr,
+                                java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd")
+                        );
+                        untilInstant = ld.atTime(23, 59, 59).atZone(ZoneOffset.UTC).toInstant();
+                    }
+                    return untilInstant.isBefore(now);
+                } catch (Exception ex) {
+                    return false;
+                }
+            }
+            return false;
+        }
     }
 }
