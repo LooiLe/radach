@@ -1,13 +1,42 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { useApi } from '../hooks/useApi'
 import './Navbar.css'
 
 export default function Navbar() {
   const { isAuthenticated, isAdmin, isSuperAdmin, role, userId, isExpert, logout } = useAuth()
+  const { apiFetch } = useApi()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
   const location = useLocation()
   const navigate = useNavigate()
+
+  const loadUnreadCount = useCallback(async () => {
+    if (!isAuthenticated) return
+    try {
+      const res = await apiFetch('/api/v1/notifications/unread-count')
+      if (res.ok) {
+        const data = await res.json()
+        setUnreadCount(data.count)
+      }
+    } catch { /* ignore */ }
+  }, [apiFetch, isAuthenticated])
+
+  useEffect(() => {
+    loadUnreadCount()
+  }, [loadUnreadCount])
+
+  // Refresh when navigating (especially after reading notifications)
+  useEffect(() => {
+    loadUnreadCount()
+  }, [location.pathname, loadUnreadCount])
+
+  // Poll every 15 seconds
+  useEffect(() => {
+    const interval = setInterval(loadUnreadCount, 15000)
+    return () => clearInterval(interval)
+  }, [loadUnreadCount])
 
   const handleLogout = () => {
     logout()
@@ -57,7 +86,7 @@ export default function Navbar() {
       {menuOpen && <div className="menu-overlay" onClick={() => setMenuOpen(false)} />}
       <div className={`menu-drawer ${menuOpen ? 'open' : ''}`}>
          <Link to="/spots" className={`menu-item ${isActive('/spots') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
-           <span className="menu-icon"></span> All Spots
+           <span className="menu-icon"></span> Spots
          </Link>
          <Link to="/events" className={`menu-item ${isActive('/events') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
            <span className="menu-icon"></span> Events
@@ -65,15 +94,13 @@ export default function Navbar() {
          <Link to="/feed" className={`menu-item ${isActive('/feed') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
           <span className="menu-icon"></span> Feed
         </Link>
-         <Link to="/trending" className={`menu-item ${isActive('/trending') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
-           <span className="menu-icon"></span> Trending
-         </Link>
          <Link to="/search" className={`menu-item ${isActive('/search') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
-           <span className="menu-icon"></span> Search for users
+           <span className="menu-icon"></span> User Directory
          </Link>
-         <Link to="/friends" className={`menu-item ${isActive('/friends') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
-           <span className="menu-icon"></span> Friends
-         </Link>
+          <Link to="/notifications" className={`menu-item ${isActive('/notifications') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
+           <span className="menu-icon"></span> Notifications
+           {unreadCount > 0 && <span className="notification-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>}
+          </Link>
         <Link to="/saved" className={`menu-item ${isActive('/saved') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
           <span className="menu-icon"></span> Saved Spots
         </Link>
