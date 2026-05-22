@@ -33,9 +33,10 @@ public class FeedController {
     public List<FeedService.FeedItem> getFeed(
             Authentication auth,
             @RequestParam(required = false, defaultValue = "global") String filter,
-            @RequestParam(defaultValue = "30") int limit
+            @RequestParam(defaultValue = "30") int limit,
+            @RequestParam(required = false) Long targetUserId
     ) {
         Long userId = authenticatedUserService.getUserId(auth);
-        return feedService.getFeed(userId, filter, Math.min(limit, 100), null);
+        return feedService.getFeed(userId, filter, Math.min(limit, 100), targetUserId);
     }
 }

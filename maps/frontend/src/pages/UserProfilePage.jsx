@@ -20,6 +20,12 @@ const navigate = useNavigate()
   const [reviews, setReviews] = useState([])
   const [status, setStatus] = useState('Loading profile...')
   const isOwnProfile = userId && String(userId) === String(id)
+  
+  // Personal feed state
+  const [personalFeed, setPersonalFeed] = useState([])
+  const [feedLoading, setFeedLoading] = useState(false)
+  const [feedTab, setFeedTab] = useState('all') // 'all' shows posts + reviews, 'posts' shows only posts, 'reviews' shows only reviews
+  const [friendCount, setFriendCount] = useState(0)
 
   // Expert application form
   const [showApplyForm, setShowApplyForm] = useState(false)
@@ -79,10 +85,34 @@ const navigate = useNavigate()
     } catch { /* ignore */ }
   }, [apiFetch, isOwnProfile])
 
+  // Load personal feed for the profile user
+  const loadPersonalFeed = useCallback(async () => {
+    setFeedLoading(true)
+    try {
+      const res = await apiFetch(`/api/v1/feed?filter=user&targetUserId=${id}&limit=50`)
+      if (res.ok) {
+        setPersonalFeed(await res.json())
+      }
+    } catch { /* ignore */ }
+    setFeedLoading(false)
+  }, [apiFetch, id])
+
+  const loadFriendCount = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/v1/friends')
+      if (res.ok) {
+        const data = await res.json()
+        setFriendCount(data.length)
+      }
+    } catch { /* ignore */ }
+  }, [apiFetch])
+
   useEffect(() => {
     loadData()
     loadMyApplications()
-  }, [loadData, loadMyApplications])
+    loadPersonalFeed()
+    loadFriendCount()
+  }, [loadData, loadMyApplications, loadPersonalFeed, loadFriendCount])
 
   const submitApplication = async () => {
     setApplyMsg({ type: '', text: '' })
@@ -136,6 +166,18 @@ const navigate = useNavigate()
 
   const hasPendingApp = myApplications.some(a => a.status === 'PENDING')
 
+  const timeAgo = (timestamp) => {
+    const diff = Date.now() - new Date(timestamp).getTime()
+    const mins = Math.floor(diff / 60000)
+    if (mins < 1) return 'just now'
+    if (mins < 60) return `${mins}m ago`
+    const hrs = Math.floor(mins / 60)
+    if (hrs < 24) return `${hrs}h ago`
+    const days = Math.floor(hrs / 24)
+    if (days < 7) return `${days}d ago`
+    return new Date(timestamp).toLocaleDateString()
+  }
+
   return (
     <div className="user-profile-page animate-fade-up">
       <div className="profile-actions-row">
@@ -151,10 +193,17 @@ const navigate = useNavigate()
         </div>
         <div className="profile-info">
           <h1>
-            {user?.name}
+            {isOwnProfile ? 'You' : user?.name}
             {user?.isExpert && <span className="badge badge-active" style={{ marginLeft: '0.75rem', fontSize: '0.8rem', verticalAlign: 'middle' }}>Expert</span>}
           </h1>
           <p>{user?.email}</p>
+          {isOwnProfile && (
+            <p style={{ marginTop: '0.5rem' }}>
+              <Link to="/friends" className="friends-count-link" onClick={(e) => { e.stopPropagation(); }}>
+                <strong>{friendCount}</strong> friend{friendCount !== 1 ? 's' : ''}
+              </Link>
+            </p>
+          )}
           {user?.isExpert && user?.professionalTitle && (
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', marginTop: '0.25rem' }}>
               {user.professionalTitle}{user.organization ? ` at ${user.organization}` : ''}
@@ -207,15 +256,19 @@ const navigate = useNavigate()
                 <div className="glass" style={{ padding: '1.5rem' }}>
                   <h3 style={{ marginBottom: '1rem' }}>Edit Your Profile</h3>
                   <div className="edit-profile-grid">
-                    <div className="field" style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <div className="field" style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
                       <input 
                         type="checkbox" 
                         id="privateAccountToggle"
                         checked={editForm.privateAccount}
                         onChange={e => setEditForm({ ...editForm, privateAccount: e.target.checked })} 
+                        style={{ marginTop: '0.15rem' }}
                       />
                       <label htmlFor="privateAccountToggle" style={{ margin: 0, fontWeight: 500 }}>
-                        Private Account (Hide posts and activity from non-friends)
+                        Private Account
+                        <span style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 400, marginTop: '0.1rem' }}>
+                          Hide posts and activity from non-friends
+                        </span>
                       </label>
                     </div>
                     <div className="field" style={{ gridColumn: '1 / -1' }}>
@@ -315,35 +368,89 @@ const navigate = useNavigate()
         </div>
       )}
 
-      <h2 className="section-heading">Reviews by {user?.name}</h2>
+      {/* Personal Feed Section - replaces the separate reviews section */}
+      <h2 className="section-heading">{isOwnProfile ? 'My Activity' : `${user?.name}'s Activity`}</h2>
 
-      <div className="user-reviews-list">
-        {reviews.length === 0 && !status && (
-          <div className="empty-state">This user hasn't written any approved reviews yet.</div>
-        )}
-        {reviews.map(r => (
-          <div key={r.id} className="review-card glass">
-            <div className="review-card-header">
-              <Link to={`/spot/${r.spotId}`} className="reviewed-spot-link">
-                {r.spotName}
-              </Link>
-              <StarRating value={r.rating} readonly size="1rem" />
-            </div>
-            <div className="reviewed-spot-meta">
-              {r.spotType} · {r.spotAddress}
-            </div>
-            <p className="review-text">{r.body}</p>
-            <p className="review-author">
-              <span className={`badge ${r.reviewType === 'EXPERT' ? 'badge-active' : 'badge-pending'}`}>
-                {r.reviewType === 'EXPERT' ? 'Expert Review' : 'User Review'}
-              </span>
-              <span style={{ marginLeft: '1rem' }}>
-                {new Date(r.createdAt).toLocaleDateString()}
-              </span>
-            </p>
+      <div className="profile-feed-tabs">
+        {['all', 'posts', 'reviews'].map(tab => (
+          <div
+            key={tab}
+            className={`profile-feed-tab ${feedTab === tab ? 'active' : ''}`}
+            onClick={() => setFeedTab(tab)}
+          >
+            {tab.charAt(0).toUpperCase() + tab.slice(1)}
           </div>
         ))}
       </div>
+
+      <div className="profile-feed-list">
+        {feedLoading ? (
+          <div className="feed-loading">
+            <div className="spinner" />
+            <p>Loading activity...</p>
+          </div>
+        ) : personalFeed.length === 0 ? (
+          <div className="empty-state">No activity yet.</div>
+        ) : (
+          (() => {
+            let filteredFeed = personalFeed
+            if (feedTab === 'posts') {
+              filteredFeed = filteredFeed.filter(item => item.activityType === 'POST')
+            } else if (feedTab === 'reviews') {
+              filteredFeed = filteredFeed.filter(item => item.activityType === 'REVIEW')
+            }
+            if (filteredFeed.length === 0) {
+              return <div className="empty-state">No {feedTab === 'posts' ? 'posts' : feedTab === 'reviews' ? 'reviews' : 'activity'} yet.</div>
+            }
+            return filteredFeed.map((item, i) => (
+              <div key={`${item.activityType}-${item.postId || item.spotId}-${i}`} className="profile-feed-item glass">
+                <div className="profile-feed-item-header">
+                  <span className="profile-feed-item-tag">
+                    {item.activityType === 'POST' ? '📝 Post' : item.activityType === 'REVIEW' ? '⭐ Review' : item.activityType === 'LIKE' ? '❤️ Liked' : item.activityType === 'SAVE' ? '🔖 Saved' : '👁️ Viewed'}
+                  </span>
+                  <span className="profile-feed-item-time">{timeAgo(item.timestamp)}</span>
+                </div>
+
+                {item.activityType === 'POST' ? (
+                  <>
+                    {item.description && <p className="profile-feed-item-content">{item.description}</p>}
+                    {item.mediaUrls && item.mediaUrls.length > 0 && (
+                      <div className="profile-feed-item-images">
+                        {item.mediaUrls.map(url => (
+                          <img key={url} src={url} alt="Post media" />
+                        ))}
+                      </div>
+                    )}
+                    {item.spotId && (
+                      <Link to={`/spot/${item.spotId}`} className="profile-feed-item-spot-link">
+                        📍 {item.spotName || 'Linked spot'}
+                      </Link>
+                    )}
+                    <div className="feed-item-footer">
+                      <span className="feed-action-btn" style={{ cursor: 'default' }}>
+                        {item.hasLiked ? '❤️' : '🤍'} {item.likeCount} Likes
+                      </span>
+                      <span className="feed-action-btn" style={{ cursor: 'default' }}>
+                        💬 {item.comments?.length || 0} Comments
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {item.description !== 'viewed' && item.description !== 'saved' && item.description !== 'liked' && (
+                      <p className="profile-feed-item-content">{item.description}</p>
+                    )}
+                    <Link to={`/spot/${item.spotId}`} className="profile-feed-item-spot-link">
+                      📍 {item.spotName} {item.spotAddress ? `· ${item.spotAddress}` : ''}
+                    </Link>
+                  </>
+                )}
+              </div>
+            ))
+          })()
+        )}
+      </div>
+
     </div>
   )
 }

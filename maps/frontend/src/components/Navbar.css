@@ -146,6 +146,19 @@
   font-size: 1.1rem;
 }
 
+.notification-badge {
+  background: #ff4757;
+  color: white;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0.1rem 0.4rem;
+  border-radius: 10px;
+  margin-left: 0.5rem;
+  min-width: 1rem;
+  text-align: center;
+  line-height: 1.2;
+}
+
 .menu-divider {
   height: 1px;
   background: var(--border);

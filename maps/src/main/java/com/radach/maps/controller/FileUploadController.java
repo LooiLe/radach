@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -21,15 +22,16 @@ import org.springframework.web.server.ResponseStatusException;
 @RequestMapping("/api/v1/upload")
 public class FileUploadController {
 
-    private final Path uploadDir = Paths.get("uploads");
+    private final Path uploadDir;
 
-    public FileUploadController() {
+    public FileUploadController(@Value("${app.upload.dir:uploads}") String uploadPath) {
+        this.uploadDir = Paths.get(uploadPath).toAbsolutePath().normalize();
         try {
             if (!Files.exists(uploadDir)) {
                 Files.createDirectories(uploadDir);
             }
         } catch (IOException e) {
-            throw new RuntimeException("Could not create upload directory!");
+            throw new RuntimeException("Could not create upload directory: " + uploadDir);
         }
     }
 

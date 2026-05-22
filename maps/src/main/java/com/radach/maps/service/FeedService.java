@@ -107,6 +107,11 @@ public class FeedService {
             feedPosts = feedPosts.subList(0, limit);
         }
 
+        // Also collect spotIds from feed posts
+        for (FeedPost p : feedPosts) {
+            if (p.getSpotId() != null) allSpotIds.add(p.getSpotId());
+        }
+
         // Prefetch spots
         Map<Long, Spot> spotMap = spotRepository.findAllById(allSpotIds).stream()
                 .collect(Collectors.toMap(Spot::getId, s -> s));
@@ -203,15 +208,16 @@ public class FeedService {
                     })
                     .toList();
 
+            Spot postSpot = p.getSpotId() != null ? spotMap.get(p.getSpotId()) : null;
             items.add(new FeedItem(
                     p.getId(),
                     p.getAuthorId(),
                     author != null ? author.getName() : "Unknown",
                     author != null && author.isExpert(),
                     "POST",
-                    null,
-                    null,
-                    null,
+                    p.getSpotId(),
+                    postSpot != null ? postSpot.getName() : null,
+                    postSpot != null ? postSpot.getAddress() : null,
                     p.getContent(),
                     p.getCreatedAt(),
                     p.getMediaUrls(),
