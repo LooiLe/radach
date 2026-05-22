@@ -90,12 +90,15 @@ public class FriendshipController {
     public ResponseEntity<List<Map<String, Object>>> searchUsers(@org.springframework.web.bind.annotation.RequestParam String query, Authentication auth) {
         User currentUser = getAuthenticatedUser(auth);
         List<User> found = userRepository.searchByNameOrEmail(query);
+        Set<Long> friendIds = friendshipService.getFirstDegreeConnections(currentUser.getId());
         List<Map<String, Object>> response = found.stream()
                 .filter(u -> !u.getId().equals(currentUser.getId()))
                 .map(u -> Map.<String, Object>of(
                         "id", u.getId(),
                         "name", u.getName(),
-                        "email", u.getEmail()
+                        "email", u.getEmail(),
+                        "isExpert", u.isExpert(),
+                        "isFriend", friendIds.contains(u.getId())
                 ))
                 .collect(Collectors.toList());
         return ResponseEntity.ok(response);

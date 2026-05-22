@@ -13,6 +13,8 @@ public interface CalendarEntryRepository extends JpaRepository<CalendarEntry, Lo
 
     List<CalendarEntry> findByUserId(Long userId);
 
+    List<CalendarEntry> findByEventId(Long eventId);
+
     @org.springframework.data.jpa.repository.Query("SELECT c FROM CalendarEntry c WHERE c.userId = :userId AND ((c.startTime BETWEEN :start AND :end) OR (c.recurrenceRule IS NOT NULL AND c.startTime <= :end)) ORDER BY c.startTime ASC")
     List<CalendarEntry> findEntriesWithinRange(
             @org.springframework.data.repository.query.Param("userId") Long userId,

@@ -28,6 +28,7 @@ export default function NotificationsPage() {
     try {
       await apiFetch(`/api/v1/notifications/${id}/read`, { method: 'POST' })
       setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n))
+      window.dispatchEvent(new Event('notificationsRead'))
     } catch { /* ignore */ }
   }
 
@@ -35,6 +36,7 @@ export default function NotificationsPage() {
     try {
       await apiFetch('/api/v1/notifications/read-all', { method: 'POST' })
       setNotifications(prev => prev.map(n => ({ ...n, read: true })))
+      window.dispatchEvent(new Event('notificationsRead'))
     } catch { /* ignore */ }
   }
 
@@ -48,7 +50,11 @@ export default function NotificationsPage() {
     } else if (notif.type === 'POST_LIKE' || notif.type === 'POST_COMMENT') {
       navigate('/feed')
     } else if (notif.type === 'EVENT_CHANGE') {
-      navigate('/events')
+      if (notif.referenceId) {
+        navigate(`/event/${notif.referenceId}`)
+      } else {
+        navigate('/events')
+      }
     }
   }
 

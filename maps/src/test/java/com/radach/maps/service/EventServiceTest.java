@@ -24,6 +24,8 @@ import com.radach.maps.model.Role;
 import com.radach.maps.model.User;
 import com.radach.maps.model.SpotStatus;
 import com.radach.maps.repository.UserRepository;
+import com.radach.maps.repository.CalendarEntryRepository;
+import com.radach.maps.repository.NotificationRepository;
 
 @SpringBootTest
 @Transactional
@@ -41,6 +43,12 @@ public class EventServiceTest {
 
     @Autowired
     private FriendshipService friendshipService;
+
+    @Autowired
+    private CalendarEntryRepository calendarEntryRepository;
+
+    @Autowired
+    private NotificationRepository notificationRepository;
 
     private User user1;
     private User user2;
@@ -345,5 +353,53 @@ public class EventServiceTest {
         assertThat(eventIds).doesNotContain(pastOneOffEvent.id());
         assertThat(eventIds).doesNotContain(finishedRecurringEvent.id());
         assertThat(eventIds).contains(activeRecurringEvent.id());
+    }
+
+    @Test
+    public void testEventChangeNotifications() {
+        EventResponse event = eventService.submitEvent(new EventRequest(
+            spot.id(), "Initial Title", "Desc", Instant.now().plusSeconds(3600), Instant.now().plusSeconds(7200), null, null
+        ), user1.getId(), true);
+
+        eventService.toggleCalendar(event.id(), user2.getId());
+
+        assertThat(calendarEntryRepository.existsByUserIdAndEventId(user2.getId(), event.id())).isTrue();
+
+        EventRequest updateRequest = new EventRequest(
+            spot.id(), "New Title", "New Desc", Instant.now().plusSeconds(3600), Instant.now().plusSeconds(7200), null, null
+        );
+        eventService.updateUserEvent(event.id(), updateRequest, admin.getId(), true);
+
+        List<com.radach.maps.model.CalendarEntry> entries = calendarEntryRepository.findByEventId(event.id());
+        assertThat(entries).hasSize(1);
+        assertThat(entries.get(0).getTitle()).isEqualTo("New Title");
+        assertThat(entries.get(0).getDescription()).isEqualTo("New Desc");
+
+        List<com.radach.maps.model.Notification> notifications = notificationRepository.findByUserIdOrderByCreatedAtDesc(user2.getId());
+        assertThat(notifications).hasSize(1);
+        assertThat(notifications.get(0).getType()).isEqualTo("EVENT_CHANGE");
+        assertThat(notifications.get(0).getMessage()).contains("updated");
+        assertThat(notifications.get(0).getReferenceId()).isEqualTo(event.id());
+        assertThat(notifications.get(0).getReferenceType()).isEqualTo("EVENT");
+
+        notificationRepository.deleteAll();
+
+        eventService.updateEventStatus(event.id(), EventStatus.REJECTED);
+        
+        notifications = notificationRepository.findByUserIdOrderByCreatedAtDesc(user2.getId());
+        assertThat(notifications).hasSize(1);
+        assertThat(notifications.get(0).getType()).isEqualTo("EVENT_CHANGE");
+        assertThat(notifications.get(0).getMessage()).contains("cancelled/removed");
+
+        notificationRepository.deleteAll();
+
+        eventService.deleteUserEvent(event.id(), user1.getId(), false);
+
+        notifications = notificationRepository.findByUserIdOrderByCreatedAtDesc(user2.getId());
+        assertThat(notifications).hasSize(1);
+        assertThat(notifications.get(0).getType()).isEqualTo("EVENT_CHANGE");
+        assertThat(notifications.get(0).getMessage()).contains("deleted");
+
+        assertThat(calendarEntryRepository.existsByUserIdAndEventId(user2.getId(), event.id())).isFalse();
     }
 }

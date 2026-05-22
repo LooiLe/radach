@@ -34,19 +34,22 @@ public class EventService {
     private final SpotRepository spotRepository;
     private final UserRepository userRepository;
     private final FriendshipService friendshipService;
+    private final NotificationService notificationService;
 
     public EventService(EventRepository eventRepository,
                         EventLikeRepository eventLikeRepository,
                         CalendarEntryRepository calendarEntryRepository,
                         SpotRepository spotRepository,
                         UserRepository userRepository,
-                        FriendshipService friendshipService) {
+                        FriendshipService friendshipService,
+                        NotificationService notificationService) {
         this.eventRepository = eventRepository;
         this.eventLikeRepository = eventLikeRepository;
         this.calendarEntryRepository = calendarEntryRepository;
         this.spotRepository = spotRepository;
         this.userRepository = userRepository;
         this.friendshipService = friendshipService;
+        this.notificationService = notificationService;
     }
 
     /**
@@ -218,8 +221,12 @@ public class EventService {
     public EventResponse updateEventStatus(Long id, EventStatus status) {
         Event event = eventRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Event not found"));
+        EventStatus oldStatus = event.getStatus();
         event.setStatus(status);
         event = eventRepository.save(event);
+        if (oldStatus != status) {
+            updateCalendarEntriesAndNotify(event, "STATUS_" + status.name(), null);
+        }
         return toResponse(event, null);
     }
 
@@ -228,6 +235,12 @@ public class EventService {
         Event event = eventRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Event not found"));
         
+        boolean detailsChanged = !java.util.Objects.equals(event.getTitle(), request.title())
+                || !java.util.Objects.equals(event.getDescription(), request.description())
+                || !java.util.Objects.equals(event.getStartTime(), request.startTime())
+                || !java.util.Objects.equals(event.getEndTime(), request.endTime())
+                || !java.util.Objects.equals(event.getRecurrenceRule(), request.recurrenceRule());
+
         if (request.spotId() != null) event.setSpotId(request.spotId());
         event.setTitle(request.title());
         event.setDescription(request.description());
@@ -237,6 +250,9 @@ public class EventService {
         if (request.imageUrl() != null) event.setImageUrl(request.imageUrl());
         
         event = eventRepository.save(event);
+        if (detailsChanged) {
+            updateCalendarEntriesAndNotify(event, "DETAILS", null);
+        }
         return toResponse(event, null);
     }
 
@@ -244,6 +260,7 @@ public class EventService {
     public void deleteEvent(Long id) {
         Event event = eventRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Event not found"));
+        notifyCalendarDeletion(event, null);
         eventLikeRepository.deleteByEventId(id);
         calendarEntryRepository.deleteByEventId(id);
         eventRepository.delete(event);
@@ -270,6 +287,14 @@ public class EventService {
             event.setStatus(EventStatus.PENDING);
         }
 
+        boolean detailsChanged = !java.util.Objects.equals(event.getTitle(), request.title())
+                || !java.util.Objects.equals(event.getDescription(), request.description())
+                || !java.util.Objects.equals(event.getStartTime(), request.startTime())
+                || !java.util.Objects.equals(event.getEndTime(), request.endTime())
+                || !java.util.Objects.equals(event.getRecurrenceRule(), request.recurrenceRule());
+
+        EventStatus oldStatus = event.getStatus();
+
         if (request.spotId() != null) {
             if (!spotRepository.existsById(request.spotId())) {
                 throw new ResourceNotFoundException("Spot not found");
@@ -284,6 +309,13 @@ public class EventService {
         event.setImageUrl(request.imageUrl());
 
         event = eventRepository.save(event);
+
+        if (detailsChanged) {
+            updateCalendarEntriesAndNotify(event, "DETAILS", userId);
+        } else if (oldStatus != event.getStatus()) {
+            updateCalendarEntriesAndNotify(event, "STATUS_" + event.getStatus().name(), userId);
+        }
+
         return toResponse(event, userId);
     }
 
@@ -301,6 +333,7 @@ public class EventService {
             }
         }
 
+        notifyCalendarDeletion(event, userId);
         eventLikeRepository.deleteByEventId(id);
         calendarEntryRepository.deleteByEventId(id);
         eventRepository.delete(event);
@@ -396,4 +429,46 @@ public class EventService {
             return false;
         }
     }
+
+    private void updateCalendarEntriesAndNotify(Event event, String updateType, Long triggerUserId) {
+        List<CalendarEntry> entries = calendarEntryRepository.findByEventId(event.getId());
+        for (CalendarEntry entry : entries) {
+            entry.setTitle(event.getTitle());
+            entry.setDescription(event.getDescription());
+            entry.setStartTime(event.getStartTime());
+            entry.setEndTime(event.getEndTime());
+            entry.setRecurrenceRule(event.getRecurrenceRule());
+            calendarEntryRepository.save(entry);
+
+            String message = "Event '" + event.getTitle() + "' in your calendar has been updated.";
+            if ("STATUS_REJECTED".equals(updateType)) {
+                message = "Event '" + event.getTitle() + "' in your calendar has been cancelled/removed.";
+            } else if ("STATUS_ACTIVE".equals(updateType)) {
+                message = "Event '" + event.getTitle() + "' in your calendar is now active.";
+            }
+
+            notificationService.createNotification(
+                    entry.getUserId(),
+                    "EVENT_CHANGE",
+                    message,
+                    event.getId(),
+                    "EVENT"
+            );
+        }
+    }
+
+    private void notifyCalendarDeletion(Event event, Long triggerUserId) {
+        List<CalendarEntry> entries = calendarEntryRepository.findByEventId(event.getId());
+        for (CalendarEntry entry : entries) {
+            String message = "Event '" + event.getTitle() + "' in your calendar has been deleted.";
+            notificationService.createNotification(
+                    entry.getUserId(),
+                    "EVENT_CHANGE",
+                    message,
+                    event.getId(),
+                    "EVENT"
+            );
+        }
+    }
 }
+

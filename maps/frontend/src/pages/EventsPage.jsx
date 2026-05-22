@@ -347,6 +347,28 @@ export default function EventsPage() {
     return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
   }
 
+  const isSameDay = (iso1, iso2) => {
+    if (!iso1 || !iso2) return false
+    const d1 = new Date(iso1)
+    const d2 = new Date(iso2)
+    return d1.getFullYear() === d2.getFullYear() &&
+      d1.getMonth() === d2.getMonth() &&
+      d1.getDate() === d2.getDate()
+  }
+
+  const formatDateRange = (event) => {
+    let result = formatDate(event.startTime)
+    if (event.startTime) result += ` · ${formatTime(event.startTime)}`
+    if (event.endTime) {
+      if (isSameDay(event.startTime, event.endTime)) {
+        result += ` – ${formatTime(event.endTime)}`
+      } else {
+        result += ` – ${formatDate(event.endTime)} · ${formatTime(event.endTime)}`
+      }
+    }
+    return result
+  }
+
   const toLocalDatetimeString = (d) => {
     const pad = n => String(n).padStart(2, '0')
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
@@ -427,11 +449,11 @@ export default function EventsPage() {
           ) : (
             <div className="events-grid">
               {events.map((event, idx) => (
-                <div key={event.id} className="event-card" style={{ animationDelay: `${idx * 0.05}s` }}>
+                <div key={event.id} className="event-card" style={{ animationDelay: `${idx * 0.05}s`, cursor: 'pointer' }} onClick={() => navigate(`/event/${event.id}`)}>
                   {event.imageUrl ? (
-                    <a href={event.imageUrl} target="_blank" rel="noreferrer" style={{ display: 'block' }}>
-                      <img src={event.imageUrl} alt={event.title} className="event-card-image" style={{ cursor: 'pointer' }} />
-                    </a>
+                    <div style={{ display: 'block' }}>
+                      <img src={event.imageUrl} alt={event.title} className="event-card-image" />
+                    </div>
                   ) : (
                     <div className="event-card-image-placeholder">🎉</div>
                   )}
@@ -445,9 +467,7 @@ export default function EventsPage() {
                         <line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" />
                         <line x1="3" y1="10" x2="21" y2="10" />
                       </svg>
-                      {formatDate(event.startTime)}
-                      {event.startTime && ` · ${formatTime(event.startTime)}`}
-                      {event.endTime && ` – ${formatTime(event.endTime)}`}
+                      {formatDateRange(event)}
                     </div>
 
                     {event.recurrenceRule && (
@@ -489,7 +509,7 @@ export default function EventsPage() {
                     )}
                   </div>
 
-                  <div className="event-card-actions">
+                  <div className="event-card-actions" onClick={e => e.stopPropagation()}>
                     <button
                       className={`event-action-btn ${event.likedByCurrentUser ? 'liked' : ''}`}
                       onClick={() => toggleLike(event.id)}
@@ -532,12 +552,12 @@ export default function EventsPage() {
           ) : (
             <div className="events-grid">
               {submissions.map((event, idx) => (
-                <div key={event.id} className="event-card" style={{ animationDelay: `${idx * 0.05}s` }}>
+                <div key={event.id} className="event-card" style={{ animationDelay: `${idx * 0.05}s`, cursor: 'pointer' }} onClick={() => navigate(`/event/${event.id}`)}>
                   <div style={{ position: 'relative' }}>
                     {event.imageUrl ? (
-                      <a href={event.imageUrl} target="_blank" rel="noreferrer" style={{ display: 'block' }}>
-                        <img src={event.imageUrl} alt={event.title} className="event-card-image" style={{ cursor: 'pointer' }} />
-                      </a>
+                      <div style={{ display: 'block' }}>
+                        <img src={event.imageUrl} alt={event.title} className="event-card-image" />
+                      </div>
                     ) : (
                       <div className="event-card-image-placeholder">🎉</div>
                     )}
@@ -555,9 +575,7 @@ export default function EventsPage() {
                         <line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" />
                         <line x1="3" y1="10" x2="21" y2="10" />
                       </svg>
-                      {formatDate(event.startTime)}
-                      {event.startTime && ` · ${formatTime(event.startTime)}`}
-                      {event.endTime && ` – ${formatTime(event.endTime)}`}
+                      {formatDateRange(event)}
                     </div>
 
                     {event.recurrenceRule && (
@@ -599,7 +617,7 @@ export default function EventsPage() {
                     )}
                   </div>
 
-                  <div className="event-card-actions">
+                  <div className="event-card-actions" onClick={e => e.stopPropagation()}>
                     {event.status === 'ACTIVE' && (
                       <>
                         <button
