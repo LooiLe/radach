@@ -401,6 +401,12 @@ export default function FeedPage() {
                       📍 {item.spotName || 'Linked spot'}
                     </Link>
                   )}
+                  {/* Show attached event if post has an eventId */}
+                  {item.eventId && (
+                    <Link to={`/event/${item.eventId}`} className="feed-item-spot-link">
+                      📅 {item.eventName || 'Linked event'}
+                    </Link>
+                  )}
                   <div className="feed-item-footer">
                     <button 
                       className={`feed-action-btn ${item.hasLiked ? 'active' : ''}`}

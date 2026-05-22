@@ -426,6 +426,11 @@ const navigate = useNavigate()
                         📍 {item.spotName || 'Linked spot'}
                       </Link>
                     )}
+                    {item.eventId && (
+                      <Link to={`/event/${item.eventId}`} className="profile-feed-item-spot-link">
+                        📅 {item.eventName || 'Linked event'}
+                      </Link>
+                    )}
                     <div className="feed-item-footer">
                       <span className="feed-action-btn" style={{ cursor: 'default' }}>
                         {item.hasLiked ? '❤️' : '🤍'} {item.likeCount} Likes

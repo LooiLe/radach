@@ -32,6 +32,13 @@ export default function Navbar() {
     loadUnreadCount()
   }, [location.pathname, loadUnreadCount])
 
+  // Refresh when notifications are marked as read manually
+  useEffect(() => {
+    const handler = () => loadUnreadCount()
+    window.addEventListener('notificationsRead', handler)
+    return () => window.removeEventListener('notificationsRead', handler)
+  }, [loadUnreadCount])
+
   // Poll every 15 seconds
   useEffect(() => {
     const interval = setInterval(loadUnreadCount, 15000)
