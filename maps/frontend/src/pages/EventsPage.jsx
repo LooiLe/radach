@@ -38,7 +38,8 @@ export default function EventsPage() {
   const [loading, setLoading] = useState(true)
   const [cityFilter, setCityFilter] = useState('')
   const [monthFilter, setMonthFilter] = useState('')
-  const [yearFilter, setYearFilter] = useState(new Date().getFullYear())
+  const [yearFilter, setYearFilter] = useState('')
+  const [sortBy, setSortBy] = useState('date')
 
   // ---- Calendar State ----
   const [calendarDate, setCalendarDate] = useState(new Date())
@@ -63,12 +64,13 @@ export default function EventsPage() {
       if (cityFilter) params.set('city', cityFilter)
       if (monthFilter) params.set('month', monthFilter)
       if (yearFilter) params.set('year', yearFilter)
+      if (sortBy) params.set('sortBy', sortBy)
       const qs = params.toString() ? `?${params.toString()}` : ''
       const res = await apiFetch(`/api/v1/events${qs}`)
       if (res.ok) setEvents(await res.json())
     } catch { /* ignore */ }
     setLoading(false)
-  }, [apiFetch, cityFilter, monthFilter, yearFilter])
+  }, [apiFetch, cityFilter, monthFilter, yearFilter, sortBy])
 
   useEffect(() => { loadEvents() }, [loadEvents])
 
@@ -392,8 +394,18 @@ export default function EventsPage() {
             </div>
             <div className="field">
               <label className="label">Year</label>
-              <select className="input select" value={yearFilter} onChange={e => setYearFilter(Number(e.target.value))}>
-                {[2025, 2026, 2027, 2028].map(y => <option key={y} value={y}>{y}</option>)}
+              <select className="input select" value={yearFilter} onChange={e => setYearFilter(e.target.value ? Number(e.target.value) : '')}>
+                <option value="">This & following years</option>
+                {Array.from({ length: 4 }, (_, i) => new Date().getFullYear() + i).map(y => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            </div>
+            <div className="field">
+              <label className="label">Sort By</label>
+              <select className="input select" value={sortBy} onChange={e => setSortBy(e.target.value)}>
+                <option value="date">Date (Ascending)</option>
+                <option value="trending">Trending</option>
               </select>
             </div>
             <div className="field">
@@ -437,6 +449,24 @@ export default function EventsPage() {
                       {event.startTime && ` · ${formatTime(event.startTime)}`}
                       {event.endTime && ` – ${formatTime(event.endTime)}`}
                     </div>
+
+                    {event.recurrenceRule && (
+                      <div className="event-card-meta">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="23 4 23 10 17 10" />
+                          <polyline points="1 20 1 14 7 14" />
+                          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                        </svg>
+                        Repeats: {
+                          event.recurrenceRule === 'FREQ=DAILY' ? 'Daily' :
+                          event.recurrenceRule === 'FREQ=WEEKLY' ? 'Weekly' :
+                          event.recurrenceRule === 'FREQ=WEEKLY;INTERVAL=2' ? 'Bi-weekly' :
+                          event.recurrenceRule === 'FREQ=MONTHLY' ? 'Monthly' :
+                          event.recurrenceRule === 'FREQ=YEARLY' ? 'Yearly' :
+                          'Recurring'
+                        }
+                      </div>
+                    )}
 
                     {event.spotAddress && (
                       <div className="event-card-meta">
@@ -529,6 +559,24 @@ export default function EventsPage() {
                       {event.startTime && ` · ${formatTime(event.startTime)}`}
                       {event.endTime && ` – ${formatTime(event.endTime)}`}
                     </div>
+
+                    {event.recurrenceRule && (
+                      <div className="event-card-meta">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="23 4 23 10 17 10" />
+                          <polyline points="1 20 1 14 7 14" />
+                          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                        </svg>
+                        Repeats: {
+                          event.recurrenceRule === 'FREQ=DAILY' ? 'Daily' :
+                          event.recurrenceRule === 'FREQ=WEEKLY' ? 'Weekly' :
+                          event.recurrenceRule === 'FREQ=WEEKLY;INTERVAL=2' ? 'Bi-weekly' :
+                          event.recurrenceRule === 'FREQ=MONTHLY' ? 'Monthly' :
+                          event.recurrenceRule === 'FREQ=YEARLY' ? 'Yearly' :
+                          'Recurring'
+                        }
+                      </div>
+                    )}
 
                     {event.spotAddress && (
                       <div className="event-card-meta">

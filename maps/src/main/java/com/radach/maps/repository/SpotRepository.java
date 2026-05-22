@@ -125,7 +125,6 @@ public interface SpotRepository extends JpaRepository<Spot, Long> {
                 + COALESCE((SELECT COUNT(*) FROM user_spot_interactions ui JOIN users u ON u.id = ui.user_id WHERE ui.spot_id = s.id AND ui.is_liked = true AND ui.updated_at >= :since AND u.is_expert = true), 0) * 5
                 + COALESCE((SELECT COUNT(*) FROM user_spot_interactions ui JOIN users u ON u.id = ui.user_id WHERE ui.spot_id = s.id AND ui.is_saved = true AND ui.updated_at >= :since AND u.is_expert = true), 0) * 10
             ) DESC, s.rank_score DESC
-            LIMIT 20
             """, nativeQuery = true)
     List<Spot> findExpertTrending(@Param("since") Instant since);
 
@@ -149,7 +148,6 @@ public interface SpotRepository extends JpaRepository<Spot, Long> {
                 + COALESCE((SELECT COUNT(*) FROM user_spot_interactions ui JOIN users u ON u.id = ui.user_id WHERE ui.spot_id = s.id AND ui.is_liked = true AND ui.updated_at >= :since AND u.is_expert = true), 0) * 5
                 + COALESCE((SELECT COUNT(*) FROM user_spot_interactions ui JOIN users u ON u.id = ui.user_id WHERE ui.spot_id = s.id AND ui.is_saved = true AND ui.updated_at >= :since AND u.is_expert = true), 0) * 10
             ) DESC, s.rank_score DESC
-            LIMIT 20
             """, nativeQuery = true)
     List<Spot> findExpertTrendingWithinRadius(@Param("lat") double lat, @Param("lng") double lng, @Param("radiusKm") double radiusKm, @Param("since") Instant since);
 
@@ -167,7 +165,6 @@ public interface SpotRepository extends JpaRepository<Spot, Long> {
                 + COALESCE((SELECT SUM(CASE WHEN ui.user_id IN :firstDegree THEN 5 WHEN ui.user_id IN :secondDegree THEN 4 ELSE 0 END) 
                             FROM user_spot_interactions ui WHERE ui.spot_id = s.id AND ui.is_saved = true AND ui.updated_at >= :since AND (ui.user_id IN :firstDegree OR ui.user_id IN :secondDegree)), 0) * 10
             ) DESC, s.rank_score DESC
-            LIMIT 20
             """, nativeQuery = true)
     List<Spot> findPersonalizedTrending(@Param("firstDegree") java.util.Collection<Long> firstDegree, @Param("secondDegree") java.util.Collection<Long> secondDegree, @Param("since") Instant since);
 
@@ -194,7 +191,6 @@ public interface SpotRepository extends JpaRepository<Spot, Long> {
                 + COALESCE((SELECT SUM(CASE WHEN ui.user_id IN :firstDegree THEN 5 WHEN ui.user_id IN :secondDegree THEN 4 ELSE 0 END) 
                             FROM user_spot_interactions ui WHERE ui.spot_id = s.id AND ui.is_saved = true AND ui.updated_at >= :since AND (ui.user_id IN :firstDegree OR ui.user_id IN :secondDegree)), 0) * 10
             ) DESC, s.rank_score DESC
-            LIMIT 20
             """, nativeQuery = true)
     List<Spot> findPersonalizedTrendingWithinRadius(@Param("lat") double lat, @Param("lng") double lng, @Param("radiusKm") double radiusKm, @Param("firstDegree") java.util.Collection<Long> firstDegree, @Param("secondDegree") java.util.Collection<Long> secondDegree, @Param("since") Instant since);
 
