@@ -51,4 +51,6 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 
     @Query("SELECT e FROM Event e WHERE e.status = :status ORDER BY e.likeCount DESC, e.startTime ASC")
     List<Event> findByStatusOrderByLikeCountDesc(@Param("status") EventStatus status);
+
+    List<Event> findBySubmittedByOrderByCreatedAtDesc(Long submittedBy);
 }

@@ -27,7 +27,7 @@ public class CalendarService {
     public List<CalendarEntryResponse> getEntries(Long userId, Instant start, Instant end) {
         List<CalendarEntry> entries;
         if (start != null && end != null) {
-            entries = calendarEntryRepository.findByUserIdAndStartTimeBetweenOrderByStartTimeAsc(userId, start, end);
+            entries = calendarEntryRepository.findEntriesWithinRange(userId, start, end);
         } else {
             entries = calendarEntryRepository.findByUserId(userId);
         }
@@ -78,10 +78,10 @@ public class CalendarService {
     }
 
     /**
-     * Delete a calendar entry (only own entries).
+     * Delete a calendar entry (only own entries). Supports partial deletion for recurring events.
      */
     @Transactional
-    public void deleteEntry(Long id, Long userId) {
+    public void deleteEntry(Long id, Long userId, String mode, String date) {
         CalendarEntry entry = calendarEntryRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Calendar entry not found"));
 
@@ -90,7 +90,25 @@ public class CalendarService {
                     org.springframework.http.HttpStatus.FORBIDDEN, "Not your calendar entry");
         }
 
-        calendarEntryRepository.delete(entry);
+        String rule = entry.getRecurrenceRule();
+        if (rule == null || rule.isBlank() || "all".equalsIgnoreCase(mode) || mode == null) {
+            calendarEntryRepository.delete(entry);
+            return;
+        }
+
+        if ("thisEvent".equalsIgnoreCase(mode) && date != null && !date.isBlank()) {
+            String newRule = rule.contains("EXDATE=") ? rule + "," + date : rule + ";EXDATE=" + date;
+            entry.setRecurrenceRule(newRule);
+            calendarEntryRepository.save(entry);
+        } else if ("thisAndFuture".equalsIgnoreCase(mode) && date != null && !date.isBlank()) {
+            // Strip existing UNTIL if any
+            rule = rule.replaceAll(";?UNTIL=[^;]+", "");
+            String newRule = rule + ";UNTIL=" + date;
+            entry.setRecurrenceRule(newRule);
+            calendarEntryRepository.save(entry);
+        } else {
+            calendarEntryRepository.delete(entry);
+        }
     }
 
     private CalendarEntryResponse toResponse(CalendarEntry entry) {

@@ -6,9 +6,11 @@ import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -76,12 +78,39 @@ public class EventController {
         return eventService.toggleLike(id, userId);
     }
 
-    /** Add an event to the user's calendar. */
+    /** Toggle an event in the user's calendar. */
     @PostMapping("/{id}/calendar")
-    public ResponseEntity<?> addToCalendar(@PathVariable Long id, Authentication auth) {
+    public ResponseEntity<EventResponse> toggleCalendar(@PathVariable Long id, Authentication auth) {
         Long userId = authenticatedUserService.getUserId(auth);
-        eventService.addToCalendar(id, userId);
-        return ResponseEntity.ok(Map.of("message", "Event added to calendar"));
+        EventResponse response = eventService.toggleCalendar(id, userId);
+        return ResponseEntity.ok(response);
+    }
+
+    /** Get events submitted by the authenticated user. */
+    @GetMapping("/my-submissions")
+    public List<EventResponse> getMySubmissions(Authentication auth) {
+        Long userId = authenticatedUserService.getUserId(auth);
+        return eventService.getEventsSubmittedBy(userId);
+    }
+
+    /** Update an event submitted by the authenticated user. */
+    @PutMapping("/{id}")
+    public ResponseEntity<EventResponse> updateMyEvent(@PathVariable Long id,
+                                                        @Valid @RequestBody EventRequest request,
+                                                        Authentication auth) {
+        var user = authenticatedUserService.getUser(auth);
+        boolean isAdmin = user.getRole().name().contains("ADMIN");
+        EventResponse response = eventService.updateUserEvent(id, request, user.getId(), isAdmin);
+        return ResponseEntity.ok(response);
+    }
+
+    /** Delete an event submitted by the authenticated user. */
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> deleteMyEvent(@PathVariable Long id, Authentication auth) {
+        var user = authenticatedUserService.getUser(auth);
+        boolean isAdmin = user.getRole().name().contains("ADMIN");
+        eventService.deleteUserEvent(id, user.getId(), isAdmin);
+        return ResponseEntity.ok(Map.of("message", "Event deleted successfully"));
     }
 
     private Long getUserIdOrNull(Authentication auth) {

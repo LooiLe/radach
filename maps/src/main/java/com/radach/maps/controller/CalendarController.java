@@ -68,9 +68,13 @@ public class CalendarController {
 
     /** Delete a calendar entry. */
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteEntry(@PathVariable Long id, Authentication auth) {
+    public ResponseEntity<?> deleteEntry(
+            @PathVariable Long id, 
+            @RequestParam(required = false) String mode,
+            @RequestParam(required = false) String date,
+            Authentication auth) {
         Long userId = authenticatedUserService.getUserId(auth);
-        calendarService.deleteEntry(id, userId);
+        calendarService.deleteEntry(id, userId, mode, date);
         return ResponseEntity.noContent().build();
     }
 }

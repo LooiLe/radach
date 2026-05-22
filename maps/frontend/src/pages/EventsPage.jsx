@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useApi } from '../hooks/useApi'
 import { useAuth } from '../context/AuthContext'
+import StatusBadge from '../components/StatusBadge'
 import './EventsPage.css'
 
 const MONTHS = [
@@ -24,8 +25,13 @@ const ENTRY_COLORS = ['#4f8cff', '#e11d48', '#16a34a', '#d97706', '#8b5cf6', '#0
 
 export default function EventsPage() {
   const { apiFetch } = useApi()
-  const { isAuthenticated } = useAuth()
-  const [view, setView] = useState('events') // 'events' | 'calendar'
+  const { isAuthenticated, isAdmin, userId } = useAuth()
+  const navigate = useNavigate()
+  const [view, setView] = useState('events') // 'events' | 'calendar' | 'submissions'
+
+  // ---- Submissions State ----
+  const [submissions, setSubmissions] = useState([])
+  const [submissionsLoading, setSubmissionsLoading] = useState(false)
 
   // ---- Events List State ----
   const [events, setEvents] = useState([])
@@ -43,6 +49,8 @@ export default function EventsPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [modalMode, setModalMode] = useState('create') // 'create' | 'edit' | 'view'
   const [modalEntry, setModalEntry] = useState(null)
+  const [clickedDate, setClickedDate] = useState(null)
+  const [showDeleteOptions, setShowDeleteOptions] = useState(false)
   const [modalForm, setModalForm] = useState({
     title: '', description: '', startTime: '', endTime: '', recurrenceRule: '', color: '#4f8cff'
   })
@@ -83,6 +91,21 @@ export default function EventsPage() {
     if (view === 'calendar') loadCalendarEntries()
   }, [view, loadCalendarEntries])
 
+  // ---- Load Submissions ----
+  const loadSubmissions = useCallback(async () => {
+    if (!isAuthenticated) return
+    setSubmissionsLoading(true)
+    try {
+      const res = await apiFetch('/api/v1/events/my-submissions')
+      if (res.ok) setSubmissions(await res.json())
+    } catch { /* ignore */ }
+    setSubmissionsLoading(false)
+  }, [apiFetch, isAuthenticated])
+
+  useEffect(() => {
+    if (view === 'submissions') loadSubmissions()
+  }, [view, loadSubmissions])
+
   // ---- Event Actions ----
   const toggleLike = async (eventId) => {
     if (!isAuthenticated) return
@@ -91,16 +114,42 @@ export default function EventsPage() {
       if (res.ok) {
         const updated = await res.json()
         setEvents(prev => prev.map(e => e.id === updated.id ? updated : e))
+        setSubmissions(prev => prev.map(e => e.id === updated.id ? updated : e))
       }
     } catch { /* ignore */ }
   }
 
-  const addToCalendar = async (eventId) => {
+  const toggleCalendar = async (eventId) => {
     if (!isAuthenticated) return
     try {
       const res = await apiFetch(`/api/v1/events/${eventId}/calendar`, { method: 'POST' })
       if (res.ok) {
-        setEvents(prev => prev.map(e => e.id === eventId ? { ...e, addedToCalendar: true } : e))
+        const updated = await res.json()
+        setEvents(prev => prev.map(e => e.id === eventId ? updated : e))
+        setSubmissions(prev => prev.map(e => e.id === eventId ? updated : e))
+        if (view === 'calendar') loadCalendarEntries()
+      }
+    } catch { /* ignore */ }
+  }
+
+  const deleteAdminEvent = async (eventId) => {
+    if (!window.confirm('Delete this public event? This will remove it for everyone.')) return
+    try {
+      const res = await apiFetch(`/api/v1/admin/events/${eventId}`, { method: 'DELETE' })
+      if (res.ok) {
+        setEvents(prev => prev.filter(e => e.id !== eventId))
+        setSubmissions(prev => prev.filter(e => e.id !== eventId))
+      }
+    } catch { /* ignore */ }
+  }
+
+  const deleteMySubmission = async (eventId) => {
+    if (!window.confirm('Delete your submitted event?')) return
+    try {
+      const res = await apiFetch(`/api/v1/events/${eventId}`, { method: 'DELETE' })
+      if (res.ok) {
+        setEvents(prev => prev.filter(e => e.id !== eventId))
+        setSubmissions(prev => prev.filter(e => e.id !== eventId))
       }
     } catch { /* ignore */ }
   }
@@ -133,9 +182,62 @@ export default function EventsPage() {
   const getEntriesForDay = (date) => {
     return calendarEntries.filter(entry => {
       const entryDate = new Date(entry.startTime)
-      return entryDate.getFullYear() === date.getFullYear()
+      
+      // Exact match for the original date
+      if (entryDate.getFullYear() === date.getFullYear()
         && entryDate.getMonth() === date.getMonth()
-        && entryDate.getDate() === date.getDate()
+        && entryDate.getDate() === date.getDate()) {
+        return true
+      }
+      
+      // Handle recurrence
+      if (entry.recurrenceRule && entryDate <= date) {
+        let rule = entry.recurrenceRule
+        let exdates = []
+        let until = null
+        if (rule.includes('EXDATE=')) {
+          const match = rule.match(/EXDATE=([^;]+)/)
+          if (match) exdates = match[1].split(',')
+        }
+        if (rule.includes('UNTIL=')) {
+          const match = rule.match(/UNTIL=([^;]+)/)
+          if (match) until = match[1]
+        }
+        
+        const pad = n => String(n).padStart(2, '0')
+        const dateStr = `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}T000000Z`
+        
+        if (exdates.includes(dateStr)) return false
+        if (until && dateStr >= until) return false
+
+        if (entry.recurrenceRule.includes('FREQ=DAILY')) {
+          return true
+        }
+        if (entry.recurrenceRule.includes('FREQ=WEEKLY') && !entry.recurrenceRule.includes('INTERVAL=2')) {
+          return entryDate.getDay() === date.getDay()
+        }
+        if (entry.recurrenceRule.includes('FREQ=WEEKLY;INTERVAL=2')) {
+          const msInWeek = 7 * 24 * 60 * 60 * 1000
+          const entryWeekStart = new Date(entryDate)
+          entryWeekStart.setHours(0,0,0,0)
+          entryWeekStart.setDate(entryWeekStart.getDate() - entryWeekStart.getDay())
+          
+          const targetWeekStart = new Date(date)
+          targetWeekStart.setHours(0,0,0,0)
+          targetWeekStart.setDate(targetWeekStart.getDate() - targetWeekStart.getDay())
+          
+          const weeksDiff = Math.round((targetWeekStart - entryWeekStart) / msInWeek)
+          
+          return entryDate.getDay() === date.getDay() && weeksDiff % 2 === 0
+        }
+        if (entry.recurrenceRule.includes('FREQ=MONTHLY')) {
+          return entryDate.getDate() === date.getDate()
+        }
+        if (entry.recurrenceRule.includes('FREQ=YEARLY')) {
+          return entryDate.getDate() === date.getDate() && entryDate.getMonth() === date.getMonth()
+        }
+      }
+      return false
     })
   }
 
@@ -166,9 +268,11 @@ export default function EventsPage() {
     setModalOpen(true)
   }
 
-  const openEditModal = (entry) => {
+  const openEditModal = (entry, clickedDateObj) => {
     setModalMode('edit')
     setModalEntry(entry)
+    setClickedDate(clickedDateObj)
+    setShowDeleteOptions(false)
     setModalForm({
       title: entry.title,
       description: entry.description || '',
@@ -210,13 +314,20 @@ export default function EventsPage() {
     } catch { /* ignore */ }
   }
 
-  const deleteEntry = async () => {
+  const confirmDelete = async (mode) => {
     if (!modalEntry) return
-    if (!window.confirm('Delete this calendar entry?')) return
+    if (!modalEntry.recurrenceRule && mode === 'all' && !window.confirm('Delete this calendar entry?')) return
     try {
-      const res = await apiFetch(`/api/v1/calendar/${modalEntry.id}`, { method: 'DELETE' })
+      let qs = ''
+      if (mode !== 'all' && clickedDate) {
+        const pad = n => String(n).padStart(2, '0')
+        const dateStr = `${clickedDate.getFullYear()}${pad(clickedDate.getMonth() + 1)}${pad(clickedDate.getDate())}T000000Z`
+        qs = `?mode=${mode}&date=${dateStr}`
+      }
+      const res = await apiFetch(`/api/v1/calendar/${modalEntry.id}${qs}`, { method: 'DELETE' })
       if (res.ok) {
         setModalOpen(false)
+        setShowDeleteOptions(false)
         loadCalendarEntries()
       }
     } catch { /* ignore */ }
@@ -248,6 +359,11 @@ export default function EventsPage() {
         <button className={`events-view-tab ${view === 'events' ? 'active' : ''}`} onClick={() => setView('events')}>
           📋 Events
         </button>
+        {isAuthenticated && (
+          <button className={`events-view-tab ${view === 'submissions' ? 'active' : ''}`} onClick={() => setView('submissions')}>
+            📤 My Submissions
+          </button>
+        )}
         <button className={`events-view-tab ${view === 'calendar' ? 'active' : ''}`} onClick={() => setView('calendar')}>
           📅 My Calendar
         </button>
@@ -280,9 +396,12 @@ export default function EventsPage() {
                 {[2025, 2026, 2027, 2028].map(y => <option key={y} value={y}>{y}</option>)}
               </select>
             </div>
-            <button className="btn" onClick={loadEvents} style={{ alignSelf: 'flex-end', marginBottom: '1px' }}>
-              Search
-            </button>
+            <div className="field">
+              <label className="label">&nbsp;</label>
+              <button className="btn btn-primary" onClick={loadEvents}>
+                Search
+              </button>
+            </div>
           </div>
 
           {loading ? (
@@ -298,7 +417,9 @@ export default function EventsPage() {
               {events.map((event, idx) => (
                 <div key={event.id} className="event-card" style={{ animationDelay: `${idx * 0.05}s` }}>
                   {event.imageUrl ? (
-                    <img src={event.imageUrl} alt={event.title} className="event-card-image" />
+                    <a href={event.imageUrl} target="_blank" rel="noreferrer" style={{ display: 'block' }}>
+                      <img src={event.imageUrl} alt={event.title} className="event-card-image" style={{ cursor: 'pointer' }} />
+                    </a>
                   ) : (
                     <div className="event-card-image-placeholder">🎉</div>
                   )}
@@ -348,11 +469,109 @@ export default function EventsPage() {
                     </button>
                     <button
                       className={`event-action-btn ${event.addedToCalendar ? 'in-calendar' : ''}`}
-                      onClick={() => addToCalendar(event.id)}
-                      disabled={!isAuthenticated || event.addedToCalendar}
+                      onClick={() => toggleCalendar(event.id)}
+                      disabled={!isAuthenticated}
                     >
                       {event.addedToCalendar ? '✓ In Calendar' : '📅 Add to Calendar'}
                     </button>
+                    {(isAdmin || (userId && Number(event.submittedBy) === Number(userId))) && (
+                      <>
+                        <button className="event-action-btn" onClick={() => navigate('/add-event', { state: { editEvent: event } })}>✏️ Edit</button>
+                        <button className="event-action-btn" onClick={() => isAdmin ? deleteAdminEvent(event.id) : deleteMySubmission(event.id)} style={{ color: 'var(--danger)' }}>🗑️ Delete</button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ============ SUBMISSIONS VIEW ============ */}
+      {view === 'submissions' && (
+        <>
+          {submissionsLoading ? (
+            <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>Loading submissions...</div>
+          ) : submissions.length === 0 ? (
+            <div className="empty-state">
+              <p style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>📤</p>
+              <p>You haven't submitted any events yet.</p>
+              <p style={{ fontSize: '0.85rem', marginTop: '0.5rem' }}>Any events you submit will appear here.</p>
+            </div>
+          ) : (
+            <div className="events-grid">
+              {submissions.map((event, idx) => (
+                <div key={event.id} className="event-card" style={{ animationDelay: `${idx * 0.05}s` }}>
+                  <div style={{ position: 'relative' }}>
+                    {event.imageUrl ? (
+                      <a href={event.imageUrl} target="_blank" rel="noreferrer" style={{ display: 'block' }}>
+                        <img src={event.imageUrl} alt={event.title} className="event-card-image" style={{ cursor: 'pointer' }} />
+                      </a>
+                    ) : (
+                      <div className="event-card-image-placeholder">🎉</div>
+                    )}
+                    <div style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 10 }}>
+                      <StatusBadge status={event.status} />
+                    </div>
+                  </div>
+
+                  <div className="event-card-body">
+                    <div className="event-card-title">{event.title}</div>
+
+                    <div className="event-card-meta">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                        <line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" />
+                        <line x1="3" y1="10" x2="21" y2="10" />
+                      </svg>
+                      {formatDate(event.startTime)}
+                      {event.startTime && ` · ${formatTime(event.startTime)}`}
+                      {event.endTime && ` – ${formatTime(event.endTime)}`}
+                    </div>
+
+                    {event.spotAddress && (
+                      <div className="event-card-meta">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                          <circle cx="12" cy="10" r="3" />
+                        </svg>
+                        {event.spotAddress.split(',').slice(0, 2).join(',')}
+                      </div>
+                    )}
+
+                    {event.description && (
+                      <div className="event-card-description">{event.description}</div>
+                    )}
+
+                    {event.spotName && (
+                      <div className="event-card-spot">
+                        at <Link to={`/spot/${event.spotId}`}>{event.spotName}</Link>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="event-card-actions">
+                    {event.status === 'ACTIVE' && (
+                      <>
+                        <button
+                          className={`event-action-btn ${event.likedByCurrentUser ? 'liked' : ''}`}
+                          onClick={() => toggleLike(event.id)}
+                          disabled={!isAuthenticated}
+                        >
+                          {event.likedByCurrentUser ? '❤️' : '🤍'} {event.likeCount || 0}
+                        </button>
+                        <button
+                          className={`event-action-btn ${event.addedToCalendar ? 'in-calendar' : ''}`}
+                          onClick={() => toggleCalendar(event.id)}
+                          disabled={!isAuthenticated}
+                        >
+                          {event.addedToCalendar ? '✓ In Calendar' : '📅 Add to Calendar'}
+                        </button>
+                      </>
+                    )}
+                    <button className="event-action-btn" onClick={() => navigate('/add-event', { state: { editEvent: event } })}>✏️ Edit</button>
+                    <button className="event-action-btn" onClick={() => deleteMySubmission(event.id)} style={{ color: 'var(--danger)' }}>🗑️ Delete</button>
                   </div>
                 </div>
               ))}
@@ -376,7 +595,32 @@ export default function EventsPage() {
                   <button className="calendar-nav-btn" onClick={() => setCalendarDate(new Date())} style={{ fontSize: '0.7rem', width: 'auto', padding: '0 0.5rem' }}>Today</button>
                   <button className="calendar-nav-btn" onClick={() => navigateMonth(1)}>›</button>
                 </div>
-                <h2>{MONTHS[calendarDate.getMonth()]} {calendarDate.getFullYear()}</h2>
+                <div style={{ display: 'flex', gap: '0.2rem', alignItems: 'center' }}>
+                  <select
+                    style={{ padding: '0.2rem', fontSize: '1.2rem', fontWeight: 'bold', width: 'auto', background: 'transparent', border: '1px solid transparent', borderRadius: '4px', cursor: 'pointer', outline: 'none', color: 'inherit' }}
+                    value={calendarDate.getMonth()}
+                    onChange={(e) => {
+                      const newDate = new Date(calendarDate)
+                      newDate.setMonth(parseInt(e.target.value))
+                      setCalendarDate(newDate)
+                    }}
+                  >
+                    {MONTHS.map((m, i) => <option key={m} value={i}>{m}</option>)}
+                  </select>
+                  <select
+                    style={{ padding: '0.2rem', fontSize: '1.2rem', fontWeight: 'bold', width: 'auto', background: 'transparent', border: '1px solid transparent', borderRadius: '4px', cursor: 'pointer', outline: 'none', color: 'inherit' }}
+                    value={calendarDate.getFullYear()}
+                    onChange={(e) => {
+                      const newDate = new Date(calendarDate)
+                      newDate.setFullYear(parseInt(e.target.value))
+                      setCalendarDate(newDate)
+                    }}
+                  >
+                    {Array.from({ length: 21 }, (_, i) => new Date().getFullYear() - 10 + i).map(y => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                </div>
                 <button className="btn" onClick={() => openCreateModal(new Date())} style={{ fontSize: '0.8rem', padding: '0.4rem 0.8rem' }}>
                   + New Entry
                 </button>
@@ -400,7 +644,7 @@ export default function EventsPage() {
                           key={entry.id}
                           className="calendar-event-pill"
                           style={{ background: `${entry.color || '#4f8cff'}22`, color: entry.color || '#4f8cff' }}
-                          onClick={(e) => { e.stopPropagation(); openEditModal(entry) }}
+                          onClick={(e) => { e.stopPropagation(); openEditModal(entry, day.date) }}
                           title={entry.title}
                         >
                           {entry.title}
@@ -480,15 +724,28 @@ export default function EventsPage() {
                 </div>
               </div>
             </div>
-            <div className="calendar-modal-footer">
-              {modalMode === 'edit' && (
-                <button className="btn btn-danger" onClick={deleteEntry} style={{ marginRight: 'auto' }}>Delete</button>
-              )}
-              <button className="btn" onClick={() => setModalOpen(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={saveEntry}>
-                {modalMode === 'edit' ? 'Save Changes' : 'Create Entry'}
-              </button>
-            </div>
+            {showDeleteOptions ? (
+              <div className="calendar-modal-footer" style={{ flexDirection: 'column', gap: '0.5rem', width: '100%' }}>
+                <p style={{ margin: '0 0 0.5rem', fontSize: '0.9rem', fontWeight: 500 }}>Delete recurring event</p>
+                <button className="btn btn-danger" onClick={() => confirmDelete('thisEvent')} style={{ width: '100%' }}>Only this event</button>
+                <button className="btn btn-danger" onClick={() => confirmDelete('thisAndFuture')} style={{ width: '100%' }}>This and following events</button>
+                <button className="btn btn-danger" onClick={() => confirmDelete('all')} style={{ width: '100%' }}>All events</button>
+                <button className="btn" onClick={() => setShowDeleteOptions(false)} style={{ width: '100%', marginTop: '0.5rem' }}>Cancel</button>
+              </div>
+            ) : (
+              <div className="calendar-modal-footer">
+                {modalMode === 'edit' && (
+                  <button className="btn btn-danger" onClick={() => {
+                    if (modalEntry.recurrenceRule) setShowDeleteOptions(true)
+                    else confirmDelete('all')
+                  }} style={{ marginRight: 'auto' }}>Delete</button>
+                )}
+                <button className="btn" onClick={() => setModalOpen(false)}>Cancel</button>
+                <button className="btn btn-primary" onClick={saveEntry}>
+                  {modalMode === 'edit' ? 'Save Changes' : 'Create Entry'}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

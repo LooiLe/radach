@@ -143,27 +143,28 @@ public class EventService {
     }
 
     /**
-     * Add an event to the user's calendar.
+     * Toggle an event in the user's calendar.
      */
     @Transactional
-    public void addToCalendar(Long eventId, Long userId) {
+    public EventResponse toggleCalendar(Long eventId, Long userId) {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new ResourceNotFoundException("Event not found"));
 
         if (calendarEntryRepository.existsByUserIdAndEventId(userId, eventId)) {
-            return; // already added
+            calendarEntryRepository.deleteByUserIdAndEventId(userId, eventId);
+        } else {
+            CalendarEntry entry = new CalendarEntry();
+            entry.setUserId(userId);
+            entry.setEventId(eventId);
+            entry.setTitle(event.getTitle());
+            entry.setDescription(event.getDescription());
+            entry.setStartTime(event.getStartTime());
+            entry.setEndTime(event.getEndTime());
+            entry.setRecurrenceRule(event.getRecurrenceRule());
+            entry.setColor("#4f8cff");
+            calendarEntryRepository.save(entry);
         }
-
-        CalendarEntry entry = new CalendarEntry();
-        entry.setUserId(userId);
-        entry.setEventId(eventId);
-        entry.setTitle(event.getTitle());
-        entry.setDescription(event.getDescription());
-        entry.setStartTime(event.getStartTime());
-        entry.setEndTime(event.getEndTime());
-        entry.setRecurrenceRule(event.getRecurrenceRule());
-        entry.setColor("#4f8cff");
-        calendarEntryRepository.save(entry);
+        return toResponse(event, userId);
     }
 
     // === Admin ===
@@ -184,9 +185,83 @@ public class EventService {
     }
 
     @Transactional
+    public EventResponse updateEvent(Long id, EventRequest request) {
+        Event event = eventRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Event not found"));
+        
+        if (request.spotId() != null) event.setSpotId(request.spotId());
+        event.setTitle(request.title());
+        event.setDescription(request.description());
+        event.setStartTime(request.startTime());
+        event.setEndTime(request.endTime());
+        event.setRecurrenceRule(request.recurrenceRule());
+        if (request.imageUrl() != null) event.setImageUrl(request.imageUrl());
+        
+        event = eventRepository.save(event);
+        return toResponse(event, null);
+    }
+
+    @Transactional
     public void deleteEvent(Long id) {
         Event event = eventRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Event not found"));
+        eventLikeRepository.deleteByEventId(id);
+        calendarEntryRepository.deleteByEventId(id);
+        eventRepository.delete(event);
+    }
+
+    public List<EventResponse> getEventsSubmittedBy(Long userId) {
+        List<Event> events = eventRepository.findBySubmittedByOrderByCreatedAtDesc(userId);
+        return events.stream().map(e -> toResponse(e, userId)).toList();
+    }
+
+    @Transactional
+    public EventResponse updateUserEvent(Long id, EventRequest request, Long userId, boolean isAdmin) {
+        Event event = eventRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Event not found"));
+
+        if (!isAdmin) {
+            if (event.getSubmittedBy() == null || !event.getSubmittedBy().equals(userId)) {
+                throw new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.FORBIDDEN,
+                        "You can only edit your own events"
+                );
+            }
+            // Reset status to PENDING for regular users upon edit
+            event.setStatus(EventStatus.PENDING);
+        }
+
+        if (request.spotId() != null) {
+            if (!spotRepository.existsById(request.spotId())) {
+                throw new ResourceNotFoundException("Spot not found");
+            }
+            event.setSpotId(request.spotId());
+        }
+        event.setTitle(request.title());
+        event.setDescription(request.description());
+        event.setStartTime(request.startTime());
+        event.setEndTime(request.endTime());
+        event.setRecurrenceRule(request.recurrenceRule());
+        event.setImageUrl(request.imageUrl());
+
+        event = eventRepository.save(event);
+        return toResponse(event, userId);
+    }
+
+    @Transactional
+    public void deleteUserEvent(Long id, Long userId, boolean isAdmin) {
+        Event event = eventRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Event not found"));
+
+        if (!isAdmin) {
+            if (event.getSubmittedBy() == null || !event.getSubmittedBy().equals(userId)) {
+                throw new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.FORBIDDEN,
+                        "You can only delete your own events"
+                );
+            }
+        }
+
         eventLikeRepository.deleteByEventId(id);
         calendarEntryRepository.deleteByEventId(id);
         eventRepository.delete(event);

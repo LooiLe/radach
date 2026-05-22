@@ -15,22 +15,26 @@ export default function AddEventPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const { apiFetch } = useApi()
-  const { isAdmin } = useAuth()
-  
+  const { isAdmin, userId } = useAuth()
+
+  const editEvent = location.state?.editEvent || null
+
   // Try to pre-fill spot if passed via state
-  const initialSpotId = location.state?.spotId || ''
-  const initialSpotName = location.state?.spotName || ''
+  const initialSpotId = editEvent ? editEvent.spotId : (location.state?.spotId || '')
+  const initialSpotName = editEvent ? (editEvent.spotName || '') : (location.state?.spotName || '')
 
   const [spots, setSpots] = useState([])
   const [selectedSpotId, setSelectedSpotId] = useState(initialSpotId)
   const [searchSpotQuery, setSearchSpotQuery] = useState(initialSpotName)
 
-  const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
-  const [startTime, setStartTime] = useState('')
-  const [endTime, setEndTime] = useState('')
-  const [recurrenceRule, setRecurrenceRule] = useState('')
-  const [photoUrl, setPhotoUrl] = useState('')
+  const [title, setTitle] = useState(editEvent?.title || '')
+  const [description, setDescription] = useState(editEvent?.description || '')
+
+  const formatDateForInput = (iso) => iso ? new Date(iso).toISOString().slice(0, 16) : ''
+  const [startTime, setStartTime] = useState(formatDateForInput(editEvent?.startTime))
+  const [endTime, setEndTime] = useState(formatDateForInput(editEvent?.endTime))
+  const [recurrenceRule, setRecurrenceRule] = useState(editEvent?.recurrenceRule || '')
+  const [photoUrl, setPhotoUrl] = useState(editEvent?.imageUrl || '')
   const [uploading, setUploading] = useState(false)
   const [msg, setMsg] = useState({ type: '', text: '' })
 
@@ -40,10 +44,10 @@ export default function AddEventPage() {
   useEffect(() => {
     return () => {
       if (newlyUploaded.current) {
-        fetch(`/api/v1/upload?url=${encodeURIComponent(newlyUploaded.current)}`, { 
+        fetch(`/api/v1/upload?url=${encodeURIComponent(newlyUploaded.current)}`, {
           method: 'DELETE',
           headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-        }).catch(() => {})
+        }).catch(() => { })
       }
     }
   }, [])
@@ -56,7 +60,7 @@ export default function AddEventPage() {
         return
       }
       try {
-        const res = await apiFetch(`/api/v1/spots?query=${encodeURIComponent(searchSpotQuery)}`)
+        const res = await apiFetch(`/api/v1/spots/search?q=${encodeURIComponent(searchSpotQuery)}`)
         if (res.ok) {
           const data = await res.json()
           setSpots(data.slice(0, 5)) // limit to 5 suggestions
@@ -76,7 +80,7 @@ export default function AddEventPage() {
   const handleFileChange = async (e) => {
     const file = e.target.files[0]
     if (!file) return
-    
+
     if (file.size > 5 * 1024 * 1024) {
       setMsg({ type: 'error', text: 'File exceeds 5MB limit.' })
       return
@@ -87,12 +91,12 @@ export default function AddEventPage() {
     try {
       const formData = new FormData()
       formData.append('file', file)
-      
+
       const res = await apiFetch('/api/v1/upload', {
         method: 'POST',
         body: formData
       })
-      
+
       if (res.ok) {
         const data = await res.json()
         setPhotoUrl(data.url)
@@ -134,25 +138,38 @@ export default function AddEventPage() {
         imageUrl: photoUrl || null
       }
 
-      const res = await apiFetch('/api/v1/events', {
-        method: 'POST',
-        body: JSON.stringify(payload)
-      })
-
-      const data = await res.json()
-      if (res.ok) {
-        setMsg({ type: 'success', text: `✓ Event "${data.title}" submitted successfully! ${!isAdmin ? '(Pending approval)' : ''}` })
-        newlyUploaded.current = null
-        setTitle('')
-        setDescription('')
-        setStartTime('')
-        setEndTime('')
-        setRecurrenceRule('')
-        setPhotoUrl('')
-        setSelectedSpotId('')
-        setSearchSpotQuery('')
+      if (editEvent) {
+        const url = isAdmin ? `/api/v1/admin/events/${editEvent.id}` : `/api/v1/events/${editEvent.id}`
+        const res = await apiFetch(url, {
+          method: 'PUT',
+          body: JSON.stringify(payload)
+        })
+        const data = await res.json()
+        if (res.ok) {
+          setMsg({ type: 'success', text: `✓ Event "${data.title}" updated successfully! ${!isAdmin ? '(Pending approval)' : ''}` })
+        } else {
+          setMsg({ type: 'error', text: data.error || 'Failed to update event.' })
+        }
       } else {
-        setMsg({ type: 'error', text: data.error || 'Failed to submit event.' })
+        const res = await apiFetch('/api/v1/events', {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        })
+        const data = await res.json()
+        if (res.ok) {
+          setMsg({ type: 'success', text: `✓ Event "${data.title}" submitted successfully! ${!isAdmin ? '(Pending approval)' : ''}` })
+          newlyUploaded.current = null
+          setTitle('')
+          setDescription('')
+          setStartTime('')
+          setEndTime('')
+          setRecurrenceRule('')
+          setPhotoUrl('')
+          setSelectedSpotId('')
+          setSearchSpotQuery('')
+        } else {
+          setMsg({ type: 'error', text: data.error || 'Failed to submit event.' })
+        }
       }
     } catch {
       setMsg({ type: 'error', text: 'Server error. Please try again later.' })
@@ -169,16 +186,16 @@ export default function AddEventPage() {
           </svg>
           Back
         </button>
-        <h1 className="page-title" style={{ marginTop: 0 }}>Add Event</h1>
-        <p className="page-sub">Create an event for a specific spot. {isAdmin ? '' : 'Requires admin approval.'}</p>
+        <h1 className="page-title" style={{ marginTop: 0 }}>{editEvent ? 'Edit Event' : 'Add Event'}</h1>
+        <p className="page-sub">{editEvent ? 'Update the details for this event.' : `Create an event for a specific spot. ${isAdmin ? '' : 'Requires admin approval.'}`}</p>
 
         {msg.text && <div className={`msg msg-${msg.type}`} style={{ marginBottom: '1.5rem' }}>{msg.text}</div>}
 
         <div className="field" style={{ position: 'relative' }}>
           <label className="label">Location (Spot)</label>
-          <input 
-            className="input" 
-            placeholder="Search for a spot..." 
+          <input
+            className="input"
+            placeholder="Search for a spot..."
             value={searchSpotQuery}
             onChange={e => {
               setSearchSpotQuery(e.target.value)
@@ -232,11 +249,11 @@ export default function AddEventPage() {
           <label className="label">Event Image (Max 5MB)</label>
           <input type="file" accept="image/png, image/jpeg, image/webp" className="input" onChange={handleFileChange} disabled={uploading} />
           {uploading && <div style={{ fontSize: '0.9rem', color: 'var(--primary)', marginTop: '0.5rem' }}>Uploading...</div>}
-          
+
           {photoUrl && (
             <div style={{ position: 'relative', width: '120px', height: '120px', marginTop: '1rem' }}>
               <img src={photoUrl} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px' }} />
-              <button 
+              <button
                 onClick={removePhoto}
                 style={{ position: 'absolute', top: '-5px', right: '-5px', background: 'var(--danger)', color: 'white', border: 'none', borderRadius: '50%', width: '24px', height: '24px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }}>
                 ✕
@@ -246,7 +263,7 @@ export default function AddEventPage() {
         </div>
 
         <button className="btn btn-primary btn-submit" onClick={submitEvent}>
-          ➕ Submit Event
+          {editEvent ? '💾 Save Changes' : '➕ Submit Event'}
         </button>
       </div>
     </div>

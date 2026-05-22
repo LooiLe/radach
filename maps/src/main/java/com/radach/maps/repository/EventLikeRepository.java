@@ -7,6 +7,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import com.radach.maps.model.EventLike;
 
+import org.springframework.transaction.annotation.Transactional;
+
 public interface EventLikeRepository extends JpaRepository<EventLike, Long> {
 
     boolean existsByUserIdAndEventId(Long userId, Long eventId);
@@ -17,5 +19,6 @@ public interface EventLikeRepository extends JpaRepository<EventLike, Long> {
 
     List<EventLike> findByUserId(Long userId);
 
+    @Transactional
     void deleteByEventId(Long eventId);
 }

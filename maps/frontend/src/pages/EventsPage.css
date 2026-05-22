@@ -9,7 +9,7 @@
 .events-view-tabs {
   display: flex;
   gap: 0;
-  margin-bottom: 1.5rem;
+  margin: 0 auto 1.5rem auto;
   border-radius: var(--radius-md);
   overflow: hidden;
   border: 1px solid var(--border);
