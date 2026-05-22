@@ -74,13 +74,17 @@ export default function SearchPage() {
               </h3>
               <p style={{ margin: 0, color: 'var(--text-muted)' }}>{u.email}</p>
             </div>
-            <button
-              className={`btn ${friendRequests[u.id] === 'sent' ? 'btn-ghost' : 'btn-primary'} btn-sm`}
-              onClick={(e) => sendFriendRequest(e, u.id)}
-              disabled={friendRequests[u.id] === 'sent'}
-            >
-              {friendRequests[u.id] === 'sent' ? 'Sent ✓' : 'Add Friend'}
-            </button>
+            {u.isFriend ? (
+              <span className="badge badge-ghost" style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}>Friends</span>
+            ) : (
+              <button
+                className={`btn ${friendRequests[u.id] === 'sent' ? 'btn-ghost' : 'btn-primary'} btn-sm`}
+                onClick={(e) => sendFriendRequest(e, u.id)}
+                disabled={friendRequests[u.id] === 'sent'}
+              >
+                {friendRequests[u.id] === 'sent' ? 'Sent ✓' : 'Add Friend'}
+              </button>
+            )}
           </div>
         ))}
         

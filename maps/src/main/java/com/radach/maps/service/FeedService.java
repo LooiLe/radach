@@ -21,6 +21,8 @@ public class FeedService {
     private final PostLikeRepository postLikeRepository;
     private final PostCommentRepository postCommentRepository;
 
+    private final EventRepository eventRepository;
+
     public FeedService(
             SpotEventRepository spotEventRepository,
             ReviewRepository reviewRepository,
@@ -30,7 +32,8 @@ public class FeedService {
             SpotRepository spotRepository,
             FeedPostRepository feedPostRepository,
             PostLikeRepository postLikeRepository,
-            PostCommentRepository postCommentRepository
+            PostCommentRepository postCommentRepository,
+            EventRepository eventRepository
     ) {
         this.spotEventRepository = spotEventRepository;
         this.reviewRepository = reviewRepository;
@@ -41,6 +44,7 @@ public class FeedService {
         this.feedPostRepository = feedPostRepository;
         this.postLikeRepository = postLikeRepository;
         this.postCommentRepository = postCommentRepository;
+        this.eventRepository = eventRepository;
     }
 
     /**
@@ -107,14 +111,18 @@ public class FeedService {
             feedPosts = feedPosts.subList(0, limit);
         }
 
-        // Also collect spotIds from feed posts
+        // Also collect spotIds and eventIds from feed posts
+        Set<Long> allEventIds = new HashSet<>();
         for (FeedPost p : feedPosts) {
             if (p.getSpotId() != null) allSpotIds.add(p.getSpotId());
+            if (p.getEventId() != null) allEventIds.add(p.getEventId());
         }
 
-        // Prefetch spots
+        // Prefetch spots and events
         Map<Long, Spot> spotMap = spotRepository.findAllById(allSpotIds).stream()
                 .collect(Collectors.toMap(Spot::getId, s -> s));
+        Map<Long, Event> eventMap = eventRepository.findAllById(allEventIds).stream()
+                .collect(Collectors.toMap(Event::getId, e -> e));
 
         // Prefetch post likes & comments
         List<Long> postIds = feedPosts.stream().map(FeedPost::getId).toList();
@@ -136,6 +144,7 @@ public class FeedService {
                     r.getSpotId(),
                     spot != null ? spot.getName() : "Unknown spot",
                     spot != null ? spot.getAddress() : null,
+                    null, null,
                     r.getBody(),
                     r.getCreatedAt(),
                     null, 0, false, List.of()
@@ -156,6 +165,7 @@ public class FeedService {
                     e.getSpotId(),
                     spot != null ? spot.getName() : "Unknown spot",
                     spot != null ? spot.getAddress() : null,
+                    null, null,
                     action,
                     e.getCreatedAt(),
                     null, 0, false, List.of()
@@ -175,6 +185,7 @@ public class FeedService {
                         i.getSpotId(),
                         spot != null ? spot.getName() : "Unknown spot",
                         spot != null ? spot.getAddress() : null,
+                        null, null,
                         "liked",
                         i.getUpdatedAt(),
                         null, 0, false, List.of()
@@ -190,6 +201,7 @@ public class FeedService {
                         i.getSpotId(),
                         spot != null ? spot.getName() : "Unknown spot",
                         spot != null ? spot.getAddress() : null,
+                        null, null,
                         "saved",
                         i.getUpdatedAt(),
                         null, 0, false, List.of()
@@ -209,6 +221,7 @@ public class FeedService {
                     .toList();
 
             Spot postSpot = p.getSpotId() != null ? spotMap.get(p.getSpotId()) : null;
+            Event postEvent = p.getEventId() != null ? eventMap.get(p.getEventId()) : null;
             items.add(new FeedItem(
                     p.getId(),
                     p.getAuthorId(),
@@ -218,6 +231,8 @@ public class FeedService {
                     p.getSpotId(),
                     postSpot != null ? postSpot.getName() : null,
                     postSpot != null ? postSpot.getAddress() : null,
+                    p.getEventId(),
+                    postEvent != null ? postEvent.getTitle() : null,
                     p.getContent(),
                     p.getCreatedAt(),
                     p.getMediaUrls(),
@@ -251,6 +266,8 @@ public class FeedService {
             Long spotId,
             String spotName,
             String spotAddress,
+            Long eventId,
+            String eventName,
             String description,
             Instant timestamp,
             List<String> mediaUrls,
