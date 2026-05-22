@@ -6,9 +6,11 @@ import com.radach.maps.exception.ResourceNotFoundException;
 import com.radach.maps.model.FeedPost;
 import com.radach.maps.model.PostComment;
 import com.radach.maps.model.PostLike;
+import com.radach.maps.model.User;
 import com.radach.maps.repository.FeedPostRepository;
 import com.radach.maps.repository.PostCommentRepository;
 import com.radach.maps.repository.PostLikeRepository;
+import com.radach.maps.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,11 +23,17 @@ public class FeedPostService {
     private final FeedPostRepository feedPostRepository;
     private final PostLikeRepository postLikeRepository;
     private final PostCommentRepository postCommentRepository;
+    private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
-    public FeedPostService(FeedPostRepository feedPostRepository, PostLikeRepository postLikeRepository, PostCommentRepository postCommentRepository) {
+    public FeedPostService(FeedPostRepository feedPostRepository, PostLikeRepository postLikeRepository,
+                           PostCommentRepository postCommentRepository, UserRepository userRepository,
+                           NotificationService notificationService) {
         this.feedPostRepository = feedPostRepository;
         this.postLikeRepository = postLikeRepository;
         this.postCommentRepository = postCommentRepository;
+        this.userRepository = userRepository;
+        this.notificationService = notificationService;
     }
 
     @Transactional
@@ -34,6 +42,8 @@ public class FeedPostService {
         post.setAuthorId(authorId);
         post.setContent(request.content());
         post.setMediaUrls(request.mediaUrls());
+        post.setSpotId(request.spotId());
+        post.setEventId(request.eventId());
         return feedPostRepository.save(post);
     }
 
@@ -49,7 +59,7 @@ public class FeedPostService {
 
     @Transactional
     public boolean toggleLike(Long postId, Long userId) {
-        feedPostRepository.findById(postId)
+        FeedPost post = feedPostRepository.findById(postId)
                 .orElseThrow(() -> new ResourceNotFoundException("Post not found"));
 
         Optional<PostLike> existing = postLikeRepository.findByPostIdAndUserId(postId, userId);
@@ -61,19 +71,46 @@ public class FeedPostService {
             like.setPostId(postId);
             like.setUserId(userId);
             postLikeRepository.save(like);
+
+            // Notify post author if different user
+            if (!post.getAuthorId().equals(userId)) {
+                User liker = userRepository.findById(userId).orElse(null);
+                String likerName = liker != null ? liker.getName() : "Someone";
+                notificationService.createNotification(
+                        post.getAuthorId(),
+                        "POST_LIKE",
+                        likerName + " liked your post",
+                        postId,
+                        "POST"
+                );
+            }
             return true;
         }
     }
 
     @Transactional
     public PostComment addComment(Long postId, Long authorId, PostCommentRequest request) {
-        feedPostRepository.findById(postId)
+        FeedPost post = feedPostRepository.findById(postId)
                 .orElseThrow(() -> new ResourceNotFoundException("Post not found"));
 
         PostComment comment = new PostComment();
         comment.setPostId(postId);
         comment.setAuthorId(authorId);
         comment.setContent(request.content());
-        return postCommentRepository.save(comment);
+        PostComment saved = postCommentRepository.save(comment);
+
+        // Notify post author if different user
+        if (!post.getAuthorId().equals(authorId)) {
+            User commenter = userRepository.findById(authorId).orElse(null);
+            String commenterName = commenter != null ? commenter.getName() : "Someone";
+            notificationService.createNotification(
+                    post.getAuthorId(),
+                    "POST_COMMENT",
+                    commenterName + " commented on your post: " + (request.content().length() > 50 ? request.content().substring(0, 50) + "..." : request.content()),
+                    postId,
+                    "POST"
+            );
+        }
+        return saved;
     }
 }

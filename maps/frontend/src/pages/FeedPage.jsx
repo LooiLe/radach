@@ -6,7 +6,7 @@ import './FeedPage.css'
 
 export default function FeedPage() {
   const { apiFetch } = useApi()
-  const { userId } = useAuth()
+  const { userId, userName } = useAuth()
   const [feed, setFeed] = useState([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('global')
@@ -21,12 +21,26 @@ export default function FeedPage() {
   const [showComments, setShowComments] = useState({})
   const [newComment, setNewComment] = useState({})
 
+  // Spot/Event attachment state
+  const [attachedSpot, setAttachedSpot] = useState(null)
+  const [attachedEvent, setAttachedEvent] = useState(null)
+  const [showSpotSearch, setShowSpotSearch] = useState(false)
+  const [showEventSearch, setShowEventSearch] = useState(false)
+  const [spotSearchQuery, setSpotSearchQuery] = useState('')
+  const [eventSearchQuery, setEventSearchQuery] = useState('')
+  const [spotSearchResults, setSpotSearchResults] = useState([])
+  const [eventSearchResults, setEventSearchResults] = useState([])
+  const [searchingSpot, setSearchingSpot] = useState(false)
+  const [searchingEvent, setSearchingEvent] = useState(false)
+
   const loadFeed = async (filter) => {
     setLoading(true)
     try {
       const res = await apiFetch(`/api/v1/feed?filter=${filter}&limit=50`)
       if (res.ok) {
-        setFeed(await res.json())
+        const data = await res.json()
+        // Filter out the current user's own items from the feed
+        setFeed(data.filter(item => String(item.userId) !== String(userId)))
       }
     } catch { /* ignore */ }
     setLoading(false)
@@ -61,17 +75,102 @@ export default function FeedPage() {
     await apiFetch(`/api/v1/upload?url=${encodeURIComponent(url)}`, { method: 'DELETE' })
   }
 
+  // Spot search with debounce
+  useEffect(() => {
+    if (!spotSearchQuery || spotSearchQuery.length < 2) {
+      setSpotSearchResults([])
+      return
+    }
+    const timer = setTimeout(async () => {
+      setSearchingSpot(true)
+      try {
+        const res = await apiFetch(`/api/v1/spots/search?q=${encodeURIComponent(spotSearchQuery)}`)
+        if (res.ok) {
+          setSpotSearchResults(await res.json())
+        }
+      } catch { /* ignore */ }
+      setSearchingSpot(false)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [spotSearchQuery, apiFetch])
+
+  // Event search with debounce
+  useEffect(() => {
+    if (!eventSearchQuery || eventSearchQuery.length < 2) {
+      setEventSearchResults([])
+      return
+    }
+    const timer = setTimeout(async () => {
+      setSearchingEvent(true)
+      try {
+        const res = await apiFetch(`/api/v1/events?limit=20`)
+        if (res.ok) {
+          const allEvents = await res.json()
+          // Filter locally by title match
+          const q = eventSearchQuery.toLowerCase()
+          setEventSearchResults(allEvents.filter(e => e.title?.toLowerCase().includes(q)))
+        }
+      } catch { /* ignore */ }
+      setSearchingEvent(false)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [eventSearchQuery, apiFetch])
+
+  const selectSpot = (spot) => {
+    setAttachedSpot(spot)
+    setAttachedEvent(null)
+    setShowSpotSearch(false)
+    setSpotSearchQuery('')
+    setSpotSearchResults([])
+  }
+
+  const selectEvent = (event) => {
+    setAttachedEvent(event)
+    setAttachedSpot(null)
+    setShowEventSearch(false)
+    setEventSearchQuery('')
+    setEventSearchResults([])
+  }
+
   const submitPost = async () => {
     if (!postContent.trim() && mediaUrls.length === 0) return
     try {
+      const body = {
+        content: postContent,
+        mediaUrls: mediaUrls.length > 0 ? mediaUrls : null
+      }
+      if (attachedSpot) body.spotId = attachedSpot.id
+      if (attachedEvent) body.eventId = attachedEvent.id
+
       const res = await apiFetch('/api/v1/posts', {
         method: 'POST',
-        body: JSON.stringify({ content: postContent, mediaUrls })
+        body: JSON.stringify(body)
       })
       if (res.ok) {
+        const createdPost = await res.json()
+        // Add the new post to feed temporarily so user sees "You posted" right away
+        const tempItem = {
+          postId: createdPost.id,
+          userId: Number(userId),
+          userName: 'You',
+          isExpert: false,
+          activityType: 'POST',
+          spotId: attachedSpot?.id || null,
+          spotName: attachedSpot?.name || null,
+          spotAddress: attachedSpot?.address || null,
+          description: postContent,
+          timestamp: new Date().toISOString(),
+          mediaUrls: mediaUrls,
+          likeCount: 0,
+          hasLiked: false,
+          comments: []
+        }
+        setFeed(prev => [tempItem, ...prev])
+
         setPostContent('')
         setMediaUrls([])
-        loadFeed(activeTab) // Reload feed
+        setAttachedSpot(null)
+        setAttachedEvent(null)
       }
     } catch { alert('Failed to create post') }
   }
@@ -112,7 +211,7 @@ export default function FeedPage() {
               ...item,
               comments: [...(item.comments || []), {
                 id: comment.id,
-                authorName: 'You', // In a real app we'd fetch our own name from auth context
+                authorName: 'You',
                 content: comment.content,
                 createdAt: comment.createdAt
               }]
@@ -167,16 +266,79 @@ export default function FeedPage() {
           <div className="uploaded-images-preview">
             {mediaUrls.map(url => (
               <div key={url} className="preview-img-container">
-                <img src={`http://localhost:8080${url}`} alt="Upload" />
+                <img src={url} alt="Upload" />
                 <button className="remove-img-btn" onClick={() => removeMedia(url)}>✕</button>
               </div>
             ))}
           </div>
         )}
+        
+        {/* Attached spot/event display */}
+        {attachedSpot && (
+          <div className="attached-reference">
+            <span>📍 {attachedSpot.name}</span>
+            <button className="remove-attachment-btn" onClick={() => setAttachedSpot(null)}>✕</button>
+          </div>
+        )}
+        {attachedEvent && (
+          <div className="attached-reference">
+            <span>📅 {attachedEvent.title}</span>
+            <button className="remove-attachment-btn" onClick={() => setAttachedEvent(null)}>✕</button>
+          </div>
+        )}
+
         <div className="create-post-actions">
-          <div className="image-upload-wrapper">
-            <button className="btn btn-ghost">📷 Add Photo</button>
-            <input type="file" accept="image/*" onChange={handleFileUpload} disabled={uploading} />
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            <div className="image-upload-wrapper">
+              <button className="btn btn-ghost">📷 Add Photo</button>
+              <input type="file" accept="image/*" onChange={handleFileUpload} disabled={uploading} />
+            </div>
+            <div className="attach-wrapper" style={{ position: 'relative' }}>
+              <button className="btn btn-ghost" onClick={() => { setShowSpotSearch(!showSpotSearch); setShowEventSearch(false) }}>📍 Spot</button>
+              {showSpotSearch && (
+                <div className="attach-dropdown" style={{ zIndex: 999 }}>
+                  <input
+                    type="text"
+                    placeholder="Search spots..."
+                    value={spotSearchQuery}
+                    onChange={e => setSpotSearchQuery(e.target.value)}
+                    autoFocus
+                  />
+                  {searchingSpot && <div className="attach-searching">Searching...</div>}
+                  {spotSearchResults.map(s => (
+                    <div key={s.id} className="attach-result" onClick={() => selectSpot(s)}>
+                      {s.name} {s.address ? `· ${s.address}` : ''}
+                    </div>
+                  ))}
+                  {spotSearchQuery.length >= 2 && !searchingSpot && spotSearchResults.length === 0 && (
+                    <div className="attach-no-results">No spots found</div>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="attach-wrapper" style={{ position: 'relative' }}>
+              <button className="btn btn-ghost" onClick={() => { setShowEventSearch(!showEventSearch); setShowSpotSearch(false) }}>📅 Event</button>
+              {showEventSearch && (
+                <div className="attach-dropdown" style={{ zIndex: 999 }}>
+                  <input
+                    type="text"
+                    placeholder="Search events..."
+                    value={eventSearchQuery}
+                    onChange={e => setEventSearchQuery(e.target.value)}
+                    autoFocus
+                  />
+                  {searchingEvent && <div className="attach-searching">Searching...</div>}
+                  {eventSearchResults.map(e => (
+                    <div key={e.id} className="attach-result" onClick={() => selectEvent(e)}>
+                      {e.title} {e.spotName ? `@ ${e.spotName}` : ''}
+                    </div>
+                  ))}
+                  {eventSearchQuery.length >= 2 && !searchingEvent && eventSearchResults.length === 0 && (
+                    <div className="attach-no-results">No events found</div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
           <button 
             className="btn btn-primary" 
@@ -229,9 +391,15 @@ export default function FeedPage() {
                   {item.mediaUrls && item.mediaUrls.length > 0 && (
                     <div className="feed-item-images">
                       {item.mediaUrls.map(url => (
-                        <img key={url} src={`http://localhost:8080${url}`} alt="Post media" />
+                        <img key={url} src={url} alt="Post media" />
                       ))}
                     </div>
+                  )}
+                  {/* Show attached spot if post has a spotId */}
+                  {item.spotId && (
+                    <Link to={`/spot/${item.spotId}`} className="feed-item-spot-link">
+                      📍 {item.spotName || 'Linked spot'}
+                    </Link>
                   )}
                   <div className="feed-item-footer">
                     <button 

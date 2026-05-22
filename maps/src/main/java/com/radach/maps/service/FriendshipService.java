@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.radach.maps.model.Friendship;
+import com.radach.maps.model.User;
 import com.radach.maps.repository.FriendshipRepository;
 import com.radach.maps.repository.UserRepository;
 
@@ -17,10 +18,13 @@ public class FriendshipService {
 
     private final FriendshipRepository friendshipRepository;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
-    public FriendshipService(FriendshipRepository friendshipRepository, UserRepository userRepository) {
+    public FriendshipService(FriendshipRepository friendshipRepository, UserRepository userRepository,
+                             NotificationService notificationService) {
         this.friendshipRepository = friendshipRepository;
         this.userRepository = userRepository;
+        this.notificationService = notificationService;
     }
 
     public Set<Long> getFirstDegreeConnections(Long userId) {
@@ -38,7 +42,6 @@ public class FriendshipService {
             secondDegree.addAll(friendsOfFriend);
         }
 
-        // Remove the user themselves and their direct 1st-degree friends
         secondDegree.remove(userId);
         secondDegree.removeAll(firstDegree);
 
@@ -52,14 +55,27 @@ public class FriendshipService {
         }
         userRepository.findById(addresseeId).orElseThrow(() -> new IllegalArgumentException("User not found"));
 
-        return friendshipRepository.findByUsers(requesterId, addresseeId)
+        Friendship f = friendshipRepository.findByUsers(requesterId, addresseeId)
                 .orElseGet(() -> {
-                    Friendship f = new Friendship();
-                    f.setRequesterId(requesterId);
-                    f.setAddresseeId(addresseeId);
-                    f.setStatus(Friendship.Status.PENDING);
-                    return friendshipRepository.save(f);
+                    Friendship fr = new Friendship();
+                    fr.setRequesterId(requesterId);
+                    fr.setAddresseeId(addresseeId);
+                    fr.setStatus(Friendship.Status.PENDING);
+                    return friendshipRepository.save(fr);
                 });
+
+        // Notify addressee
+        User requester = userRepository.findById(requesterId).orElse(null);
+        String requesterName = requester != null ? requester.getName() : "Someone";
+        notificationService.createNotification(
+                addresseeId,
+                "FRIEND_REQUEST",
+                requesterName + " sent you a friend request",
+                f.getId(),
+                "FRIENDSHIP"
+        );
+
+        return f;
     }
 
     @Transactional
@@ -72,7 +88,20 @@ public class FriendshipService {
         }
 
         f.setStatus(Friendship.Status.ACCEPTED);
-        return friendshipRepository.save(f);
+        Friendship saved = friendshipRepository.save(f);
+
+        // Notify requester
+        User accepter = userRepository.findById(userId).orElse(null);
+        String accepterName = accepter != null ? accepter.getName() : "Someone";
+        notificationService.createNotification(
+                f.getRequesterId(),
+                "FRIEND_ACCEPTED",
+                accepterName + " accepted your friend request",
+                f.getId(),
+                "FRIENDSHIP"
+        );
+
+        return saved;
     }
 
     @Transactional

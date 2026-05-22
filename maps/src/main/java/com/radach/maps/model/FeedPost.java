@@ -30,6 +30,12 @@ public class FeedPost {
     @Column(columnDefinition = "text")
     private List<String> mediaUrls;
 
+    @Column
+    private Long spotId;
+
+    @Column
+    private Long eventId;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -51,6 +57,12 @@ public class FeedPost {
 
     public List<String> getMediaUrls() { return mediaUrls; }
     public void setMediaUrls(List<String> mediaUrls) { this.mediaUrls = mediaUrls; }
+
+    public Long getSpotId() { return spotId; }
+    public void setSpotId(Long spotId) { this.spotId = spotId; }
+
+    public Long getEventId() { return eventId; }
+    public void setEventId(Long eventId) { this.eventId = eventId; }
 
     public Instant getCreatedAt() { return createdAt; }
 }
