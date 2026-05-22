@@ -30,7 +30,6 @@ export default function App() {
          <Route path="/register" element={<RegisterPage />} />
          <Route path="/spots" element={<ProtectedRoute><SpotsPage /></ProtectedRoute>} />
          <Route path="/search" element={<ProtectedRoute><SearchPage /></ProtectedRoute>} />
-         <Route path="/trending" element={<ProtectedRoute><TrendingPage /></ProtectedRoute>} />
           <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
           <Route path="/friends" element={<ProtectedRoute><FriendsPage /></ProtectedRoute>} />
          <Route path="/saved" element={<ProtectedRoute><SavedSpotsPage /></ProtectedRoute>} />
