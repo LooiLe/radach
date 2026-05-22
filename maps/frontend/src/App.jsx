@@ -19,6 +19,7 @@ import SearchPage from './pages/SearchPage'
 import DirectionsPage from './pages/DirectionsPage'
 import EventsPage from './pages/EventsPage'
 import AddEventPage from './pages/AddEventPage'
+import EventDetailPage from './pages/EventDetailPage'
 
 export default function App() {
   return (
@@ -39,6 +40,7 @@ export default function App() {
          <Route path="/directions" element={<ProtectedRoute><DirectionsPage /></ProtectedRoute>} />
          <Route path="/directions/:id" element={<ProtectedRoute><DirectionsPage /></ProtectedRoute>} />
          <Route path="/events" element={<ProtectedRoute><EventsPage /></ProtectedRoute>} />
+         <Route path="/event/:id" element={<ProtectedRoute><EventDetailPage /></ProtectedRoute>} />
          <Route path="/add-spot" element={<ProtectedRoute><AddSpotPage /></ProtectedRoute>} />
          <Route path="/add-event" element={<ProtectedRoute><AddEventPage /></ProtectedRoute>} />
          <Route path="/admin" element={<AdminRoute><AdminDashboardPage /></AdminRoute>} />
