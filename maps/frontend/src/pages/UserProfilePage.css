@@ -23,25 +23,9 @@
   padding: 0.5rem 0;
 }
 
-.profile-actions-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.profile-actions-row .back-btn {
-  margin-bottom: 0;
-}
-
-.back-btn {
-  align-self: flex-start;
-  margin-bottom: -0.5rem;
-  padding: 0.5rem 0;
-}
-
 .profile-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 1.5rem;
   padding: 2rem;
   border-radius: var(--radius-lg);
@@ -244,6 +228,60 @@
   text-align: center;
   padding: 2rem 0;
   color: var(--text-muted);
+}
+
+.profile-feed-likers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--border-color);
+}
+
+.liker-name {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.8rem;
+  text-decoration: none;
+  color: var(--text-primary);
+}
+
+.liker-name:hover {
+  background: var(--primary);
+  color: white;
+}
+
+.profile-feed-comments {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--border-color);
+}
+
+.profile-comment-item {
+  display: flex;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  color: var(--text-primary);
+}
+
+.comment-author {
+  font-weight: 600;
+  text-decoration: none;
+  color: var(--primary);
+  white-space: nowrap;
+}
+
+.comment-author:hover {
+  text-decoration: underline;
+}
+
+.feed-action-btn.active {
+  color: var(--primary);
 }
 
 @media (max-width: 600px) {

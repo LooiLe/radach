@@ -86,20 +86,61 @@ public class FriendshipController {
         return ResponseEntity.noContent().build();
     }
 
+    @GetMapping("/requests/sent")
+    public ResponseEntity<List<Map<String, Object>>> getSentRequests(Authentication auth) {
+        User user = getAuthenticatedUser(auth);
+        List<Friendship> requests = friendshipService.getPendingRequestsFromMe(user.getId());
+        List<Map<String, Object>> response = requests.stream()
+                .map(req -> {
+                    User addressee = userRepository.findById(req.getAddresseeId()).orElse(null);
+                    return Map.<String, Object>of(
+                            "id", req.getId(),
+                            "addresseeId", req.getAddresseeId(),
+                            "addresseeName", addressee != null ? addressee.getName() : "Unknown",
+                            "status", req.getStatus()
+                    );
+                })
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(response);
+    }
+
+    @DeleteMapping("/user/{friendUserId}")
+    public ResponseEntity<Void> removeFriend(@PathVariable Long friendUserId, Authentication auth) {
+        User user = getAuthenticatedUser(auth);
+        friendshipService.removeFriend(user.getId(), friendUserId);
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/search-users")
     public ResponseEntity<List<Map<String, Object>>> searchUsers(@org.springframework.web.bind.annotation.RequestParam String query, Authentication auth) {
         User currentUser = getAuthenticatedUser(auth);
         List<User> found = userRepository.searchByNameOrEmail(query);
         Set<Long> friendIds = friendshipService.getFirstDegreeConnections(currentUser.getId());
+        List<Friendship> sentRequests = friendshipService.getPendingRequestsFromMe(currentUser.getId());
+        Set<Long> sentIds = sentRequests.stream().map(Friendship::getAddresseeId).collect(Collectors.toSet());
+        List<Friendship> receivedRequests = friendshipService.getPendingRequestsForMe(currentUser.getId());
+        Set<Long> receivedIds = receivedRequests.stream().map(Friendship::getRequesterId).collect(Collectors.toSet());
+
         List<Map<String, Object>> response = found.stream()
                 .filter(u -> !u.getId().equals(currentUser.getId()))
-                .map(u -> Map.<String, Object>of(
-                        "id", u.getId(),
-                        "name", u.getName(),
-                        "email", u.getEmail(),
-                        "isExpert", u.isExpert(),
-                        "isFriend", friendIds.contains(u.getId())
-                ))
+                .map(u -> {
+                    String status = "NONE";
+                    if (friendIds.contains(u.getId())) {
+                        status = "FRIEND";
+                    } else if (sentIds.contains(u.getId())) {
+                        status = "PENDING_FROM_ME";
+                    } else if (receivedIds.contains(u.getId())) {
+                        status = "PENDING_TO_ME";
+                    }
+                    return Map.<String, Object>of(
+                            "id", u.getId(),
+                            "name", u.getName(),
+                            "email", u.getEmail(),
+                            "isExpert", u.isExpert(),
+                            "isFriend", friendIds.contains(u.getId()),
+                            "status", status
+                    );
+                })
                 .collect(Collectors.toList());
         return ResponseEntity.ok(response);
     }

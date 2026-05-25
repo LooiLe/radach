@@ -53,6 +53,9 @@ public class User {
     @Column(length = 255)
     private String portfolioUrl;
 
+    @Column(length = 255)
+    private String profilePicture;
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public String getName() { return name; }
@@ -90,5 +93,8 @@ public class User {
 
     public String getPortfolioUrl() { return portfolioUrl; }
     public void setPortfolioUrl(String portfolioUrl) { this.portfolioUrl = portfolioUrl; }
+
+    public String getProfilePicture() { return profilePicture; }
+    public void setProfilePicture(String profilePicture) { this.profilePicture = profilePicture; }
     
 }

@@ -71,12 +71,12 @@ public class ReviewService {
                 log.error("Vibe analysis failed for expert review on spot {}", spotId, e);
             }
             long approvedCount = reviewRepository.countByAuthorIdAndStatus(authorId, Status.APPROVED);
-            return new ReviewResponse(saved, author.getName(), author.getEmail(), approvedCount, true);
+            return new ReviewResponse(saved, author.getName(), author.getEmail(), approvedCount, true, author.getProfilePicture());
         } else {
             review.setStatus(Status.PENDING);
             Review saved = reviewRepository.save(review);
             long approvedCount = reviewRepository.countByAuthorIdAndStatus(authorId, Status.APPROVED);
-            return new ReviewResponse(saved, author.getName(), author.getEmail(), approvedCount, false);
+            return new ReviewResponse(saved, author.getName(), author.getEmail(), approvedCount, false, author.getProfilePicture());
         }
     }
 
@@ -157,8 +157,9 @@ public class ReviewService {
         String authorName = author != null ? author.getName() : "Deleted User";
         String authorEmail = author != null ? author.getEmail() : "";
         boolean isExpert = author != null && author.isExpert();
+        String profilePicture = author != null ? author.getProfilePicture() : null;
         long approvedCount = reviewRepository.countByAuthorIdAndStatus(saved.getAuthorId(), Status.APPROVED);
-        return new ReviewResponse(saved, authorName, authorEmail, approvedCount, isExpert);
+        return new ReviewResponse(saved, authorName, authorEmail, approvedCount, isExpert, profilePicture);
     }
 
     /** Edit an existing review. */
@@ -181,7 +182,7 @@ public class ReviewService {
         User author = userRepository.findById(saved.getAuthorId())
                 .orElseThrow(() -> new ResourceNotFoundException("Author not found"));
         long approvedCount = reviewRepository.countByAuthorIdAndStatus(saved.getAuthorId(), Status.APPROVED);
-        return new ReviewResponse(saved, author.getName(), author.getEmail(), approvedCount, author.isExpert());
+        return new ReviewResponse(saved, author.getName(), author.getEmail(), approvedCount, author.isExpert(), author.getProfilePicture());
     }
 
     /** Delete a review. */
@@ -206,7 +207,7 @@ public class ReviewService {
      * Batch-enrich a page of reviews with author info and approved counts — 2 queries instead of 2N.
      */
     private Page<ReviewResponse> enrichReviews(Page<Review> reviews) {
-        if (reviews.isEmpty()) return reviews.map(r -> new ReviewResponse(r, "Unknown", "", 0, false));
+        if (reviews.isEmpty()) return reviews.map(r -> new ReviewResponse(r, "Unknown", "", 0, false, null));
 
         Set<Long> authorIds = reviews.stream().map(Review::getAuthorId).collect(Collectors.toSet());
 
@@ -226,7 +227,8 @@ public class ReviewService {
             String email = author != null ? author.getEmail() : "";
             long count = approvedCounts.getOrDefault(r.getAuthorId(), 0L);
             boolean isExpert = author != null && author.isExpert();
-            return new ReviewResponse(r, name, email, count, isExpert);
+            String profilePic = author != null ? author.getProfilePicture() : null;
+            return new ReviewResponse(r, name, email, count, isExpert, profilePic);
         });
     }
 
@@ -252,7 +254,8 @@ public class ReviewService {
             String email = author != null ? author.getEmail() : "";
             long count = approvedCounts.getOrDefault(r.getAuthorId(), 0L);
             boolean isExpert = author != null && author.isExpert();
-            return new ReviewResponse(r, name, email, count, isExpert);
+            String profilePic = author != null ? author.getProfilePicture() : null;
+            return new ReviewResponse(r, name, email, count, isExpert, profilePic);
         }).toList();
     }
 }

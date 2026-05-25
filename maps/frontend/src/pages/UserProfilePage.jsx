@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useApi } from '../hooks/useApi'
 import { useAuth } from '../context/AuthContext'
@@ -36,6 +36,50 @@ const navigate = useNavigate()
   const [myApplications, setMyApplications] = useState([])
 
   // Edit profile form (for experts and users)
+  // Friend request state
+  const [friendRequestStatus, setFriendRequestStatus] = useState(null)
+  const [friendshipId, setFriendshipId] = useState(null)
+  const friendshipIdRef = useRef(null)
+  friendshipIdRef.current = friendshipId
+
+   const handleFriendAction = useCallback(async () => {
+     if (friendRequestStatus === 'sent') {
+       // Cancel
+       const fid = friendshipIdRef.current
+       if (fid) {
+         try {
+           const res = await apiFetch(`/api/v1/friends/${fid}`, { method: 'DELETE' })
+           if (res.ok) {
+             setFriendRequestStatus(null)
+             setFriendshipId(null)
+           } else {
+             console.error('Failed to cancel friend request:', res.status, res.statusText)
+           }
+         } catch (error) {
+           console.error('Failed to cancel friend request:', error)
+         }
+       }
+     } else {
+       // Send
+       try {
+         const res = await apiFetch(`/api/v1/friends/request/${id}`, { method: 'POST' })
+         if (res.ok) {
+           const data = await res.json()
+           setFriendshipId(data.id)
+           setFriendRequestStatus('sent')
+         } else {
+           console.error('Failed to send friend request:', res.status, res.statusText)
+         }
+       } catch (error) {
+         console.error('Failed to send friend request:', error)
+       }
+     }
+   }, [friendRequestStatus, apiFetch, id])
+
+  // Collapsible likes/comments on posts
+  const [showPostLikes, setShowPostLikes] = useState({})
+  const [showPostComments, setShowPostComments] = useState({})
+
   const [showEditForm, setShowEditForm] = useState(false)
   const [editForm, setEditForm] = useState({
     bio: '', privateAccount: false, professionalTitle: '', organization: '', yearsExperience: '', specializations: '', portfolioUrl: ''
@@ -160,10 +204,6 @@ const navigate = useNavigate()
     } catch { setEditMsg({ type: 'error', text: 'Server error.' }) }
   }
 
-  if (status && !user) {
-    return <div className="user-profile-page"><div className="empty-state">{status}</div></div>
-  }
-
   const hasPendingApp = myApplications.some(a => a.status === 'PENDING')
 
   const timeAgo = (timestamp) => {
@@ -182,14 +222,32 @@ const navigate = useNavigate()
     <div className="user-profile-page animate-fade-up">
       <div className="profile-actions-row">
         <button className="btn btn-ghost back-btn" onClick={() => navigate(-1)}>← Back</button>
+        {!isOwnProfile && user && (
+          <div className="profile-friend-action">
+            {user.isFriend ? (
+              <span className="badge badge-ghost">Friends</span>
+            ) : (
+              <button
+                className={`btn ${friendRequestStatus === 'sent' ? 'btn-outline' : 'btn-primary'} btn-sm`}
+                onClick={handleFriendAction}
+              >
+                {friendRequestStatus === 'sent' ? 'Sent ✓' : 'Add Friend'}
+              </button>
+            )}
+          </div>
+        )}
         {isOwnProfile && (
           <button className="btn btn-ghost" onClick={handleLogout} style={{ color: 'var(--text-error)' }}>Sign out</button>
         )}
       </div>
 
       <div className="profile-header glass">
-        <div className="profile-avatar">
-          {user?.name?.charAt(0).toUpperCase()}
+        <div className="profile-avatar" style={{ position: 'relative', overflow: 'hidden' }}>
+          {user?.profilePicture ? (
+            <img src={user.profilePicture} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          ) : (
+            user?.name?.charAt(0).toUpperCase()
+          )}
         </div>
         <div className="profile-info">
           <h1>
@@ -256,6 +314,35 @@ const navigate = useNavigate()
                 <div className="glass" style={{ padding: '1.5rem' }}>
                   <h3 style={{ marginBottom: '1rem' }}>Edit Your Profile</h3>
                   <div className="edit-profile-grid">
+                    <div className="field" style={{ gridColumn: '1 / -1' }}>
+                      <label className="label">Profile Picture</label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                        <div style={{ width: '50px', height: '50px', borderRadius: '50%', overflow: 'hidden', background: 'var(--bg-surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', color: 'var(--text-primary)', flexShrink: 0 }}>
+                          {user?.profilePicture ? <img src={user.profilePicture} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Avatar" /> : user?.name?.charAt(0).toUpperCase()}
+                        </div>
+                        <input type="file" accept="image/*" className="input" style={{ flex: 1, padding: '0.4rem', minWidth: '150px' }} onChange={async (e) => {
+                          const file = e.target.files[0];
+                          if (!file) return;
+                          const formData = new FormData();
+                          formData.append('file', file);
+                          try {
+                            const uploadRes = await apiFetch('/api/v1/upload', { method: 'POST', body: formData });
+                            if (!uploadRes.ok) throw new Error('Upload failed');
+                            const { url } = await uploadRes.json();
+                            const updateRes = await apiFetch('/api/v1/users/me/profile', { method: 'PUT', body: JSON.stringify({ profilePicture: url }) });
+                            if (updateRes.ok) setUser({ ...user, profilePicture: url });
+                          } catch (err) { alert('Failed to upload picture.'); }
+                        }} />
+                        {user?.profilePicture && (
+                          <button type="button" className="btn btn-ghost" style={{ color: 'var(--text-error)', fontSize: '0.85rem', padding: '0.3rem 0.6rem' }} onClick={async () => {
+                            try {
+                              const res = await apiFetch('/api/v1/users/me/profile', { method: 'PUT', body: JSON.stringify({ profilePicture: '' }) });
+                              if (res.ok) setUser({ ...user, profilePicture: null });
+                            } catch { alert('Failed to remove picture.'); }
+                          }}>Remove</button>
+                        )}
+                      </div>
+                    </div>
                     <div className="field" style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
                       <input 
                         type="checkbox" 
@@ -432,13 +519,40 @@ const navigate = useNavigate()
                       </Link>
                     )}
                     <div className="feed-item-footer">
-                      <span className="feed-action-btn" style={{ cursor: 'default' }}>
+                      <span
+                        className={`feed-action-btn ${showPostLikes[item.postId] ? 'active' : ''}`}
+                        onClick={() => setShowPostLikes({ ...showPostLikes, [item.postId]: !showPostLikes[item.postId] })}
+                        style={{ cursor: 'pointer' }}
+                      >
                         {item.hasLiked ? '❤️' : '🤍'} {item.likeCount} Likes
                       </span>
-                      <span className="feed-action-btn" style={{ cursor: 'default' }}>
+                      <span
+                        className={`feed-action-btn ${showPostComments[item.postId] ? 'active' : ''}`}
+                        onClick={() => setShowPostComments({ ...showPostComments, [item.postId]: !showPostComments[item.postId] })}
+                        style={{ cursor: 'pointer' }}
+                      >
                         💬 {item.comments?.length || 0} Comments
                       </span>
                     </div>
+                    {showPostLikes[item.postId] && item.likers && item.likers.length > 0 && (
+                      <div className="profile-feed-likers">
+                        {item.likers.map(liker => (
+                          <Link key={liker.userId} to={`/user/${liker.userId}`} className="liker-name">
+                            {liker.userName}
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                    {showPostComments[item.postId] && item.comments && item.comments.length > 0 && (
+                      <div className="profile-feed-comments">
+                        {item.comments.map(c => (
+                          <div key={c.id} className="profile-comment-item">
+                            <Link to={`/user/${c.authorId}`} className="comment-author">{c.authorName}</Link>
+                            <span>{c.content}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </>
                 ) : (
                   <>
