@@ -17,8 +17,9 @@ export default function FeedPage() {
   const [mediaUrls, setMediaUrls] = useState([])
   const [uploading, setUploading] = useState(false)
 
-  // Comments toggle state: { postId: boolean }
+  // Likes/comments toggle state: { postId: boolean }
   const [showComments, setShowComments] = useState({})
+  const [showLikes, setShowLikes] = useState({})
   const [newComment, setNewComment] = useState({})
 
   // Spot/Event attachment state
@@ -408,26 +409,36 @@ export default function FeedPage() {
                     </Link>
                   )}
                   <div className="feed-item-footer">
-                    <button 
-                      className={`feed-action-btn ${item.hasLiked ? 'active' : ''}`}
-                      onClick={() => toggleLike(item.postId)}
+                    <span
+                      className={`feed-action-btn ${showLikes[item.postId] ? 'active' : ''}`}
+                      onClick={() => setShowLikes({ ...showLikes, [item.postId]: !showLikes[item.postId] })}
+                      style={{ cursor: 'pointer' }}
                     >
                       {item.hasLiked ? '❤️' : '🤍'} {item.likeCount} Likes
-                    </button>
-                    <button 
-                      className="feed-action-btn"
+                    </span>
+                    <span
+                      className={`feed-action-btn ${showComments[item.postId] ? 'active' : ''}`}
                       onClick={() => setShowComments({ ...showComments, [item.postId]: !showComments[item.postId] })}
+                      style={{ cursor: 'pointer' }}
                     >
                       💬 {item.comments?.length || 0} Comments
-                    </button>
+                    </span>
                   </div>
+                  {showLikes[item.postId] && item.likers && item.likers.length > 0 && (
+                    <div className="profile-feed-likers">
+                      {item.likers.map(liker => (
+                        <Link key={liker.userId} to={`/user/${liker.userId}`} className="liker-name">
+                          {liker.userName}
+                        </Link>
+                      ))}
+                    </div>
+                  )}
                   {showComments[item.postId] && (
-                    <div className="comments-section">
+                    <div className="profile-feed-comments">
                       {item.comments?.map(c => (
-                        <div key={c.id} className="comment-item">
-                          <span className="comment-author">{c.authorName}</span>
-                          {c.content}
-                          <span className="comment-time">{timeAgo(c.createdAt)}</span>
+                        <div key={c.id} className="profile-comment-item">
+                          <Link to={`/user/${c.authorId}`} className="comment-author">{c.authorName}</Link>
+                          <span>{c.content}</span>
                         </div>
                       ))}
                       <div className="add-comment">

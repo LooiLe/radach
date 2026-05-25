@@ -2,6 +2,7 @@ package com.radach.maps.controller;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
@@ -33,16 +34,18 @@ public class UserProfileController {
     private final ReviewService reviewService;
     private final AuthenticatedUserService authenticatedUserService;
     private final FeedService feedService;
+    private final com.radach.maps.service.FriendshipService friendshipService;
 
-    public UserProfileController(UserRepository userRepository, ReviewService reviewService, AuthenticatedUserService authenticatedUserService, FeedService feedService) {
+    public UserProfileController(UserRepository userRepository, ReviewService reviewService, AuthenticatedUserService authenticatedUserService, FeedService feedService, com.radach.maps.service.FriendshipService friendshipService) {
         this.userRepository = userRepository;
         this.reviewService = reviewService;
         this.authenticatedUserService = authenticatedUserService;
         this.feedService = feedService;
+        this.friendshipService = friendshipService;
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> getUserProfile(@PathVariable Long id) {
+    public ResponseEntity<Map<String, Object>> getUserProfile(@PathVariable Long id, Authentication auth) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         
@@ -58,6 +61,14 @@ public class UserProfileController {
         profile.put("yearsExperience", user.getYearsExperience());
         profile.put("specializations", user.getSpecializations());
         profile.put("portfolioUrl", user.getPortfolioUrl());
+
+        if (auth != null && auth.isAuthenticated() && !auth.getName().equals("anonymousUser")) {
+            Long currentUserId = authenticatedUserService.getUserId(auth);
+            Set<Long> friends = friendshipService.getFirstDegreeConnections(currentUserId);
+            profile.put("isFriend", friends.contains(id));
+        } else {
+            profile.put("isFriend", false);
+        }
 
         return ResponseEntity.ok(profile);
     }
