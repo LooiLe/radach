@@ -1,6 +1,7 @@
 package com.radach.maps.dto;
 
 import java.time.Instant;
+import java.util.List;
 
 public record EventResponse(
         Long id,
@@ -12,7 +13,7 @@ public record EventResponse(
         Instant startTime,
         Instant endTime,
         String recurrenceRule,
-        String imageUrl,
+        List<String> imageUrls,
         String status,
         Long submittedBy,
         String submitterName,

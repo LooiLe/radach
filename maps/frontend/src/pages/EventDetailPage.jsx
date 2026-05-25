@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useApi } from '../hooks/useApi'
 import { useAuth } from '../context/AuthContext'
+import Lightbox from '../components/Lightbox'
 import './EventDetailPage.css'
 
 export default function EventDetailPage() {
@@ -13,6 +14,8 @@ export default function EventDetailPage() {
   const [event, setEvent] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [lightboxOpen, setLightboxOpen] = useState(false)
+  const [lightboxIndex, setLightboxIndex] = useState(0)
 
   useEffect(() => {
     async function fetchEvent() {
@@ -182,7 +185,12 @@ export default function EventDetailPage() {
 
       <div className="ed-container">
         {/* Hero Image */}
-        {event.imageUrl ? (
+        {(event.imageUrls && event.imageUrls.length > 0) ? (
+          <div className="ed-hero" style={{ cursor: 'pointer' }} onClick={() => { setLightboxIndex(0); setLightboxOpen(true); }}>
+            <img src={event.imageUrls[0]} alt={event.title} className="ed-hero-img" />
+            <div className="ed-hero-overlay" />
+          </div>
+        ) : event.imageUrl ? (
           <div className="ed-hero">
             <img src={event.imageUrl} alt={event.title} className="ed-hero-img" />
             <div className="ed-hero-overlay" />
@@ -249,6 +257,18 @@ export default function EventDetailPage() {
             </div>
           )}
 
+          {/* More Photos */}
+          {event.imageUrls?.length > 1 && (
+            <div className="ed-description-section" style={{ marginTop: '2rem' }}>
+              <h2 className="ed-section-title">More Photos</h2>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '10px' }}>
+                {event.imageUrls.slice(1).map((url, idx) => (
+                  <img key={idx} src={url} alt={`Event photo ${idx + 2}`} style={{ width: '100%', height: '150px', objectFit: 'cover', borderRadius: '8px', cursor: 'pointer' }} onClick={() => { setLightboxIndex(idx + 1); setLightboxOpen(true); }} />
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Submitted by */}
           {event.submitterName && (
             <div className="ed-submitter">
@@ -287,6 +307,14 @@ export default function EventDetailPage() {
           )}
         </div>
       </div>
+
+      {lightboxOpen && event.imageUrls?.length > 0 && (
+        <Lightbox 
+          images={event.imageUrls} 
+          initialIndex={lightboxIndex} 
+          onClose={() => setLightboxOpen(false)} 
+        />
+      )}
     </div>
   )
 }

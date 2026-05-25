@@ -34,20 +34,22 @@ export default function AddEventPage() {
   const [startTime, setStartTime] = useState(formatDateForInput(editEvent?.startTime))
   const [endTime, setEndTime] = useState(formatDateForInput(editEvent?.endTime))
   const [recurrenceRule, setRecurrenceRule] = useState(editEvent?.recurrenceRule || '')
-  const [photoUrl, setPhotoUrl] = useState(editEvent?.imageUrl || '')
+  const [photos, setPhotos] = useState(editEvent?.imageUrls || (editEvent?.imageUrl ? [editEvent.imageUrl] : []))
   const [uploading, setUploading] = useState(false)
   const [msg, setMsg] = useState({ type: '', text: '' })
 
-  const newlyUploaded = useRef(null)
+  const newlyUploaded = useRef([])
 
   // Auto-cleanup uploaded image if form unmounts
   useEffect(() => {
     return () => {
-      if (newlyUploaded.current) {
-        fetch(`/api/v1/upload?url=${encodeURIComponent(newlyUploaded.current)}`, {
-          method: 'DELETE',
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-        }).catch(() => { })
+      if (newlyUploaded.current.length > 0) {
+        newlyUploaded.current.forEach(url => {
+          fetch(`/api/v1/upload?url=${encodeURIComponent(url)}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+          }).catch(() => { })
+        });
       }
     }
   }, [])
@@ -78,45 +80,49 @@ export default function AddEventPage() {
   }
 
   const handleFileChange = async (e) => {
-    const file = e.target.files[0]
-    if (!file) return
-
-    if (file.size > 5 * 1024 * 1024) {
-      setMsg({ type: 'error', text: 'File exceeds 5MB limit.' })
-      return
-    }
+    const files = Array.from(e.target.files)
+    if (!files.length) return
 
     setUploading(true)
     setMsg({ type: '', text: '' })
     try {
-      const formData = new FormData()
-      formData.append('file', file)
+      const newPhotoUrls = []
+      for (const file of files) {
+        if (file.size > 5 * 1024 * 1024) {
+          setMsg({ type: 'error', text: `File ${file.name} exceeds 5MB limit.` })
+          continue
+        }
+        const formData = new FormData()
+        formData.append('file', file)
 
-      const res = await apiFetch('/api/v1/upload', {
-        method: 'POST',
-        body: formData
-      })
+        const res = await apiFetch('/api/v1/upload', {
+          method: 'POST',
+          body: formData
+        })
 
-      if (res.ok) {
-        const data = await res.json()
-        setPhotoUrl(data.url)
-        newlyUploaded.current = data.url
-      } else {
-        setMsg({ type: 'error', text: 'Failed to upload image' })
+        if (res.ok) {
+          const data = await res.json()
+          newPhotoUrls.push(data.url)
+          newlyUploaded.current.push(data.url)
+        } else {
+          setMsg({ type: 'error', text: `Failed to upload ${file.name}` })
+        }
       }
+      setPhotos(prev => [...prev, ...newPhotoUrls])
     } catch {
-      setMsg({ type: 'error', text: 'Error uploading file' })
+      setMsg({ type: 'error', text: 'Error uploading files' })
     } finally {
       setUploading(false)
       e.target.value = ''
     }
   }
 
-  const removePhoto = async () => {
+  const removePhoto = async (index) => {
+    const photoUrl = photos[index]
     try {
       await apiFetch(`/api/v1/upload?url=${encodeURIComponent(photoUrl)}`, { method: 'DELETE' })
-      newlyUploaded.current = null
-      setPhotoUrl('')
+      newlyUploaded.current = newlyUploaded.current.filter(url => url !== photoUrl)
+      setPhotos(prev => prev.filter((_, i) => i !== index))
     } catch { /* ignore */ }
   }
 
@@ -135,7 +141,7 @@ export default function AddEventPage() {
         startTime: new Date(startTime).toISOString(),
         endTime: endTime ? new Date(endTime).toISOString() : null,
         recurrenceRule: recurrenceRule || null,
-        imageUrl: photoUrl || null
+        imageUrls: photos.length > 0 ? photos : null
       }
 
       if (editEvent) {
@@ -164,7 +170,7 @@ export default function AddEventPage() {
           setStartTime('')
           setEndTime('')
           setRecurrenceRule('')
-          setPhotoUrl('')
+          setPhotos([])
           setSelectedSpotId('')
           setSearchSpotQuery('')
         } else {
@@ -247,17 +253,25 @@ export default function AddEventPage() {
 
         <div className="field">
           <label className="label">Event Image (Max 5MB)</label>
-          <input type="file" accept="image/png, image/jpeg, image/webp" className="input" onChange={handleFileChange} disabled={uploading} />
-          {uploading && <div style={{ fontSize: '0.9rem', color: 'var(--primary)', marginTop: '0.5rem' }}>Uploading...</div>}
+          <div>
+            <label className="btn btn-secondary" style={{ cursor: uploading ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', margin: 0 }}>
+              {uploading ? 'Uploading...' : 'Upload Photos'}
+              <input type="file" multiple accept="image/png, image/jpeg, image/webp" style={{ display: 'none' }} onChange={handleFileChange} disabled={uploading} />
+            </label>
+          </div>
 
-          {photoUrl && (
-            <div style={{ position: 'relative', width: '120px', height: '120px', marginTop: '1rem' }}>
-              <img src={photoUrl} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px' }} />
-              <button
-                onClick={removePhoto}
-                style={{ position: 'absolute', top: '-5px', right: '-5px', background: 'var(--danger)', color: 'white', border: 'none', borderRadius: '50%', width: '24px', height: '24px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }}>
-                ✕
-              </button>
+          {photos.length > 0 && (
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '1rem' }}>
+              {photos.map((url, idx) => (
+                <div key={idx} style={{ position: 'relative', width: '120px', height: '120px' }}>
+                  <img src={url} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px' }} />
+                  <button
+                    onClick={() => removePhoto(idx)}
+                    style={{ position: 'absolute', top: '-5px', right: '-5px', background: 'var(--danger)', color: 'white', border: 'none', borderRadius: '50%', width: '24px', height: '24px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }}>
+                    ✕
+                  </button>
+                </div>
+              ))}
             </div>
           )}
         </div>

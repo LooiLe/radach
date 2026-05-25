@@ -12,6 +12,22 @@ export default function Navbar() {
   const [pendingAdminCount, setPendingAdminCount] = useState(0)
   const location = useLocation()
   const navigate = useNavigate()
+  const [profilePicture, setProfilePicture] = useState(null)
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      apiFetch('/api/v1/users/me/profile')
+        .then(res => { if (res.ok) return res.json(); throw new Error(); })
+        .then(data => setProfilePicture(data.profilePicture))
+        .catch(() => {})
+    }
+  }, [isAuthenticated, apiFetch])
+
+  useEffect(() => {
+    const handler = (e) => setProfilePicture(e.detail)
+    window.addEventListener('profilePictureUpdated', handler)
+    return () => window.removeEventListener('profilePictureUpdated', handler)
+  }, [])
 
   const loadUnreadCount = useCallback(async () => {
     if (!isAuthenticated) return
@@ -87,7 +103,11 @@ export default function Navbar() {
           )}
           {isAuthenticated ? (
             <Link to={`/user/${userId}`} className="btn btn-ghost btn-pill" aria-label="Profile" style={{ padding: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <img src="/icons/iconamoon--profile-thin.svg" alt="Profile" style={{ width: '22px', height: '22px' }} />
+              {profilePicture ? (
+                <img src={profilePicture} alt="Profile" style={{ width: '26px', height: '26px', borderRadius: '50%', objectFit: 'cover' }} />
+              ) : (
+                <img src="/icons/iconamoon--profile-thin.svg" alt="Profile" style={{ width: '26px', height: '26px' }} />
+              )}
             </Link>
           ) : (
             <>

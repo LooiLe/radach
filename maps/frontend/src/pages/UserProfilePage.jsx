@@ -82,7 +82,7 @@ const navigate = useNavigate()
 
   const [showEditForm, setShowEditForm] = useState(false)
   const [editForm, setEditForm] = useState({
-    bio: '', privateAccount: false, professionalTitle: '', organization: '', yearsExperience: '', specializations: '', portfolioUrl: ''
+    bio: '', privateAccount: false, professionalTitle: '', organization: '', yearsExperience: '', specializations: '', portfolioUrl: '', profilePicture: ''
   })
   const [editMsg, setEditMsg] = useState({ type: '', text: '' })
 
@@ -104,7 +104,8 @@ const navigate = useNavigate()
         organization: userData.organization || '',
         yearsExperience: userData.yearsExperience || '',
         specializations: userData.specializations || '',
-        portfolioUrl: userData.portfolioUrl || ''
+        portfolioUrl: userData.portfolioUrl || '',
+        profilePicture: userData.profilePicture || ''
       })
 
       const reviewsRes = await apiFetch(`/api/v1/users/${id}/reviews`)
@@ -198,6 +199,7 @@ const navigate = useNavigate()
         setUser(data)
         setEditMsg({ type: 'success', text: 'Profile updated!' })
         setShowEditForm(false)
+        window.dispatchEvent(new CustomEvent('profilePictureUpdated', { detail: data.profilePicture }))
       } else {
         setEditMsg({ type: 'error', text: 'Failed to update profile.' })
       }
@@ -309,7 +311,19 @@ const navigate = useNavigate()
         <div style={{ marginTop: '1.5rem' }}>
           {/* Edit Profile (Bio for all, + CV for experts) */}
           {!showEditForm ? (
-                <button className="btn btn-primary" onClick={() => setShowEditForm(true)}>Edit Profile</button>
+                <button className="btn btn-primary" onClick={() => {
+                  setEditForm({
+                    bio: user?.bio || '',
+                    privateAccount: user?.privateAccount || false,
+                    professionalTitle: user?.professionalTitle || '',
+                    organization: user?.organization || '',
+                    yearsExperience: user?.yearsExperience || '',
+                    specializations: user?.specializations || '',
+                    portfolioUrl: user?.portfolioUrl || '',
+                    profilePicture: user?.profilePicture || ''
+                  })
+                  setShowEditForm(true)
+                }}>Edit Profile</button>
               ) : (
                 <div className="glass" style={{ padding: '1.5rem' }}>
                   <h3 style={{ marginBottom: '1rem' }}>Edit Your Profile</h3>
@@ -317,30 +331,31 @@ const navigate = useNavigate()
                     <div className="field" style={{ gridColumn: '1 / -1' }}>
                       <label className="label">Profile Picture</label>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-                        <div style={{ width: '50px', height: '50px', borderRadius: '50%', overflow: 'hidden', background: 'var(--bg-surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', color: 'var(--text-primary)', flexShrink: 0 }}>
-                          {user?.profilePicture ? <img src={user.profilePicture} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Avatar" /> : user?.name?.charAt(0).toUpperCase()}
+                        <div style={{ width: '60px', height: '60px', borderRadius: '50%', overflow: 'hidden', background: 'var(--bg-surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.75rem', color: 'var(--text-primary)', flexShrink: 0, border: '1px solid var(--border)' }}>
+                          {(editForm.profilePicture || (editForm.profilePicture === '' ? false : user?.profilePicture)) ? <img src={editForm.profilePicture || user?.profilePicture} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Avatar" /> : user?.name?.charAt(0).toUpperCase()}
                         </div>
-                        <input type="file" accept="image/*" className="input" style={{ flex: 1, padding: '0.4rem', minWidth: '150px' }} onChange={async (e) => {
-                          const file = e.target.files[0];
-                          if (!file) return;
-                          const formData = new FormData();
-                          formData.append('file', file);
-                          try {
-                            const uploadRes = await apiFetch('/api/v1/upload', { method: 'POST', body: formData });
-                            if (!uploadRes.ok) throw new Error('Upload failed');
-                            const { url } = await uploadRes.json();
-                            const updateRes = await apiFetch('/api/v1/users/me/profile', { method: 'PUT', body: JSON.stringify({ profilePicture: url }) });
-                            if (updateRes.ok) setUser({ ...user, profilePicture: url });
-                          } catch (err) { alert('Failed to upload picture.'); }
-                        }} />
-                        {user?.profilePicture && (
-                          <button type="button" className="btn btn-ghost" style={{ color: 'var(--text-error)', fontSize: '0.85rem', padding: '0.3rem 0.6rem' }} onClick={async () => {
-                            try {
-                              const res = await apiFetch('/api/v1/users/me/profile', { method: 'PUT', body: JSON.stringify({ profilePicture: '' }) });
-                              if (res.ok) setUser({ ...user, profilePicture: null });
-                            } catch { alert('Failed to remove picture.'); }
-                          }}>Remove</button>
-                        )}
+                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                          <label className="btn btn-secondary" style={{ cursor: 'pointer', margin: 0, padding: '0.5rem 1rem' }}>
+                            Upload New Photo
+                            <input type="file" accept="image/*" style={{ display: 'none' }} onChange={async (e) => {
+                              const file = e.target.files[0];
+                              if (!file) return;
+                              const formData = new FormData();
+                              formData.append('file', file);
+                              try {
+                                const uploadRes = await apiFetch('/api/v1/upload', { method: 'POST', body: formData });
+                                if (!uploadRes.ok) throw new Error('Upload failed');
+                                const { url } = await uploadRes.json();
+                                setEditForm({ ...editForm, profilePicture: url });
+                              } catch (err) { alert('Failed to upload picture.'); }
+                            }} />
+                          </label>
+                          {(editForm.profilePicture || (editForm.profilePicture === '' ? false : user?.profilePicture)) && (
+                            <button type="button" className="btn btn-ghost" style={{ color: 'var(--error)', fontSize: '0.85rem' }} onClick={() => {
+                              setEditForm({ ...editForm, profilePicture: '' });
+                            }}>Remove</button>
+                          )}
+                        </div>
                       </div>
                     </div>
                     <div className="field" style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>

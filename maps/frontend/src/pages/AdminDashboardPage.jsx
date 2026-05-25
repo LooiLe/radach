@@ -426,19 +426,25 @@ export default function AdminDashboardPage() {
                   {e.title}
                 </h3>
 
-                {e.imageUrl && (
-                  <div style={{ marginBottom: '0.75rem' }}>
+                {(e.imageUrls && e.imageUrls.length > 0) ? (
+                  <div style={{ marginTop: '0.5rem', display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                    {e.imageUrls.map((url, i) => (
+                      <a key={i} href={url} target="_blank" rel="noreferrer" style={{ display: 'inline-block' }}>
+                        <img 
+                          src={url} 
+                          alt="Event" 
+                          style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: 'var(--radius-sm)' }} 
+                        />
+                      </a>
+                    ))}
+                  </div>
+                ) : e.imageUrl && (
+                  <div style={{ marginTop: '0.5rem' }}>
                     <a href={e.imageUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-block' }}>
                       <img 
                         src={e.imageUrl} 
-                        alt={e.title} 
-                        style={{ 
-                          maxWidth: '100%', 
-                          maxHeight: '200px', 
-                          objectFit: 'cover', 
-                          borderRadius: 'var(--radius-md)', 
-                          border: '1px solid var(--border)' 
-                        }} 
+                        alt="Event" 
+                        style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: 'var(--radius-sm)' }} 
                       />
                     </a>
                   </div>
