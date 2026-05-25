@@ -48,7 +48,9 @@ export default function NotificationsPage() {
     if (notif.type === 'FRIEND_REQUEST' || notif.type === 'FRIEND_ACCEPTED') {
       navigate('/friends')
     } else if (notif.type === 'POST_LIKE' || notif.type === 'POST_COMMENT') {
-      navigate('/feed')
+      // Navigate to own profile to see the post in context
+      const userId = localStorage.getItem('userId')
+      navigate(`/user/${userId}`)
     } else if (notif.type === 'EVENT_CHANGE') {
       if (notif.referenceId) {
         navigate(`/event/${notif.referenceId}`)

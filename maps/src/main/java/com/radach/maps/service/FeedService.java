@@ -148,7 +148,7 @@ public class FeedService {
                     null, null,
                     r.getBody(),
                     r.getCreatedAt(),
-                    null, 0, false, List.of()
+                    null, 0, false, List.of(), List.of()
             ));
         }
 
@@ -170,7 +170,7 @@ public class FeedService {
                     null, null,
                     action,
                     e.getCreatedAt(),
-                    null, 0, false, List.of()
+                    null, 0, false, List.of(), List.of()
             ));
         }
 
@@ -191,7 +191,7 @@ public class FeedService {
                         null, null,
                         "liked",
                         i.getUpdatedAt(),
-                        null, 0, false, List.of()
+                        null, 0, false, List.of(), List.of()
                 ));
             }
             if (i.isSaved()) {
@@ -208,7 +208,7 @@ public class FeedService {
                         null, null,
                         "saved",
                         i.getUpdatedAt(),
-                        null, 0, false, List.of()
+                        null, 0, false, List.of(), List.of()
                 ));
             }
         }
@@ -221,6 +221,12 @@ public class FeedService {
                     .map(c -> {
                         User cAuthor = userMap.get(c.getAuthorId());
                         return new CommentRecord(c.getId(), c.getAuthorId(), cAuthor != null ? cAuthor.getName() : "Unknown", c.getContent(), c.getCreatedAt());
+                    })
+                    .toList();
+            List<LikeRecord> postLikers = postLikes.stream()
+                    .map(l -> {
+                        User lAuthor = userMap.get(l.getUserId());
+                        return new LikeRecord(l.getUserId(), lAuthor != null ? lAuthor.getName() : "Unknown");
                     })
                     .toList();
 
@@ -243,7 +249,8 @@ public class FeedService {
                     p.getMediaUrls(),
                     postLikes.size(),
                     hasLiked,
-                    postComments
+                    postComments,
+                    postLikers
             ));
         }
 
@@ -260,6 +267,11 @@ public class FeedService {
             String authorName,
             String content,
             Instant createdAt
+    ) {}
+
+    public record LikeRecord(
+            Long userId,
+            String userName
     ) {}
 
     public record FeedItem(
@@ -279,6 +291,7 @@ public class FeedService {
             List<String> mediaUrls,
             int likeCount,
             boolean hasLiked,
-            List<CommentRecord> comments
+            List<CommentRecord> comments,
+            List<LikeRecord> likers
     ) {}
 }
