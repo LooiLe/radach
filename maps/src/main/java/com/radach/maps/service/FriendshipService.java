@@ -119,4 +119,15 @@ public class FriendshipService {
     public List<Friendship> getPendingRequestsForMe(Long userId) {
         return friendshipRepository.findPendingRequestsForUser(userId);
     }
+
+    @Transactional
+    public void removeFriend(Long userId, Long friendUserId) {
+        Friendship f = friendshipRepository.findByUsers(userId, friendUserId)
+                .orElseThrow(() -> new IllegalArgumentException("Friendship not found"));
+        friendshipRepository.delete(f);
+    }
+
+    public List<Friendship> getPendingRequestsFromMe(Long userId) {
+        return friendshipRepository.findPendingRequestsByUser(userId);
+    }
 }

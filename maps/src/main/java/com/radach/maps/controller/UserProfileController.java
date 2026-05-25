@@ -58,6 +58,7 @@ public class UserProfileController {
         profile.put("yearsExperience", user.getYearsExperience());
         profile.put("specializations", user.getSpecializations());
         profile.put("portfolioUrl", user.getPortfolioUrl());
+        profile.put("profilePicture", user.getProfilePicture());
 
         return ResponseEntity.ok(profile);
     }
@@ -99,6 +100,9 @@ public class UserProfileController {
         if (request.privateAccount() != null) {
             user.setPrivateAccount(request.privateAccount());
         }
+        if (request.profilePicture() != null) {
+            user.setProfilePicture(request.profilePicture().trim());
+        }
         if (user.isExpert()) {
             if (request.professionalTitle() != null) user.setProfessionalTitle(request.professionalTitle().trim());
             if (request.organization() != null) user.setOrganization(request.organization().trim());
@@ -120,6 +124,7 @@ public class UserProfileController {
         profile.put("yearsExperience", user.getYearsExperience());
         profile.put("specializations", user.getSpecializations());
         profile.put("portfolioUrl", user.getPortfolioUrl());
+        profile.put("profilePicture", user.getProfilePicture());
 
         return ResponseEntity.ok(profile);
     }

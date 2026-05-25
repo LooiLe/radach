@@ -9,7 +9,6 @@ export default function SearchPage() {
   const [query, setQuery] = useState(searchParams.get('q') || '')
   const [users, setUsers] = useState([])
   const [status, setStatus] = useState('Enter a name or email to find users.')
-  const [friendRequests, setFriendRequests] = useState({})
   const navigate = useNavigate()
 
   const doSearch = useCallback(async (q) => {
@@ -38,13 +37,22 @@ export default function SearchPage() {
     try {
       const res = await apiFetch(`/api/v1/friends/request/${userId}`, { method: 'POST' })
       if (res.ok) {
-        setFriendRequests({ ...friendRequests, [userId]: 'sent' })
-      } else {
-        const data = await res.json()
-        setFriendRequests({ ...friendRequests, [userId]: 'error' })
+        setUsers(users.map(u => u.id === userId ? { ...u, status: 'PENDING_FROM_ME' } : u))
       }
-    } catch {
-      setFriendRequests({ ...friendRequests, [userId]: 'error' })
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  const unfriendOrCancel = async (e, userId) => {
+    e.stopPropagation()
+    try {
+      const res = await apiFetch(`/api/v1/friends/user/${userId}`, { method: 'DELETE' })
+      if (res.ok) {
+        setUsers(users.map(u => u.id === userId ? { ...u, status: 'NONE', isFriend: false } : u))
+      }
+    } catch (e) {
+      console.error(e)
     }
   }
 
@@ -74,15 +82,19 @@ export default function SearchPage() {
               </h3>
               <p style={{ margin: 0, color: 'var(--text-muted)' }}>{u.email}</p>
             </div>
-            {u.isFriend ? (
-              <span className="badge badge-ghost" style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}>Friends</span>
+            {u.status === 'FRIEND' ? (
+              <button className="btn btn-secondary btn-sm" onClick={(e) => unfriendOrCancel(e, u.id)}>
+                Remove Friend
+              </button>
+            ) : u.status === 'PENDING_FROM_ME' ? (
+              <button className="btn btn-secondary btn-sm" onClick={(e) => unfriendOrCancel(e, u.id)}>
+                Undo Request
+              </button>
+            ) : u.status === 'PENDING_TO_ME' ? (
+              <span className="text-sm text-secondary" style={{padding: '0.5rem'}}>Pending Request</span>
             ) : (
-              <button
-                className={`btn ${friendRequests[u.id] === 'sent' ? 'btn-ghost' : 'btn-primary'} btn-sm`}
-                onClick={(e) => sendFriendRequest(e, u.id)}
-                disabled={friendRequests[u.id] === 'sent'}
-              >
-                {friendRequests[u.id] === 'sent' ? 'Sent ✓' : 'Add Friend'}
+              <button className="btn btn-primary btn-sm" onClick={(e) => sendFriendRequest(e, u.id)}>
+                Add Friend
               </button>
             )}
           </div>

@@ -9,5 +9,6 @@ public record ExpertProfileUpdateRequest(
         @Size(max = 100) String organization,
         Integer yearsExperience,
         @Size(max = 255) String specializations,
-        @Size(max = 255) String portfolioUrl
+        @Size(max = 255) String portfolioUrl,
+        @Size(max = 255) String profilePicture
 ) {}

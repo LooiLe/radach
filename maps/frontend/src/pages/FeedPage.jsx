@@ -153,6 +153,7 @@ export default function FeedPage() {
           postId: createdPost.id,
           userId: Number(userId),
           userName: 'You',
+          userProfilePicture: null,
           isExpert: false,
           activityType: 'POST',
           spotId: attachedSpot?.id || null,
@@ -367,8 +368,12 @@ export default function FeedPage() {
             <div key={`${item.activityType}-${item.postId || item.spotId}-${i}`} className="feed-item glass">
               <div className="feed-item-header">
                 <div className="feed-item-user-info">
-                  <div className="feed-item-avatar">
-                    {item.userName.charAt(0).toUpperCase()}
+                  <div className="feed-item-avatar" style={{ padding: item.userProfilePicture ? 0 : undefined, overflow: 'hidden' }}>
+                    {item.userProfilePicture ? (
+                      <img src={item.userProfilePicture} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      item.userName.charAt(0).toUpperCase()
+                    )}
                   </div>
                   <div>
                     <span className="feed-item-user">
