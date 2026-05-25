@@ -152,7 +152,7 @@ public class EventService {
         event.setStartTime(request.startTime());
         event.setEndTime(request.endTime());
         event.setRecurrenceRule(request.recurrenceRule());
-        event.setImageUrl(request.imageUrl());
+        event.setImageUrls(request.imageUrls() != null ? request.imageUrls() : new java.util.ArrayList<>());
         event.setSubmittedBy(userId);
         event.setStatus(isAdmin ? EventStatus.ACTIVE : EventStatus.PENDING);
 
@@ -235,6 +235,25 @@ public class EventService {
         Event event = eventRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Event not found"));
         
+        // Find deleted photos to clean up disk
+        List<String> oldPhotos = event.getImageUrls() == null ? List.of() : event.getImageUrls();
+        List<String> newPhotos = request.imageUrls() == null ? List.of() : request.imageUrls();
+        
+        for (String oldPhoto : oldPhotos) {
+            if (!newPhotos.contains(oldPhoto)) {
+                if (oldPhoto != null && oldPhoto.startsWith("/uploads/")) {
+                    String filename = oldPhoto.substring("/uploads/".length());
+                    if (!filename.contains("..") && !filename.contains("/") && !filename.contains("\\")) {
+                        try {
+                            java.nio.file.Files.deleteIfExists(java.nio.file.Paths.get("uploads").resolve(filename));
+                        } catch (java.io.IOException e) {
+                            System.err.println("Failed to delete removed photo during update: " + oldPhoto);
+                        }
+                    }
+                }
+            }
+        }
+
         boolean detailsChanged = !java.util.Objects.equals(event.getTitle(), request.title())
                 || !java.util.Objects.equals(event.getDescription(), request.description())
                 || !java.util.Objects.equals(event.getStartTime(), request.startTime())
@@ -247,7 +266,7 @@ public class EventService {
         event.setStartTime(request.startTime());
         event.setEndTime(request.endTime());
         event.setRecurrenceRule(request.recurrenceRule());
-        if (request.imageUrl() != null) event.setImageUrl(request.imageUrl());
+        if (request.imageUrls() != null) event.setImageUrls(request.imageUrls());
         
         event = eventRepository.save(event);
         if (detailsChanged) {
@@ -260,6 +279,24 @@ public class EventService {
     public void deleteEvent(Long id) {
         Event event = eventRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Event not found"));
+
+        // Delete associated photos from disk
+        if (event.getImageUrls() != null) {
+            java.nio.file.Path uploadDir = java.nio.file.Paths.get("uploads");
+            for (String photoUrl : event.getImageUrls()) {
+                if (photoUrl != null && photoUrl.startsWith("/uploads/")) {
+                    String filename = photoUrl.substring("/uploads/".length());
+                    if (!filename.contains("..") && !filename.contains("/") && !filename.contains("\\")) {
+                        try {
+                            java.nio.file.Files.deleteIfExists(uploadDir.resolve(filename));
+                        } catch (java.io.IOException e) {
+                            System.err.println("Failed to delete photo: " + photoUrl);
+                        }
+                    }
+                }
+            }
+        }
+
         notifyCalendarDeletion(event, null);
         eventLikeRepository.deleteByEventId(id);
         calendarEntryRepository.deleteByEventId(id);
@@ -287,6 +324,25 @@ public class EventService {
             event.setStatus(EventStatus.PENDING);
         }
 
+        // Find deleted photos to clean up disk
+        List<String> oldPhotos = event.getImageUrls() == null ? List.of() : event.getImageUrls();
+        List<String> newPhotos = request.imageUrls() == null ? List.of() : request.imageUrls();
+        
+        for (String oldPhoto : oldPhotos) {
+            if (!newPhotos.contains(oldPhoto)) {
+                if (oldPhoto != null && oldPhoto.startsWith("/uploads/")) {
+                    String filename = oldPhoto.substring("/uploads/".length());
+                    if (!filename.contains("..") && !filename.contains("/") && !filename.contains("\\")) {
+                        try {
+                            java.nio.file.Files.deleteIfExists(java.nio.file.Paths.get("uploads").resolve(filename));
+                        } catch (java.io.IOException e) {
+                            System.err.println("Failed to delete removed photo during update: " + oldPhoto);
+                        }
+                    }
+                }
+            }
+        }
+
         boolean detailsChanged = !java.util.Objects.equals(event.getTitle(), request.title())
                 || !java.util.Objects.equals(event.getDescription(), request.description())
                 || !java.util.Objects.equals(event.getStartTime(), request.startTime())
@@ -306,7 +362,7 @@ public class EventService {
         event.setStartTime(request.startTime());
         event.setEndTime(request.endTime());
         event.setRecurrenceRule(request.recurrenceRule());
-        event.setImageUrl(request.imageUrl());
+        event.setImageUrls(request.imageUrls() != null ? request.imageUrls() : new java.util.ArrayList<>());
 
         event = eventRepository.save(event);
 
@@ -330,6 +386,23 @@ public class EventService {
                         org.springframework.http.HttpStatus.FORBIDDEN,
                         "You can only delete your own events"
                 );
+            }
+        }
+
+        // Delete associated photos from disk
+        if (event.getImageUrls() != null) {
+            java.nio.file.Path uploadDir = java.nio.file.Paths.get("uploads");
+            for (String photoUrl : event.getImageUrls()) {
+                if (photoUrl != null && photoUrl.startsWith("/uploads/")) {
+                    String filename = photoUrl.substring("/uploads/".length());
+                    if (!filename.contains("..") && !filename.contains("/") && !filename.contains("\\")) {
+                        try {
+                            java.nio.file.Files.deleteIfExists(uploadDir.resolve(filename));
+                        } catch (java.io.IOException e) {
+                            System.err.println("Failed to delete photo: " + photoUrl);
+                        }
+                    }
+                }
             }
         }
 
@@ -381,7 +454,7 @@ public class EventService {
                 event.getStartTime(),
                 event.getEndTime(),
                 event.getRecurrenceRule(),
-                event.getImageUrl(),
+                event.getImageUrls(),
                 responseStatus,
                 event.getSubmittedBy(),
                 submitterName,

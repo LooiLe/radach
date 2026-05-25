@@ -4,6 +4,7 @@ import { useApi } from '../hooks/useApi'
 import { useAuth } from '../context/AuthContext'
 import { formatRating } from '../components/StarRating'
 import StatusBadge from '../components/StatusBadge'
+import Lightbox from '../components/Lightbox'
 import './SpotDetailPage.css'
 
 // Vibe tag keyword mapping for filtering reviews
@@ -67,6 +68,8 @@ export default function SpotDetailPage() {
   const [editingRating, setEditingRating] = useState(0)
   const [deletingReviewId, setDeletingReviewId] = useState(null)
   const [activeVibeFilters, setActiveVibeFilters] = useState([])
+  const [lightboxOpen, setLightboxOpen] = useState(false)
+  const [lightboxIndex, setLightboxIndex] = useState(0)
 
   // Admin edit fields
   const [editName, setEditName] = useState('')
@@ -405,7 +408,7 @@ export default function SpotDetailPage() {
                 <h3 style={{ fontSize: '1.1rem', marginBottom: '0.8rem' }}>Photos</h3>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '10px' }}>
                   {spot.photos.map((url, idx) => (
-                    <img key={idx} src={url} alt={`Spot photo ${idx + 1}`} style={{ width: '100%', height: '150px', objectFit: 'cover', borderRadius: '8px', cursor: 'pointer' }} onClick={() => window.open(url, '_blank')} />
+                    <img key={idx} src={url} alt={`Spot photo ${idx + 1}`} style={{ width: '100%', height: '150px', objectFit: 'cover', borderRadius: '8px', cursor: 'pointer' }} onClick={() => { setLightboxIndex(idx); setLightboxOpen(true); }} />
                   ))}
                 </div>
               </div>
@@ -429,7 +432,7 @@ export default function SpotDetailPage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
             {events.map(event => (
               <div key={event.id} className="glass" style={{ padding: '1rem', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)' }}>
-                {event.imageUrl && <img src={event.imageUrl} alt={event.title} style={{ width: '100%', height: '120px', objectFit: 'cover', borderRadius: 'var(--radius-sm)', marginBottom: '0.75rem' }} />}
+                {(event.imageUrls && event.imageUrls.length > 0) ? <img src={event.imageUrls[0]} alt={event.title} style={{ width: '100%', height: '120px', objectFit: 'cover', borderRadius: 'var(--radius-sm)', marginBottom: '0.75rem' }} /> : event.imageUrl && <img src={event.imageUrl} alt={event.title} style={{ width: '100%', height: '120px', objectFit: 'cover', borderRadius: 'var(--radius-sm)', marginBottom: '0.75rem' }} />}
                 <h3 style={{ fontSize: '1.05rem', margin: '0 0 0.5rem 0' }}>{event.title}</h3>
                 <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
                   📅 {new Date(event.startTime).toLocaleDateString()}
@@ -582,6 +585,14 @@ export default function SpotDetailPage() {
           ));
         })()}
       </div>
+
+      {lightboxOpen && (
+        <Lightbox 
+          images={spot.photos} 
+          initialIndex={lightboxIndex} 
+          onClose={() => setLightboxOpen(false)} 
+        />
+      )}
     </div>
   )
 }

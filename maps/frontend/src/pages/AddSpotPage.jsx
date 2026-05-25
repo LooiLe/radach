@@ -243,8 +243,12 @@ export default function AddSpotPage() {
 
         <div className="field">
           <label className="label">Photos (Max 5MB per image)</label>
-          <input type="file" multiple accept="image/png, image/jpeg, image/webp" className="input" onChange={handleFileChange} disabled={uploading} />
-          {uploading && <div style={{ fontSize: '0.9rem', color: 'var(--primary)', marginTop: '0.5rem' }}>Uploading images...</div>}
+          <div>
+            <label className="btn btn-secondary" style={{ cursor: uploading ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', margin: 0 }}>
+              {uploading ? 'Uploading...' : 'Upload Photos'}
+              <input type="file" multiple accept="image/png, image/jpeg, image/webp" style={{ display: 'none' }} onChange={handleFileChange} disabled={uploading} />
+            </label>
+          </div>
           
           {photos.length > 0 && (
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '1rem' }}>

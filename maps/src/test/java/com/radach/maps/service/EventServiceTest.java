@@ -94,7 +94,7 @@ public class EventServiceTest {
             Instant.now().plusSeconds(3600),
             Instant.now().plusSeconds(7200),
             null,
-            "http://example.com/image.png"
+            List.of("http://example.com/image.png")
         );
 
         // User submits -> PENDING
@@ -117,7 +117,7 @@ public class EventServiceTest {
             Instant.now().plusSeconds(3600),
             Instant.now().plusSeconds(7200),
             null,
-            "http://example.com/image.png"
+            List.of("http://example.com/image.png")
         );
 
         EventResponse event = eventService.submitEvent(request, user1.getId(), false);
@@ -129,7 +129,7 @@ public class EventServiceTest {
             Instant.now().plusSeconds(3600),
             Instant.now().plusSeconds(7200),
             null,
-            "http://example.com/image.png"
+            List.of("http://example.com/image.png")
         );
 
         // Try updating another user's event -> fails
@@ -153,7 +153,7 @@ public class EventServiceTest {
             Instant.now().plusSeconds(3600),
             Instant.now().plusSeconds(7200),
             null,
-            "http://example.com/image.png"
+            List.of("http://example.com/image.png")
         );
 
         // Submit as admin -> ACTIVE
@@ -167,7 +167,7 @@ public class EventServiceTest {
             Instant.now().plusSeconds(3600),
             Instant.now().plusSeconds(7200),
             null,
-            "http://example.com/image.png"
+            List.of("http://example.com/image.png")
         );
 
         // User updates active event -> reverts to PENDING
@@ -184,7 +184,7 @@ public class EventServiceTest {
             Instant.now().plusSeconds(3600),
             Instant.now().plusSeconds(7200),
             null,
-            "http://example.com/image.png"
+            List.of("http://example.com/image.png")
         );
 
         // Submit as admin -> ACTIVE
@@ -198,7 +198,7 @@ public class EventServiceTest {
             Instant.now().plusSeconds(3600),
             Instant.now().plusSeconds(7200),
             null,
-            "http://example.com/image.png"
+            List.of("http://example.com/image.png")
         );
 
         // Admin updates active event -> remains ACTIVE
@@ -215,7 +215,7 @@ public class EventServiceTest {
             Instant.now().plusSeconds(3600),
             Instant.now().plusSeconds(7200),
             null,
-            "http://example.com/image.png"
+            List.of("http://example.com/image.png")
         );
 
         EventResponse event = eventService.submitEvent(request, user1.getId(), false);

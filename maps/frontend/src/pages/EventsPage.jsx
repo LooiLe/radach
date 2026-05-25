@@ -450,8 +450,12 @@ export default function EventsPage() {
             <div className="events-grid">
               {events.map((event, idx) => (
                 <div key={event.id} className="event-card" style={{ animationDelay: `${idx * 0.05}s`, cursor: 'pointer' }} onClick={() => navigate(`/event/${event.id}`)}>
-                  {event.imageUrl ? (
-                    <div style={{ display: 'block' }}>
+                  {(event.imageUrls && event.imageUrls.length > 0) ? (
+                    <div className="event-card-image-wrapper">
+                      <img src={event.imageUrls[0]} alt={event.title} className="event-card-image" />
+                    </div>
+                  ) : event.imageUrl ? (
+                    <div className="event-card-image-wrapper">
                       <img src={event.imageUrl} alt={event.title} className="event-card-image" />
                     </div>
                   ) : (
@@ -554,8 +558,12 @@ export default function EventsPage() {
               {submissions.map((event, idx) => (
                 <div key={event.id} className="event-card" style={{ animationDelay: `${idx * 0.05}s`, cursor: 'pointer' }} onClick={() => navigate(`/event/${event.id}`)}>
                   <div style={{ position: 'relative' }}>
-                    {event.imageUrl ? (
-                      <div style={{ display: 'block' }}>
+                    {(event.imageUrls && event.imageUrls.length > 0) ? (
+                      <div className="event-card-image-wrapper">
+                        <img src={event.imageUrls[0]} alt={event.title} className="event-card-image" />
+                      </div>
+                    ) : event.imageUrl ? (
+                      <div className="event-card-image-wrapper">
                         <img src={event.imageUrl} alt={event.title} className="event-card-image" />
                       </div>
                     ) : (

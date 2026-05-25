@@ -1,8 +1,11 @@
 package com.radach.maps.model;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -37,8 +40,9 @@ public class Event {
     @Column(length = 500)
     private String recurrenceRule;
 
-    @Column(length = 500)
-    private String imageUrl;
+    @Convert(converter = StringListConverter.class)
+    @Column(columnDefinition = "text")
+    private List<String> imageUrls = new ArrayList<>();
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -82,8 +86,8 @@ public class Event {
     public String getRecurrenceRule() { return recurrenceRule; }
     public void setRecurrenceRule(String recurrenceRule) { this.recurrenceRule = recurrenceRule; }
 
-    public String getImageUrl() { return imageUrl; }
-    public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
+    public List<String> getImageUrls() { return imageUrls; }
+    public void setImageUrls(List<String> imageUrls) { this.imageUrls = imageUrls; }
 
     public EventStatus getStatus() { return status; }
     public void setStatus(EventStatus status) { this.status = status; }
