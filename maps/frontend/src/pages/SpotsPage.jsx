@@ -34,6 +34,58 @@ function createMarkerIcon(type) {
   })
 }
 
+import 'leaflet.markercluster/dist/MarkerCluster.css'
+import 'leaflet.markercluster/dist/MarkerCluster.Default.css'
+import 'leaflet.markercluster'
+
+// MarkerClusterGroup component
+function MarkerClusterGroup({ spots, createIcon }) {
+  const map = useMap()
+  const clusterGroupRef = useRef(null)
+
+  useEffect(() => {
+    if (!clusterGroupRef.current) {
+      clusterGroupRef.current = L.markerClusterGroup({
+        showCoverageOnHover: false,
+        zoomToBoundsOnClick: true,
+        maxClusterRadius: 50,
+      })
+    }
+
+    const clusterGroup = clusterGroupRef.current
+    map.addLayer(clusterGroup)
+
+    return () => {
+      map.removeLayer(clusterGroup)
+    }
+  }, [map])
+
+  useEffect(() => {
+    const clusterGroup = clusterGroupRef.current
+    if (!clusterGroup) return
+
+    clusterGroup.clearLayers()
+
+    spots.forEach(s => {
+      const marker = L.marker([s.latitude, s.longitude], {
+        icon: createIcon(s.type)
+      })
+
+      const popupHtml = document.createElement('div')
+      popupHtml.innerHTML = `
+        <strong>${s.name}</strong>${s.isGlobal ? '<span style="font-size: 0.7rem; color: #888; margin-left: 4px;">🌐</span>' : ''}<br />
+        <span style="color: var(--star);">${s.averageRating > 0 ? `★ ${s.averageRating.toFixed(1)}` : s.isGlobal ? 'Global spot' : 'No ratings'}</span><br />
+        ${s.type} · ${s.address}<br />
+        ${!s.isGlobal ? `<a href="/spot/${s.id}">View details →</a>` : ''}
+      `
+      marker.bindPopup(popupHtml)
+      clusterGroup.addLayer(marker)
+    })
+  }, [spots, createIcon])
+
+  return null
+}
+
 // Fix default marker icon
 delete L.Icon.Default.prototype._getIconUrl
 L.Icon.Default.mergeOptions({
@@ -527,7 +579,7 @@ export default function SpotsPage() {
               title="Clear search & location"
               aria-label="Clear search"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="18" y1="6" x2="6" y2="18"></line>
                 <line x1="6" y1="6" x2="18" y2="18"></line>
               </svg>
@@ -566,7 +618,7 @@ export default function SpotsPage() {
                   >
                     <div className="suggestion-icon" style={{ display: 'flex', alignItems: 'center', opacity: 0.6, color: 'var(--text-secondary)' }}>
                       {s.isCityDestination ? (
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect>
                           <line x1="9" y1="22" x2="9" y2="16"></line>
                           <line x1="15" y1="22" x2="15" y2="16"></line>
@@ -574,7 +626,7 @@ export default function SpotsPage() {
                           <path d="M8 6h2v2H8V6zm0 4h2v2H8v-2zm8-4h2v2h-2V6zm0 4h2v2h-2v-2z"></path>
                         </svg>
                       ) : (
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
                           <circle cx="12" cy="10" r="3"></circle>
                         </svg>
@@ -598,7 +650,7 @@ export default function SpotsPage() {
             title="Locate me / Near me"
             aria-label="Locate me"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="10"></circle>
               <circle cx="12" cy="12" r="3"></circle>
               <line x1="12" y1="1" x2="12" y2="3"></line>
@@ -711,16 +763,7 @@ export default function SpotsPage() {
             url={`https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png?api_key=${import.meta.env.VITE_STADIA_API_KEY}`}
             attribution='Map tiles by <a href="https://stadiamaps.com/">Stadia Maps</a>, <a href="https://openmaptiles.org/">OpenMapTiles</a>, and <a href="http://openstreetmap.org">OpenStreetMap</a> contributors'
           />
-          {filteredSpots.map(s => (
-            <Marker key={s.id} position={[s.latitude, s.longitude]} icon={createMarkerIcon(s.type)}>
-              <Popup>
-                <strong>{s.name}</strong>{s.isGlobal && <span style={{ fontSize: '0.7rem', color: '#888', marginLeft: '4px' }}>🌐</span>}<br />
-                <span style={{ color: 'var(--star)' }}>{s.averageRating > 0 ? ` ${s.averageRating.toFixed(1)}` : s.isGlobal ? 'Global spot' : 'No ratings'}</span><br />
-                {s.type} · {s.address}<br />
-                {!s.isGlobal && <a href={`/spot/${s.id}`}>View details →</a>}
-              </Popup>
-            </Marker>
-          ))}
+          <MarkerClusterGroup spots={filteredSpots} createIcon={createMarkerIcon} />
           {lat && lng && radius && (
             <Circle center={[parseFloat(lat), parseFloat(lng)]} radius={parseFloat(radius) * 1000}
               pathOptions={{ color: 'var(--border-color)', fillColor: 'var(--border-color)', fillOpacity: 0.08, weight: 2 }} />

@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useApi } from '../hooks/useApi'
 import { useAuth } from '../context/AuthContext'
 import Lightbox from '../components/Lightbox'
+import ReportModal from '../components/ReportModal'
 import './EventDetailPage.css'
 
 export default function EventDetailPage() {
@@ -16,6 +17,8 @@ export default function EventDetailPage() {
   const [error, setError] = useState(null)
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState(0)
+  const [reportModalOpen, setReportModalOpen] = useState(false)
+  const [reportTarget, setReportTarget] = useState({ type: '', id: null })
 
   useEffect(() => {
     async function fetchEvent() {
@@ -292,6 +295,18 @@ export default function EventDetailPage() {
             >
               {event.addedToCalendar ? '✓ In Calendar' : '📅 Add to Calendar'}
             </button>
+            {isAuthenticated && (
+              <button
+                className="ed-action-btn ed-report-btn"
+                onClick={() => {
+                  setReportTarget({ type: 'EVENT', id: event.id })
+                  setReportModalOpen(true)
+                }}
+                style={{ color: 'var(--text-secondary)' }}
+              >
+                🚨 Report
+              </button>
+            )}
           </div>
 
           {/* Edit / Delete */}
@@ -313,6 +328,14 @@ export default function EventDetailPage() {
           images={event.imageUrls} 
           initialIndex={lightboxIndex} 
           onClose={() => setLightboxOpen(false)} 
+        />
+      )}
+      {reportModalOpen && (
+        <ReportModal 
+          contentType={reportTarget.type} 
+          contentId={reportTarget.id} 
+          onClose={() => setReportModalOpen(false)}
+          onSuccess={() => alert('Thank you. This event has been reported for review.')}
         />
       )}
     </div>

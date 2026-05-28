@@ -40,24 +40,39 @@ public class TrailPathService {
 
     /**
      * Get all public ACTIVE paths for a spot. If the current user is provided,
-     * also include their private paths.
+     * also include their private paths and their own pending/rejected paths.
      */
     public List<TrailPathResponse> getPathsForSpot(Long spotId, Long currentUserId) {
-        List<TrailPath> publicPaths = trailPathRepository
+        List<TrailPath> activePaths = trailPathRepository
                 .findBySpotIdAndStatusAndIsPrivateFalseOrderByUpvoteCountDescCreatedAtDesc(spotId, TrailPathStatus.ACTIVE);
 
-        // Also include the current user's own private paths
         if (currentUserId != null) {
-            List<TrailPath> allPaths = trailPathRepository
-                    .findBySpotIdAndStatusOrderByUpvoteCountDescCreatedAtDesc(spotId, TrailPathStatus.ACTIVE);
-            // Merge: public paths + user's private paths
-            List<TrailPath> merged = allPaths.stream()
-                    .filter(p -> !p.isPrivate() || p.getSubmittedBy() != null && p.getSubmittedBy().equals(currentUserId))
+            List<TrailPath> allPathsForSpot = trailPathRepository.findAll().stream()
+                    .filter(p -> p.getSpotId().equals(spotId))
+                    .toList();
+
+            List<TrailPath> merged = allPathsForSpot.stream()
+                    .filter(p -> {
+                        boolean isOwner = p.getSubmittedBy() != null && p.getSubmittedBy().equals(currentUserId);
+                        if (p.getStatus() == TrailPathStatus.ACTIVE) {
+                            return !p.isPrivate() || isOwner;
+                        }
+                        return isOwner;
+                    })
+                    .sorted((a, b) -> {
+                        if (a.getStatus() != b.getStatus()) {
+                            if (a.getStatus() == TrailPathStatus.ACTIVE) return -1;
+                            if (b.getStatus() == TrailPathStatus.ACTIVE) return 1;
+                        }
+                        int upvoteCompare = Integer.compare(b.getUpvoteCount(), a.getUpvoteCount());
+                        if (upvoteCompare != 0) return upvoteCompare;
+                        return b.getCreatedAt().compareTo(a.getCreatedAt());
+                    })
                     .toList();
             return merged.stream().map(p -> toResponse(p, currentUserId)).toList();
         }
 
-        return publicPaths.stream().map(p -> toResponse(p, currentUserId)).toList();
+        return activePaths.stream().map(p -> toResponse(p, currentUserId)).toList();
     }
 
     /**

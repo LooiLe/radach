@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useApi } from '../hooks/useApi'
 import { useAuth } from '../context/AuthContext'
 import StarRating, { formatRating } from '../components/StarRating'
+import '../components/ReportModal.css'
 import './UserProfilePage.css'
 
 export default function UserProfilePage() {
@@ -85,6 +86,35 @@ const navigate = useNavigate()
     bio: '', privateAccount: false, professionalTitle: '', organization: '', yearsExperience: '', specializations: '', portfolioUrl: '', profilePicture: ''
   })
   const [editMsg, setEditMsg] = useState({ type: '', text: '' })
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [deleteConfirmPassword, setDeleteConfirmPassword] = useState('')
+  const [deleteError, setDeleteError] = useState('')
+  const [deletingAccount, setDeletingAccount] = useState(false)
+
+  const handleDeleteAccount = async (e) => {
+    e.preventDefault()
+    setDeletingAccount(true)
+    setDeleteError('')
+    try {
+      const res = await apiFetch('/api/v1/users/me', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: deleteConfirmPassword })
+      })
+      if (res.ok) {
+        logout()
+        navigate('/login')
+        alert('Your account has been deleted successfully.')
+      } else {
+        const data = await res.json()
+        setDeleteError(data.error || 'Failed to delete account.')
+      }
+    } catch {
+      setDeleteError('Network error. Please try again.')
+    } finally {
+      setDeletingAccount(false)
+    }
+  }
 
   const loadData = useCallback(async () => {
     try {
@@ -402,9 +432,14 @@ const navigate = useNavigate()
                       </>
                     )}
                   </div>
-                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
-                    <button className="btn btn-primary" onClick={saveProfile}>Save</button>
-                    <button className="btn btn-ghost" onClick={() => setShowEditForm(false)}>Cancel</button>
+                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button className="btn btn-primary" onClick={saveProfile}>Save</button>
+                      <button className="btn btn-ghost" onClick={() => setShowEditForm(false)}>Cancel</button>
+                    </div>
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setShowDeleteModal(true); setDeleteConfirmPassword(''); setDeleteError(''); }} style={{ color: 'var(--text-error)', border: '1px solid var(--text-error)', background: 'transparent' }}>
+                      Delete Account
+                    </button>
                   </div>
                   {editMsg.text && <div className={`msg msg-${editMsg.type}`} style={{ marginTop: '0.5rem' }}>{editMsg.text}</div>}
                 </div>
@@ -585,6 +620,49 @@ const navigate = useNavigate()
         )}
       </div>
 
+      {showDeleteModal && (
+        <div className="report-modal-overlay" onClick={() => { if (!deletingAccount) setShowDeleteModal(false); }}>
+          <div className="report-modal-content glass animate-fade-up" onClick={(e) => e.stopPropagation()}>
+            <button className="report-modal-close" onClick={() => { if (!deletingAccount) setShowDeleteModal(false); }}>✕</button>
+            <h2 className="report-modal-title" style={{ color: 'var(--text-error)' }}>⚠️ Delete Account</h2>
+            <p className="report-modal-sub">
+              This action will permanently delete your personal profile details. All your friendships, likes, notifications, and saves will be deleted. Any reviews or trail paths you created will remain but will be anonymized under "Deleted User".
+            </p>
+            {deleteError && <div className="msg msg-error" style={{ marginBottom: '1rem' }}>{deleteError}</div>}
+            <form onSubmit={handleDeleteAccount} className="report-modal-form">
+              <div className="field">
+                <label className="label">Please enter your password to confirm:</label>
+                <input 
+                  type="password"
+                  className="input" 
+                  value={deleteConfirmPassword}
+                  onChange={e => setDeleteConfirmPassword(e.target.value)}
+                  placeholder="Your password..."
+                  required
+                  disabled={deletingAccount}
+                />
+              </div>
+              <div className="report-modal-actions">
+                <button 
+                  type="button" 
+                  className="btn btn-secondary" 
+                  onClick={() => setShowDeleteModal(false)}
+                  disabled={deletingAccount}
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  className="btn btn-danger btn-report-submit" 
+                  disabled={deletingAccount || !deleteConfirmPassword}
+                >
+                  {deletingAccount ? 'Deleting Account...' : 'Confirm Delete'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

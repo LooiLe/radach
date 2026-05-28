@@ -151,6 +151,39 @@ export default function AdminDashboardPage() {
     } catch { /* ignore */ }
   }
 
+  // === REPORTS TAB ===
+  const [reports, setReports] = useState([])
+  const [reportsCount, setReportsCount] = useState(0)
+
+  const loadPendingReports = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/v1/reports/admin')
+      const data = await res.json()
+      if (res.ok) { setReports(data); setReportsCount(data.length) }
+    } catch { /* ignore */ }
+  }, [apiFetch])
+
+  const reportAction = async (id, statusVal) => {
+    try {
+      const res = await apiFetch(`/api/v1/reports/admin/${id}/status?status=${statusVal}`, { method: 'PATCH' })
+      if (res.ok) {
+        setReports(prev => prev.filter(r => r.id !== id))
+        setReportsCount(c => c - 1)
+        if (statusVal === 'RESOLVED') {
+          loadPendingReviews()
+          loadPendingSpots()
+          loadPendingEvents()
+          loadPendingPaths()
+        }
+      } else {
+        alert('Failed to update report status.')
+      }
+    } catch (err) {
+      console.error('Error updating report:', err)
+      alert('Error updating report.')
+    }
+  }
+
   // === CATEGORIES TAB ===
   const [categories, setCategories] = useState([])
   const [newCatName, setNewCatName] = useState('')
@@ -311,8 +344,9 @@ export default function AdminDashboardPage() {
     loadPendingPaths()
     loadExpertApps()
     loadCategories()
+    loadPendingReports()
     if (isSuperAdmin) loadUsers()
-  }, [loadPendingReviews, loadPendingSpots, loadPendingEvents, loadPendingPaths, loadExpertApps, loadCategories, loadUsers, isSuperAdmin])
+  }, [loadPendingReviews, loadPendingSpots, loadPendingEvents, loadPendingPaths, loadExpertApps, loadCategories, loadPendingReports, loadUsers, isSuperAdmin])
 
   const roleBadgeCls = (r) => r === 'SUPER_ADMIN' ? 'badge-role' : r === 'ADMIN' ? 'badge-pending' : 'badge-inactive'
 
@@ -332,6 +366,9 @@ export default function AdminDashboardPage() {
         </button>
         <button className={`admin-tab ${tab === 'paths' ? 'active' : ''}`} onClick={() => setTab('paths')}>
           Verify Paths {pendingPathsCount > 0 && <span className="pending-badge">{pendingPathsCount}</span>}
+        </button>
+        <button className={`admin-tab ${tab === 'reports' ? 'active' : ''}`} onClick={() => setTab('reports')}>
+          Active Reports {reportsCount > 0 && <span className="pending-badge">{reportsCount}</span>}
         </button>
         <button className={`admin-tab ${tab === 'experts' ? 'active' : ''}`} onClick={() => setTab('experts')}>
           Expert Applications {expertAppsCount > 0 && <span className="pending-badge">{expertAppsCount}</span>}
@@ -708,6 +745,48 @@ export default function AdminDashboardPage() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {tab === 'reports' && (
+        <div className="admin-reviews">
+          {reports.length === 0 && <p style={{ color: 'var(--success)', fontWeight: 600, textAlign: 'center', marginTop: '2rem' }}>No pending reports. All clear!</p>}
+          {reports.map(r => (
+            <div key={r.id} className="pending-review glass">
+              <div className="pending-body">
+                <p className="pending-meta">Report #{r.id} · Created {new Date(r.createdAt).toLocaleString()}</p>
+                <h3 className="pending-text" style={{ margin: '0 0 0.5rem', color: 'var(--text-error)' }}>
+                  🚨 Reported {r.contentType} (ID: {r.contentId})
+                </h3>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.5rem', fontSize: '0.95rem', marginBottom: '0.75rem' }} className="pending-author">
+                  <div><strong>Reason:</strong> <span style={{ color: 'var(--danger)', fontWeight: 600 }}>{r.reason}</span></div>
+                  {r.details && <div><strong>Reporter Details:</strong> "{r.details}"</div>}
+                  <div>
+                    <strong>Action Link:</strong>{' '}
+                    {r.contentType === 'SPOT' && <Link to={`/spot/${r.contentId}`} className="hover-link" style={{ color: 'var(--primary)' }}>View Spot #{r.contentId}</Link>}
+                    {r.contentType === 'EVENT' && <Link to={`/events`} className="hover-link" style={{ color: 'var(--primary)' }}>View in Events (ID: {r.contentId})</Link>}
+                    {r.contentType === 'TRAIL_PATH' && <Link to={`/path/${r.contentId}`} className="hover-link" style={{ color: 'var(--primary)' }}>View Path #{r.contentId}</Link>}
+                    {r.contentType === 'REVIEW' && <span>Review ID: {r.contentId} (check Spot details)</span>}
+                  </div>
+                </div>
+                <p className="pending-author">
+                  Reported by: <strong>{r.reporterName}</strong> ({r.reporterEmail})
+                </p>
+              </div>
+              <div className="pending-actions" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <button className="btn btn-danger" onClick={() => {
+                  if (window.confirm(`Are you sure you want to approve this report and DELETE the reported content (ID: ${r.contentId}) immediately?`)) {
+                    reportAction(r.id, 'RESOLVED')
+                  }
+                }}>
+                  Delete Content (Resolve)
+                </button>
+                <button className="btn btn-ghost" style={{ border: '1px solid var(--border)' }} onClick={() => reportAction(r.id, 'DISMISSED')}>
+                  Dismiss Report
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>

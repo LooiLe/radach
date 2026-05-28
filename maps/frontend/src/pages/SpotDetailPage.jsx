@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { formatRating } from '../components/StarRating'
 import StatusBadge from '../components/StatusBadge'
 import Lightbox from '../components/Lightbox'
+import ReportModal from '../components/ReportModal'
 import './SpotDetailPage.css'
 
 // Vibe tag keyword mapping for filtering reviews
@@ -71,6 +72,8 @@ export default function SpotDetailPage() {
   const [activeVibeFilters, setActiveVibeFilters] = useState([])
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState(0)
+  const [reportModalOpen, setReportModalOpen] = useState(false)
+  const [reportTarget, setReportTarget] = useState({ type: '', id: null })
 
   // Admin edit fields
   const [editName, setEditName] = useState('')
@@ -292,6 +295,12 @@ export default function SpotDetailPage() {
     }
   }
 
+  const handleReportClick = (type, id) => {
+    if (!isAuthenticated) return navigate('/login')
+    setReportTarget({ type, id })
+    setReportModalOpen(true)
+  }
+
   if (!spot) return <div className="detail-page"><div className="empty-state">Loading spot...</div></div>
 
   return (
@@ -341,16 +350,12 @@ export default function SpotDetailPage() {
                   ))}
                 </div>
               )}
-
-              <input
-                type="file"
-                multiple
-                accept="image/*"
-                onChange={handleFileChange}
-                disabled={uploading}
-                className="input"
-                style={{ padding: '0.4rem' }}
-              />
+              <div>
+                <label className="btn btn-secondary" style={{ cursor: uploading ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', margin: 0 }}>
+                  {uploading ? 'Uploading...' : 'Upload Photos'}
+                  <input type="file" multiple accept="image/*" onChange={handleFileChange} disabled={uploading} style={{ display: 'none' }} />
+                </label>
+              </div>
               {uploading && <p style={{ fontSize: '0.85rem', color: 'var(--primary)', marginTop: '0.5rem' }}>Uploading...</p>}
             </div>
 
@@ -406,6 +411,12 @@ export default function SpotDetailPage() {
                 }} aria-label="Save spot">
                   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill={(spot.isSaved || spot.saved) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"></path>
+                  </svg>
+                </button>
+                <button className="action-btn report-btn" onClick={() => handleReportClick('SPOT', spot.id)} aria-label="Report spot" title="Report spot" style={{ color: 'var(--text-secondary)' }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
+                    <line x1="4" y1="22" x2="4" y2="15"></line>
                   </svg>
                 </button>
               </div>
@@ -470,9 +481,16 @@ export default function SpotDetailPage() {
               {trailPaths.map(tp => (
                 <div key={tp.id} className="glass" style={{ padding: '1rem', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', cursor: 'pointer', transition: 'border-color 0.2s' }} onClick={() => navigate(`/path/${tp.id}`)} onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--primary)'} onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
-                    <h3 style={{ fontSize: '1rem', margin: 0 }}>{tp.name}</h3>
+                    <h3 style={{ fontSize: '1rem', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      {tp.name}
+                      {tp.status && tp.status !== 'ACTIVE' && (
+                        <span className={`badge ${tp.status === 'PENDING' ? 'badge-pending' : 'badge-inactive'}`} style={{ fontSize: '0.7rem', padding: '0.1rem 0.4rem' }}>
+                          {tp.status === 'PENDING' ? 'Pending Approval' : 'Rejected'}
+                        </span>
+                      )}
+                    </h3>
                     <span style={{ display: 'inline-flex', padding: '0.15rem 0.5rem', borderRadius: '999px', fontSize: '0.7rem', fontWeight: 600, background: tp.difficulty === 'EASY' ? 'rgba(34,197,94,0.15)' : tp.difficulty === 'MODERATE' ? 'rgba(245,158,11,0.15)' : tp.difficulty === 'HARD' ? 'rgba(249,115,22,0.15)' : 'rgba(239,68,68,0.15)', color: tp.difficulty === 'EASY' ? '#22c55e' : tp.difficulty === 'MODERATE' ? '#f59e0b' : tp.difficulty === 'HARD' ? '#f97316' : '#ef4444' }}>
-                      {tp.difficulty?.charAt(0) + tp.difficulty?.slice(1).toLowerCase()}
+                      {tp.difficulty ? (tp.difficulty.charAt(0) + tp.difficulty.slice(1).toLowerCase()) : 'Unknown'}
                     </span>
                   </div>
                   <div style={{ display: 'flex', gap: '1rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
@@ -627,6 +645,9 @@ export default function SpotDetailPage() {
                         <button className="btn btn-ghost btn-sm" onClick={() => deleteReview(r.id)} disabled={deletingReviewId === r.id} style={{ fontSize: '0.75rem', padding: '0.1rem 0.4rem', lineHeight: 1.2, color: 'var(--text-error)' }}>{deletingReviewId === r.id ? '...' : 'Delete'}</button>
                       </span>
                     )}
+                    {isAuthenticated && (String(r.authorId) !== String(userId)) && (
+                      <button className="btn btn-ghost btn-sm" onClick={() => handleReportClick('REVIEW', r.id)} style={{ fontSize: '0.75rem', padding: '0.1rem 0.4rem', lineHeight: 1.2, color: 'var(--text-secondary)' }}>Report</button>
+                    )}
                   </div>
                 </>
               )}
@@ -640,6 +661,14 @@ export default function SpotDetailPage() {
           images={spot.photos} 
           initialIndex={lightboxIndex} 
           onClose={() => setLightboxOpen(false)} 
+        />
+      )}
+      {reportModalOpen && (
+        <ReportModal 
+          contentType={reportTarget.type} 
+          contentId={reportTarget.id} 
+          onClose={() => setReportModalOpen(false)}
+          onSuccess={() => alert('Thank you. The content has been reported for review.')}
         />
       )}
     </div>

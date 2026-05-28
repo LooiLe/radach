@@ -469,7 +469,12 @@ export default function SubmitTrailPathPage() {
           {/* Photos */}
           <div className="field">
             <label className="label">Photos (optional)</label>
-            <input type="file" multiple accept="image/*" onChange={handlePhotoUpload} disabled={uploading} className="input" style={{ padding: '0.4rem' }} />
+            <div>
+              <label className="btn btn-secondary" style={{ cursor: uploading ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', margin: 0 }}>
+                {uploading ? 'Uploading...' : 'Upload Photos'}
+                <input type="file" multiple accept="image/*" onChange={handlePhotoUpload} disabled={uploading} style={{ display: 'none' }} />
+              </label>
+            </div>
             {uploading && <p style={{ fontSize: '0.8rem', color: 'var(--primary)', margin: '0.3rem 0 0' }}>Uploading...</p>}
             {photos.length > 0 && (
               <div className="photo-preview-grid">

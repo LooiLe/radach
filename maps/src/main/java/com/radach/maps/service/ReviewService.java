@@ -203,6 +203,21 @@ public class ReviewService {
         }
     }
 
+    /** Delete a review by an administrator. */
+    @Transactional
+    public void deleteReviewByAdmin(Long reviewId) {
+        Review review = reviewRepository.findById(reviewId)
+                .orElseThrow(() -> new ResourceNotFoundException("Review not found"));
+        Long spotId = review.getSpotId();
+        boolean wasApproved = review.getStatus() == Status.APPROVED;
+        reviewRepository.delete(review);
+
+        // Recompute vibes if the deleted review was approved
+        if (wasApproved) {
+            vibeService.analyzeSpot(spotId);
+        }
+    }
+
     /**
      * Batch-enrich a page of reviews with author info and approved counts — 2 queries instead of 2N.
      */

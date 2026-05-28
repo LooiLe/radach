@@ -22,4 +22,7 @@ public interface FriendshipRepository extends JpaRepository<Friendship, Long> {
 
     @Query("SELECT f FROM Friendship f WHERE (f.requesterId = :user1 AND f.addresseeId = :user2) OR (f.requesterId = :user2 AND f.addresseeId = :user1)")
     Optional<Friendship> findByUsers(@Param("user1") Long user1, @Param("user2") Long user2);
+
+    @Query("SELECT f FROM Friendship f WHERE f.requesterId = :userId OR f.addresseeId = :userId")
+    List<Friendship> findAllFriendshipsByUserId(@Param("userId") Long userId);
 }

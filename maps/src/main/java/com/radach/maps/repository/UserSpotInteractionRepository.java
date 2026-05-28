@@ -15,6 +15,8 @@ public interface UserSpotInteractionRepository extends JpaRepository<UserSpotInt
 
     Optional<UserSpotInteraction> findByUserIdAndSpotId(Long userId, Long spotId);
 
+    List<UserSpotInteraction> findByUserId(Long userId);
+
     List<UserSpotInteraction> findByUserIdAndSavedTrue(Long userId);
 
     @Query("SELECT u.spotId FROM UserSpotInteraction u WHERE u.userId = :userId AND u.saved = true")

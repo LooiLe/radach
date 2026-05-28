@@ -23,6 +23,9 @@ import com.radach.maps.repository.UserRepository;
 import com.radach.maps.service.AuthenticatedUserService;
 import com.radach.maps.service.ReviewService;
 import com.radach.maps.service.FeedService;
+import com.radach.maps.service.AccountDeletionService;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.web.bind.annotation.DeleteMapping;
 
 import jakarta.validation.Valid;
 
@@ -35,13 +38,20 @@ public class UserProfileController {
     private final AuthenticatedUserService authenticatedUserService;
     private final FeedService feedService;
     private final com.radach.maps.service.FriendshipService friendshipService;
+    private final AccountDeletionService accountDeletionService;
+    private final PasswordEncoder passwordEncoder;
 
-    public UserProfileController(UserRepository userRepository, ReviewService reviewService, AuthenticatedUserService authenticatedUserService, FeedService feedService, com.radach.maps.service.FriendshipService friendshipService) {
+    public UserProfileController(UserRepository userRepository, ReviewService reviewService,
+                                 AuthenticatedUserService authenticatedUserService, FeedService feedService,
+                                 com.radach.maps.service.FriendshipService friendshipService,
+                                 AccountDeletionService accountDeletionService, PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.reviewService = reviewService;
         this.authenticatedUserService = authenticatedUserService;
         this.feedService = feedService;
         this.friendshipService = friendshipService;
+        this.accountDeletionService = accountDeletionService;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @GetMapping("/{id}")
@@ -138,5 +148,27 @@ public class UserProfileController {
         profile.put("profilePicture", user.getProfilePicture());
 
         return ResponseEntity.ok(profile);
+    }
+
+    public record DeleteAccountRequest(
+        @jakarta.validation.constraints.NotBlank String password
+    ) {}
+
+    @DeleteMapping("/me")
+    public ResponseEntity<Map<String, Object>> deleteMyAccount(
+            @Valid @RequestBody DeleteAccountRequest request,
+            Authentication authentication
+    ) {
+        Long userId = authenticatedUserService.getUserId(authentication);
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Incorrect password. Account deletion aborted."));
+        }
+
+        accountDeletionService.deleteAndAnonymizeUser(userId);
+
+        return ResponseEntity.ok(Map.of("message", "Account successfully deleted and data anonymized."));
     }
 }
