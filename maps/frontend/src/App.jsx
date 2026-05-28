@@ -20,6 +20,8 @@ import DirectionsPage from './pages/DirectionsPage'
 import EventsPage from './pages/EventsPage'
 import AddEventPage from './pages/AddEventPage'
 import EventDetailPage from './pages/EventDetailPage'
+import SubmitTrailPathPage from './pages/SubmitTrailPathPage'
+import TrailPathDetailPage from './pages/TrailPathDetailPage'
 
 export default function App() {
   return (
@@ -39,6 +41,8 @@ export default function App() {
          <Route path="/spot/:id" element={<ProtectedRoute><SpotDetailPage /></ProtectedRoute>} />
          <Route path="/directions" element={<ProtectedRoute><DirectionsPage /></ProtectedRoute>} />
          <Route path="/directions/:id" element={<ProtectedRoute><DirectionsPage /></ProtectedRoute>} />
+         <Route path="/spot/:id/submit-path" element={<ProtectedRoute><SubmitTrailPathPage /></ProtectedRoute>} />
+         <Route path="/path/:id" element={<ProtectedRoute><TrailPathDetailPage /></ProtectedRoute>} />
          <Route path="/events" element={<ProtectedRoute><EventsPage /></ProtectedRoute>} />
          <Route path="/event/:id" element={<ProtectedRoute><EventDetailPage /></ProtectedRoute>} />
          <Route path="/add-spot" element={<ProtectedRoute><AddSpotPage /></ProtectedRoute>} />

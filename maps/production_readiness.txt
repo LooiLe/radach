@@ -1,43 +1,47 @@
-Production Readiness Checklist: Mapping & Routing Services
+Production Readiness Checklist: APIs & External Services
 =========================================================
 
-Currently, the application relies on a few free, public endpoints to handle mapping, geocoding, and routing. While these are excellent for development and prototyping, they have strict fair-use policies that prohibit heavy commercial use. 
+To launch this application to a public audience, you must replace the public testing APIs with production-grade commercial APIs. 
 
-Before launching to a public audience, the following services should be updated:
+### 1. Mapping, Routing, and Geocoding (Stadia & Nominatim vs Mapbox)
 
-1. OSRM Routing API
--------------------
-- Used in: Directions Feature and Navigation Mode
-- Current URL: https://router.project-osrm.org/route/v1/...
-- The Issue: The public OSRM server is strictly for testing and light non-commercial use. High traffic or commercial usage will result in the application being rate-limited or permanently blocked. In addition, getting detailed turn-by-turn navigation steps (`&steps=true`) makes the payload larger and increases the load on the public server.
-- Production Solutions:
-  A) Self-Host (Free but requires server maintenance): OSRM is open-source. We can spin up a dedicated Linux server (like a DigitalOcean Droplet) and run the OSRM backend via Docker.
-  B) Commercial API (Easiest): Switch to Mapbox Directions API. Mapbox offers a generous free tier (up to 100,000 requests/month) and requires no server maintenance.
+**Current Status (MVP Phase):**
+*   **Map Tiles & Snap-to-Path Routing:** We use **Stadia Maps** (which incorporates Valhalla for trail routing). 
+    *   *Why Stadia now:* It has a free tier of 2,500 requests/day that **does not require a credit card** to activate, making it perfect for prototyping and dev.
+*   **Address & Location Search:** We use **Nominatim (OpenStreetMap Search)**.
+    *   *Why Nominatim now:* It is completely free and has no daily cap, preserving our 2,500 requests/day Stadia quota for maps and trail-snapping routes.
 
+**Production Recommendation (Scale Phase):**
+When the app goes into full production, you should transition all mapping and geocoding services to **Mapbox**.
+*   **Is Mapbox actually better?** Yes. Mapbox is the industry standard. Their routing engine is much faster and more accurate for trails, and their global geocoding (search) data is robust and fast.
+*   **The Math:** Mapbox's free tier is massive. You get 50,000 map loads, 100,000 routing requests, and 100,000 search requests **every single month for free**.
+*   **The Catch:** Mapbox requires a credit card on file just to activate the free tier (to prevent spam accounts), which is why we are using Stadia/Nominatim for the MVP.
+*   **Why Nominatim must be replaced:** Nominatim's public server has a strict **1 request per second rate limit** and forbids high-volume or commercial usage. Under active production load, it will throttle or block your users' searches.
 
-2. Nominatim Geocoding API
---------------------------
-- Used in: Spot Search & Directions Autocomplete
-- Current URL: https://nominatim.openstreetmap.org/search?...
-- The Issue: OpenStreetMap's public Nominatim server has a strict maximum of 1 request per second. Using it for live autocomplete search in a production app will easily exceed this limit and get the app blocked.
-- Production Solutions:
-  A) Commercial Geocoder (Recommended): Use a service like LocationIQ (which is a hosted, scalable version of Nominatim with a high free tier), OpenCage, or Mapbox Geocoding.
-  B) Self-Host: We can host our own Nominatim server, but it requires significant RAM and disk space depending on the map data size.
+**How to migrate to Mapbox later:**
+1. Create a Mapbox account and link a card to unlock the free tier.
+2. Get your default public token.
+3. Update `.env` to use `VITE_MAPBOX_API_KEY`.
+4. Swap the Stadia and Nominatim endpoint URLs in `SubmitTrailPathPage.jsx`, `DirectionsPage.jsx`, `SpotsPage.jsx`, `AddSpotPage.jsx`, and map components to use Mapbox equivalents (Mapbox Tiles, Mapbox Directions, and Mapbox Geocoding).
 
+---
 
-3. Map Tiles (Stadia Maps)
---------------------------
-- Used in: Main Map & Directions Map
-- Current URL: https://tiles.stadiamaps.com/tiles/...
-- The Issue: None currently. We are already using an API key for this, which is great.
-- Production Checklist:
-  A) Ensure the Stadia Maps account tier supports the expected monthly map loads.
-  B) Security: Log into the Stadia Maps dashboard and restrict the API key so it can *only* be used by our production domain (e.g., https://radachmaps.com). This prevents unauthorized users from stealing the API key from the browser and running up the bill.
+### 2. Cloud Image Storage (Cloudinary)
 
+**Current Status (MVP Phase):** 
+Photos uploaded for Spots, Events, or Trail Paths are saved directly to the server's local hard drive (`/uploads`).
 
-Summary of Required Code Changes:
----------------------------------
-When a commercial provider (e.g., Mapbox or LocationIQ) is selected, we will need to:
-1. Add their API keys to the `.env.production` file.
-2. Swap out the fetch URLs in the React components to point to the new provider's endpoints.
-3. Update the JSON parsing logic slightly, as different providers return their data in slightly different formats.
+**Production Recommendation (Critical):**
+If you deploy this app to a modern cloud host (like Heroku, Vercel, or Docker containers), the local hard drive is temporary. Every time the server restarts, **all uploaded images will be permanently deleted**.
+
+You must switch to an external storage provider before launch:
+*   **The Best Option:** **Cloudinary**. It has a generous free tier (25 monthly credits = ~25GB bandwidth).
+*   **Why it's better than standard blob storage:** Cloudinary is an "Image CDN". It automatically resizes, compresses, and converts huge iPhone photos into tiny, fast-loading web images. This prevents massive image files from eating up mobile users' data plans when they browse trails out in the wild.
+
+---
+
+### 3. Production Security Checklist
+
+Before going live, you must secure your active API keys (whether Stadia or Mapbox):
+1. **Domain Restriction:** Log into your provider's dashboard and restrict the API key so it can *only* be used by your exact domain (e.g., `https://radachmaps.com`). This prevents people from stealing your key from the public frontend code and running up a bill.
+2. **Environment Variables:** Never commit API keys to GitHub. Put them in your `.env` (frontend) and `application-prod.properties` (backend).

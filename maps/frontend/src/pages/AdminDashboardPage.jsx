@@ -65,6 +65,34 @@ export default function AdminDashboardPage() {
     } catch { /* ignore */ }
   }
 
+  // === TRAIL PATHS TAB ===
+  const [pendingPaths, setPendingPaths] = useState([])
+  const [pendingPathsCount, setPendingPathsCount] = useState(0)
+
+  const loadPendingPaths = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/v1/admin/paths/pending')
+      const data = await res.json()
+      if (res.ok) { setPendingPaths(data); setPendingPathsCount(data.length) }
+    } catch { /* ignore */ }
+  }, [apiFetch])
+
+  const pathAction = async (id, action) => {
+    try {
+      let res;
+      if (action === 'APPROVE') {
+        res = await apiFetch(`/api/v1/admin/paths/${id}/status?status=ACTIVE`, { method: 'PATCH' })
+      } else if (action === 'REJECT') {
+        if (!window.confirm("Are you sure you want to reject this trail path?")) return;
+        res = await apiFetch(`/api/v1/admin/paths/${id}`, { method: 'DELETE' })
+      }
+      if (res && res.ok) {
+        setPendingPaths(prev => prev.filter(p => p.id !== id))
+        setPendingPathsCount(c => c - 1)
+      }
+    } catch { /* ignore */ }
+  }
+
   // === REVIEWS TAB ===
   const [reviews, setReviews] = useState([])
   const [pendingCount, setPendingCount] = useState(0)
@@ -280,10 +308,11 @@ export default function AdminDashboardPage() {
     loadPendingReviews()
     loadPendingSpots()
     loadPendingEvents()
+    loadPendingPaths()
     loadExpertApps()
     loadCategories()
     if (isSuperAdmin) loadUsers()
-  }, [loadPendingReviews, loadPendingSpots, loadPendingEvents, loadExpertApps, loadCategories, loadUsers, isSuperAdmin])
+  }, [loadPendingReviews, loadPendingSpots, loadPendingEvents, loadPendingPaths, loadExpertApps, loadCategories, loadUsers, isSuperAdmin])
 
   const roleBadgeCls = (r) => r === 'SUPER_ADMIN' ? 'badge-role' : r === 'ADMIN' ? 'badge-pending' : 'badge-inactive'
 
@@ -300,6 +329,9 @@ export default function AdminDashboardPage() {
         </button>
         <button className={`admin-tab ${tab === 'events' ? 'active' : ''}`} onClick={() => setTab('events')}>
           Verify Events {pendingEventsCount > 0 && <span className="pending-badge">{pendingEventsCount}</span>}
+        </button>
+        <button className={`admin-tab ${tab === 'paths' ? 'active' : ''}`} onClick={() => setTab('paths')}>
+          Verify Paths {pendingPathsCount > 0 && <span className="pending-badge">{pendingPathsCount}</span>}
         </button>
         <button className={`admin-tab ${tab === 'experts' ? 'active' : ''}`} onClick={() => setTab('experts')}>
           Expert Applications {expertAppsCount > 0 && <span className="pending-badge">{expertAppsCount}</span>}
@@ -491,6 +523,41 @@ export default function AdminDashboardPage() {
               <div className="pending-actions">
                 <button className="btn btn-primary" onClick={() => eventAction(e.id, 'APPROVE')}>Approve</button>
                 <button className="btn btn-danger" onClick={() => eventAction(e.id, 'REJECT')}>Reject</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tab === 'paths' && (
+        <div className="admin-reviews">
+          {pendingPaths.length === 0 && <p style={{ color: 'var(--success)', fontWeight: 600, textAlign: 'center', marginTop: '2rem' }}>All trail paths moderated. Nothing pending.</p>}
+          {pendingPaths.map(p => (
+            <div key={p.id} className="pending-review glass">
+              <div className="pending-body">
+                <p className="pending-meta">Path #{p.id} · Spot: {p.spotName || `#${p.spotId}`}</p>
+                <h3 className="pending-text" style={{ margin: '0 0 0.5rem' }}>{p.name}</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem 1.5rem', fontSize: '0.9rem', marginBottom: '0.75rem' }} className="pending-author">
+                  <div><strong>Difficulty:</strong> <span style={{ color: p.difficulty === 'EASY' ? '#22c55e' : p.difficulty === 'MODERATE' ? '#f59e0b' : p.difficulty === 'HARD' ? '#f97316' : '#ef4444' }}>{p.difficulty}</span></div>
+                  <div><strong>Distance:</strong> {p.distanceMeters ? (p.distanceMeters >= 1000 ? `${(p.distanceMeters / 1000).toFixed(1)} km` : `${Math.round(p.distanceMeters)} m`) : '—'}</div>
+                  <div><strong>Duration:</strong> {p.estimatedDurationMin ? `${p.estimatedDurationMin} min` : '—'}</div>
+                  <div><strong>Privacy:</strong> {p.isPrivate ? '🔒 Private' : 'Public'}</div>
+                </div>
+                {p.description && <p className="pending-text" style={{ fontSize: '0.9rem', marginBottom: '0.5rem' }}>{p.description}</p>}
+                {p.submitterName && (
+                  <p className="pending-author" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+                    <span>Submitted by: </span>
+                    <strong>
+                      <Link to={`/user/${p.submittedBy}`} style={{ color: 'var(--text-primary)', textDecoration: 'none' }} className="hover-link">
+                        {p.submitterName}
+                      </Link>
+                    </strong>
+                  </p>
+                )}
+              </div>
+              <div className="pending-actions">
+                <button className="btn btn-primary" onClick={() => pathAction(p.id, 'APPROVE')}>Approve</button>
+                <button className="btn btn-danger" onClick={() => pathAction(p.id, 'REJECT')}>Reject</button>
               </div>
             </div>
           ))}

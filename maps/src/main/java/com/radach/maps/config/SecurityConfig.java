@@ -82,6 +82,9 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/v1/categories", "/api/v1/categories/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/events/my-submissions").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/v1/events", "/api/v1/events/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/paths/my-submissions").authenticated()
+                .requestMatchers(HttpMethod.GET, "/api/v1/spots/*/paths").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/paths/*").permitAll()
                 // Authenticated interactions
                 .requestMatchers(HttpMethod.POST, "/api/v1/spots/*/view", "/api/v1/spots/*/save").authenticated()
                 .requestMatchers(HttpMethod.POST, "/api/v1/spots/*/reviews").authenticated()

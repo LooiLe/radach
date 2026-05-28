@@ -58,6 +58,7 @@ export default function SpotDetailPage() {
   const [spot, setSpot] = useState(null)
   const [reviews, setReviews] = useState([])
   const [events, setEvents] = useState([])
+  const [trailPaths, setTrailPaths] = useState([])
   const [reviewBody, setReviewBody] = useState('')
   const [rating, setRating] = useState(0)
   const [saving, setSaving] = useState(false)
@@ -130,7 +131,14 @@ export default function SpotDetailPage() {
     } catch { /* ignore */ }
   }, [apiFetch, id])
 
-  useEffect(() => { loadSpot(); loadReviews(); loadEvents(); }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  const loadTrailPaths = useCallback(async () => {
+    try {
+      const res = await apiFetch(`/api/v1/spots/${id}/paths`)
+      if (res.ok) setTrailPaths(await res.json())
+    } catch { /* ignore */ }
+  }, [apiFetch, id])
+
+  useEffect(() => { loadSpot(); loadReviews(); loadEvents(); loadTrailPaths(); }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const trackEvent = async (type) => {
     try { await apiFetch(`/api/v1/spots/${id}/${type}`, { method: 'POST' }) } catch { /* ok */ }
@@ -442,6 +450,47 @@ export default function SpotDetailPage() {
               </div>
             ))}
           </div>
+        </>
+      )}
+
+      {/* Community Paths — only for trail-type spots */}
+      {spot.type?.toLowerCase() === 'trail' && (
+        <>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <h2 className="section-heading" style={{ margin: 0 }}>🥾 Community Paths</h2>
+            <button className="btn btn-primary btn-sm" onClick={() => navigate(`/spot/${spot.id}/submit-path`)} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              Submit a Path
+            </button>
+          </div>
+          {trailPaths.length === 0 ? (
+            <div className="empty-state" style={{ marginBottom: '2rem' }}>No community paths yet. Be the first to submit one!</div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
+              {trailPaths.map(tp => (
+                <div key={tp.id} className="glass" style={{ padding: '1rem', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', cursor: 'pointer', transition: 'border-color 0.2s' }} onClick={() => navigate(`/path/${tp.id}`)} onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--primary)'} onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+                    <h3 style={{ fontSize: '1rem', margin: 0 }}>{tp.name}</h3>
+                    <span style={{ display: 'inline-flex', padding: '0.15rem 0.5rem', borderRadius: '999px', fontSize: '0.7rem', fontWeight: 600, background: tp.difficulty === 'EASY' ? 'rgba(34,197,94,0.15)' : tp.difficulty === 'MODERATE' ? 'rgba(245,158,11,0.15)' : tp.difficulty === 'HARD' ? 'rgba(249,115,22,0.15)' : 'rgba(239,68,68,0.15)', color: tp.difficulty === 'EASY' ? '#22c55e' : tp.difficulty === 'MODERATE' ? '#f59e0b' : tp.difficulty === 'HARD' ? '#f97316' : '#ef4444' }}>
+                      {tp.difficulty?.charAt(0) + tp.difficulty?.slice(1).toLowerCase()}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '1rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    {tp.distanceMeters && <span>📏 {tp.distanceMeters >= 1000 ? `${(tp.distanceMeters / 1000).toFixed(1)} km` : `${Math.round(tp.distanceMeters)} m`}</span>}
+                    {tp.estimatedDurationMin && <span>⏱ {tp.estimatedDurationMin >= 60 ? `${Math.floor(tp.estimatedDurationMin / 60)}h ${tp.estimatedDurationMin % 60}m` : `${tp.estimatedDurationMin} min`}</span>}
+                  </div>
+                  {tp.description && <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0.5rem 0 0', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{tp.description}</p>}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem' }}>
+                    {tp.submitterName && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>by {tp.submitterName}</div>}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', color: tp.upvoteCount > 0 ? 'var(--primary)' : 'var(--text-muted)' }}>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill={tp.upvoteCount > 0 ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path></svg>
+                      {tp.upvoteCount || 0}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </>
       )}
 
