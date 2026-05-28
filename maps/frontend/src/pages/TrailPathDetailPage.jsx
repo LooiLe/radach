@@ -497,10 +497,6 @@ export default function TrailPathDetailPage() {
             <span className="stat-label">Difficulty</span>
             <span className="stat-value">{path.difficulty ? (path.difficulty.charAt(0) + path.difficulty.slice(1).toLowerCase()) : 'Unknown'}</span>
           </div>
-          <div className="stat-item">
-            <span className="stat-label">Status</span>
-            <span className="stat-value">{path.status}</span>
-          </div>
         </div>
 
         {/* Description */}

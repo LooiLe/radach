@@ -104,7 +104,8 @@
 
 .path-stats-row {
   display: flex;
-  gap: 1.5rem;
+  justify-content: center;
+  gap: 3rem;
   padding: 1rem 1.25rem;
   border-radius: var(--radius-lg);
   border: 1px solid var(--border);
@@ -115,6 +116,8 @@
 .path-stats-row .stat-item {
   display: flex;
   flex-direction: column;
+  align-items: center;
+  text-align: center;
   gap: 0.15rem;
 }
 
