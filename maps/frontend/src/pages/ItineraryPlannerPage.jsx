@@ -617,6 +617,11 @@ export default function ItineraryPlannerPage() {
 
       {/* PLANNER SIDEBAR */}
       <div className="itinerary-sidebar">
+        <div style={{ padding: '1.5rem 1.5rem 0 1.5rem' }}>
+          <Link to="/itineraries" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none', color: '#6366f1', fontWeight: '600', transition: 'color 0.2s' }}>
+            ⬅️ Back to My Itineraries
+          </Link>
+        </div>
         <div className="planner-tabs">
           <button 
             className={`tab-btn ${activeTab === 'manual' ? 'active' : ''}`}
