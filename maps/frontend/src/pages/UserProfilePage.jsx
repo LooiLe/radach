@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useApi } from '../hooks/useApi'
 import { useAuth } from '../context/AuthContext'
 import StarRating, { formatRating } from '../components/StarRating'
@@ -11,6 +11,7 @@ export default function UserProfilePage() {
   const { apiFetch } = useApi()
   const { userId, isExpert: authIsExpert, logout } = useAuth()
 const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   
   const handleLogout = () => {
     logout()
@@ -25,7 +26,9 @@ const navigate = useNavigate()
   // Personal feed state
   const [personalFeed, setPersonalFeed] = useState([])
   const [feedLoading, setFeedLoading] = useState(false)
-  const [feedTab, setFeedTab] = useState('all') // 'all' shows posts + reviews, 'posts' shows only posts, 'reviews' shows only reviews
+  const profileTabs = ['all', 'posts', 'reviews']
+  const initialFeedTab = profileTabs.includes(searchParams.get('tab')) ? searchParams.get('tab') : 'all'
+  const [feedTab, setFeedTab] = useState(initialFeedTab) // 'all' shows posts + reviews, 'posts' shows only posts, 'reviews' shows only reviews
   const [friendCount, setFriendCount] = useState(0)
 
   // Expert application form
@@ -188,6 +191,16 @@ const navigate = useNavigate()
     loadPersonalFeed()
     loadFriendCount()
   }, [loadData, loadMyApplications, loadPersonalFeed, loadFriendCount])
+
+  useEffect(() => {
+    const nextTab = profileTabs.includes(searchParams.get('tab')) ? searchParams.get('tab') : 'all'
+    setFeedTab(nextTab)
+  }, [searchParams])
+
+  const changeFeedTab = (nextTab) => {
+    setFeedTab(nextTab)
+    setSearchParams(nextTab === 'all' ? {} : { tab: nextTab })
+  }
 
   const submitApplication = async () => {
     setApplyMsg({ type: '', text: '' })
@@ -513,7 +526,7 @@ const navigate = useNavigate()
           <div
             key={tab}
             className={`profile-feed-tab ${feedTab === tab ? 'active' : ''}`}
-            onClick={() => setFeedTab(tab)}
+            onClick={() => changeFeedTab(tab)}
           >
             {tab.charAt(0).toUpperCase() + tab.slice(1)}
           </div>

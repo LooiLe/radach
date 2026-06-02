@@ -1,13 +1,18 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useApi } from '../hooks/useApi'
 import { useAuth } from '../context/AuthContext'
+import ConfirmDialog from '../components/ConfirmDialog'
 import './AdminDashboardPage.css'
 
 export default function AdminDashboardPage() {
   const { apiFetch } = useApi()
   const { isSuperAdmin } = useAuth()
-  const [tab, setTab] = useState('reviews')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const adminTabs = ['reviews', 'spots', 'events', 'paths', 'reports', 'experts', 'categories', 'users']
+  const initialTab = adminTabs.includes(searchParams.get('tab')) ? searchParams.get('tab') : 'reviews'
+  const [tab, setTab] = useState(initialTab)
+  const [confirmDialog, setConfirmDialog] = useState(null)
 
   // === SPOTS TAB ===
   const [pendingSpots, setPendingSpots] = useState([])
@@ -27,7 +32,6 @@ export default function AdminDashboardPage() {
       if (action === 'APPROVE') {
         res = await apiFetch(`/api/v1/admin/spots/${id}/status?status=ACTIVE`, { method: 'PATCH' })
       } else if (action === 'REJECT') {
-        if (!window.confirm("Are you sure you want to completely delete this spot?")) return;
         res = await apiFetch(`/api/v1/admin/spots/${id}`, { method: 'DELETE' })
       }
       if (res && res.ok) {
@@ -55,7 +59,6 @@ export default function AdminDashboardPage() {
       if (action === 'APPROVE') {
         res = await apiFetch(`/api/v1/admin/events/${id}/status?status=ACTIVE`, { method: 'PATCH' })
       } else if (action === 'REJECT') {
-        if (!window.confirm("Are you sure you want to completely delete this event?")) return;
         res = await apiFetch(`/api/v1/admin/events/${id}`, { method: 'DELETE' })
       }
       if (res && res.ok) {
@@ -83,7 +86,6 @@ export default function AdminDashboardPage() {
       if (action === 'APPROVE') {
         res = await apiFetch(`/api/v1/admin/paths/${id}/status?status=ACTIVE`, { method: 'PATCH' })
       } else if (action === 'REJECT') {
-        if (!window.confirm("Are you sure you want to reject this trail path?")) return;
         res = await apiFetch(`/api/v1/admin/paths/${id}`, { method: 'DELETE' })
       }
       if (res && res.ok) {
@@ -275,7 +277,6 @@ export default function AdminDashboardPage() {
   }
 
   const deleteCategory = async (id) => {
-    if (!window.confirm("Delete this category?")) return
     setCatMsg({ type: '', text: '' })
     try {
       const res = await apiFetch(`/api/v1/admin/categories/${id}`, { method: 'DELETE' })
@@ -348,6 +349,16 @@ export default function AdminDashboardPage() {
     if (isSuperAdmin) loadUsers()
   }, [loadPendingReviews, loadPendingSpots, loadPendingEvents, loadPendingPaths, loadExpertApps, loadCategories, loadPendingReports, loadUsers, isSuperAdmin])
 
+  useEffect(() => {
+    const nextTab = adminTabs.includes(searchParams.get('tab')) ? searchParams.get('tab') : 'reviews'
+    setTab(nextTab)
+  }, [searchParams])
+
+  const changeTab = (nextTab) => {
+    setTab(nextTab)
+    setSearchParams(nextTab === 'reviews' ? {} : { tab: nextTab })
+  }
+
   const roleBadgeCls = (r) => r === 'SUPER_ADMIN' ? 'badge-role' : r === 'ADMIN' ? 'badge-pending' : 'badge-inactive'
 
   return (
@@ -355,29 +366,29 @@ export default function AdminDashboardPage() {
       <h1 className="page-title" style={{ marginTop: 0, textAlign: 'center' }}>Admin Control Panel</h1>
       
       <div className="admin-tabs">
-        <button className={`admin-tab ${tab === 'reviews' ? 'active' : ''}`} onClick={() => setTab('reviews')}>
+        <button className={`admin-tab ${tab === 'reviews' ? 'active' : ''}`} onClick={() => changeTab('reviews')}>
           Verify Reviews {pendingCount > 0 && <span className="pending-badge">{pendingCount}</span>}
         </button>
-        <button className={`admin-tab ${tab === 'spots' ? 'active' : ''}`} onClick={() => setTab('spots')}>
+        <button className={`admin-tab ${tab === 'spots' ? 'active' : ''}`} onClick={() => changeTab('spots')}>
           Verify Spots {pendingSpotsCount > 0 && <span className="pending-badge">{pendingSpotsCount}</span>}
         </button>
-        <button className={`admin-tab ${tab === 'events' ? 'active' : ''}`} onClick={() => setTab('events')}>
+        <button className={`admin-tab ${tab === 'events' ? 'active' : ''}`} onClick={() => changeTab('events')}>
           Verify Events {pendingEventsCount > 0 && <span className="pending-badge">{pendingEventsCount}</span>}
         </button>
-        <button className={`admin-tab ${tab === 'paths' ? 'active' : ''}`} onClick={() => setTab('paths')}>
+        <button className={`admin-tab ${tab === 'paths' ? 'active' : ''}`} onClick={() => changeTab('paths')}>
           Verify Paths {pendingPathsCount > 0 && <span className="pending-badge">{pendingPathsCount}</span>}
         </button>
-        <button className={`admin-tab ${tab === 'reports' ? 'active' : ''}`} onClick={() => setTab('reports')}>
+        <button className={`admin-tab ${tab === 'reports' ? 'active' : ''}`} onClick={() => changeTab('reports')}>
           Active Reports {reportsCount > 0 && <span className="pending-badge">{reportsCount}</span>}
         </button>
-        <button className={`admin-tab ${tab === 'experts' ? 'active' : ''}`} onClick={() => setTab('experts')}>
+        <button className={`admin-tab ${tab === 'experts' ? 'active' : ''}`} onClick={() => changeTab('experts')}>
           Expert Applications {expertAppsCount > 0 && <span className="pending-badge">{expertAppsCount}</span>}
         </button>
-        <button className={`admin-tab ${tab === 'categories' ? 'active' : ''}`} onClick={() => setTab('categories')}>
+        <button className={`admin-tab ${tab === 'categories' ? 'active' : ''}`} onClick={() => changeTab('categories')}>
           Manage Categories
         </button>
         {isSuperAdmin && (
-          <button className={`admin-tab ${tab === 'users' ? 'active' : ''}`} onClick={() => setTab('users')}>
+          <button className={`admin-tab ${tab === 'users' ? 'active' : ''}`} onClick={() => changeTab('users')}>
             Manage Users
           </button>
         )}
@@ -477,7 +488,12 @@ export default function AdminDashboardPage() {
               </div>
               <div className="pending-actions">
                 <button className="btn btn-primary" onClick={() => spotAction(s.id, 'APPROVE')}>Approve</button>
-                <button className="btn btn-danger" onClick={() => spotAction(s.id, 'REJECT')}>Reject</button>
+                <button className="btn btn-danger" onClick={() => setConfirmDialog({
+                  title: 'Delete pending spot?',
+                  message: `This will permanently delete "${s.name}".`,
+                  confirmLabel: 'Delete spot',
+                  onConfirm: () => spotAction(s.id, 'REJECT')
+                })}>Reject</button>
               </div>
             </div>
           ))}
@@ -559,7 +575,12 @@ export default function AdminDashboardPage() {
               </div>
               <div className="pending-actions">
                 <button className="btn btn-primary" onClick={() => eventAction(e.id, 'APPROVE')}>Approve</button>
-                <button className="btn btn-danger" onClick={() => eventAction(e.id, 'REJECT')}>Reject</button>
+                <button className="btn btn-danger" onClick={() => setConfirmDialog({
+                  title: 'Delete pending event?',
+                  message: `This will permanently delete "${e.title}".`,
+                  confirmLabel: 'Delete event',
+                  onConfirm: () => eventAction(e.id, 'REJECT')
+                })}>Reject</button>
               </div>
             </div>
           ))}
@@ -594,7 +615,12 @@ export default function AdminDashboardPage() {
               </div>
               <div className="pending-actions">
                 <button className="btn btn-primary" onClick={() => pathAction(p.id, 'APPROVE')}>Approve</button>
-                <button className="btn btn-danger" onClick={() => pathAction(p.id, 'REJECT')}>Reject</button>
+                <button className="btn btn-danger" onClick={() => setConfirmDialog({
+                  title: 'Reject trail path?',
+                  message: `This will permanently delete "${p.name}".`,
+                  confirmLabel: 'Reject path',
+                  onConfirm: () => pathAction(p.id, 'REJECT')
+                })}>Reject</button>
               </div>
             </div>
           ))}
@@ -685,7 +711,12 @@ export default function AdminDashboardPage() {
                     <input type="file" accept="image/svg+xml, image/png, image/webp" style={{ display: 'none' }} onChange={(e) => updateExistingCatIcon(c.id, e)} />
                   </label>
                   {c.name.toLowerCase() !== 'other' && (
-                    <button className="btn btn-danger btn-sm" onClick={() => deleteCategory(c.id)}>Delete</button>
+                    <button className="btn btn-danger btn-sm" onClick={() => setConfirmDialog({
+                      title: 'Delete category?',
+                      message: `This will delete "${c.name}".`,
+                      confirmLabel: 'Delete category',
+                      onConfirm: () => deleteCategory(c.id)
+                    })}>Delete</button>
                   )}
                 </div>
               </div>
@@ -774,11 +805,12 @@ export default function AdminDashboardPage() {
                 </p>
               </div>
               <div className="pending-actions" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <button className="btn btn-danger" onClick={() => {
-                  if (window.confirm(`Are you sure you want to approve this report and DELETE the reported content (ID: ${r.contentId}) immediately?`)) {
-                    reportAction(r.id, 'RESOLVED')
-                  }
-                }}>
+                <button className="btn btn-danger" onClick={() => setConfirmDialog({
+                  title: 'Delete reported content?',
+                  message: `This will approve the report and delete content ID ${r.contentId} immediately.`,
+                  confirmLabel: 'Delete content',
+                  onConfirm: () => reportAction(r.id, 'RESOLVED')
+                })}>
                   Delete Content (Resolve)
                 </button>
                 <button className="btn btn-ghost" style={{ border: '1px solid var(--border)' }} onClick={() => reportAction(r.id, 'DISMISSED')}>
@@ -789,6 +821,18 @@ export default function AdminDashboardPage() {
           ))}
         </div>
       )}
+      <ConfirmDialog
+        open={!!confirmDialog}
+        title={confirmDialog?.title}
+        message={confirmDialog?.message}
+        confirmLabel={confirmDialog?.confirmLabel}
+        onCancel={() => setConfirmDialog(null)}
+        onConfirm={async () => {
+          const action = confirmDialog?.onConfirm
+          setConfirmDialog(null)
+          await action?.()
+        }}
+      />
     </div>
   )
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { useApi } from '../hooks/useApi'
 import { useAuth } from '../context/AuthContext'
 import './FeedPage.css'
@@ -9,7 +9,10 @@ export default function FeedPage() {
   const { userId, userName } = useAuth()
   const [feed, setFeed] = useState([])
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState('global')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const feedTabs = ['friends', 'global', 'experts']
+  const initialTab = feedTabs.includes(searchParams.get('tab')) ? searchParams.get('tab') : 'global'
+  const [activeTab, setActiveTab] = useState(initialTab)
   const navigate = useNavigate()
 
   // Create post state
@@ -50,6 +53,16 @@ export default function FeedPage() {
   useEffect(() => {
     loadFeed(activeTab)
   }, [activeTab]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const nextTab = feedTabs.includes(searchParams.get('tab')) ? searchParams.get('tab') : 'global'
+    setActiveTab(nextTab)
+  }, [searchParams])
+
+  const changeTab = (nextTab) => {
+    setActiveTab(nextTab)
+    setSearchParams(nextTab === 'global' ? {} : { tab: nextTab })
+  }
 
   const handleFileUpload = async (e) => {
     const file = e.target.files[0]
@@ -250,7 +263,7 @@ export default function FeedPage() {
           <div 
             key={tab} 
             className={`feed-tab ${activeTab === tab ? 'active' : ''}`}
-            onClick={() => setActiveTab(tab)}
+            onClick={() => changeTab(tab)}
           >
             {tab.charAt(0).toUpperCase() + tab.slice(1)}
           </div>

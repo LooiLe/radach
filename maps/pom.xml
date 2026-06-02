@@ -115,6 +115,13 @@
 			<artifactId>bucket4j-core</artifactId>
 			<version>8.10.1</version>
 		</dependency>
+
+		<!-- Stripe Payment SDK -->
+		<dependency>
+			<groupId>com.stripe</groupId>
+			<artifactId>stripe-java</artifactId>
+			<version>28.3.0</version>
+		</dependency>
 	</dependencies>
 
 	<build>

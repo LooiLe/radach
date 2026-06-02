@@ -356,6 +356,29 @@ public class EventServiceTest {
     }
 
     @Test
+    public void testGetEventsForSpotExcludesFinishedEvents() {
+        // One-off event in the past (starts 5 days ago, ends 4 days ago)
+        Instant pastOneOffStart = Instant.now().minus(java.time.Duration.ofDays(5));
+        Instant pastOneOffEnd = pastOneOffStart.plusSeconds(7200);
+        EventResponse pastOneOffEvent = eventService.submitEvent(new EventRequest(
+            spot.id(), "Past One-Off Event", "Desc", pastOneOffStart, pastOneOffEnd, null, null
+        ), admin.getId(), true);
+
+        // Future event
+        EventResponse futureEvent = eventService.submitEvent(new EventRequest(
+            spot.id(), "Future Event", "Desc", Instant.now().plusSeconds(3600), Instant.now().plusSeconds(7200), null, null
+        ), admin.getId(), true);
+
+        // Fetch events for spot
+        List<EventResponse> events = eventService.getEventsForSpot(spot.id(), null);
+        List<Long> eventIds = events.stream().map(EventResponse::id).toList();
+
+        // Assertions
+        assertThat(eventIds).doesNotContain(pastOneOffEvent.id());
+        assertThat(eventIds).contains(futureEvent.id());
+    }
+
+    @Test
     public void testEventChangeNotifications() {
         EventResponse event = eventService.submitEvent(new EventRequest(
             spot.id(), "Initial Title", "Desc", Instant.now().plusSeconds(3600), Instant.now().plusSeconds(7200), null, null

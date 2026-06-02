@@ -125,7 +125,11 @@ public class EventService {
      */
     public List<EventResponse> getEventsForSpot(Long spotId, Long currentUserId) {
         List<Event> events = eventRepository.findBySpotIdAndStatusOrderByStartTimeAsc(spotId, EventStatus.ACTIVE);
-        return events.stream().map(e -> toResponse(e, currentUserId)).toList();
+        Instant now = Instant.now();
+        return events.stream()
+                .filter(e -> !isEventEnded(e, now))
+                .map(e -> toResponse(e, currentUserId))
+                .toList();
     }
 
     /**
@@ -198,8 +202,10 @@ public class EventService {
             CalendarEntry entry = new CalendarEntry();
             entry.setUserId(userId);
             entry.setEventId(eventId);
+            entry.setSpotId(event.getSpotId());
             entry.setTitle(event.getTitle());
             entry.setDescription(event.getDescription());
+            entry.setLocation(getEventLocation(event));
             entry.setStartTime(event.getStartTime());
             entry.setEndTime(event.getEndTime());
             entry.setRecurrenceRule(event.getRecurrenceRule());
@@ -508,6 +514,8 @@ public class EventService {
         for (CalendarEntry entry : entries) {
             entry.setTitle(event.getTitle());
             entry.setDescription(event.getDescription());
+            entry.setLocation(getEventLocation(event));
+            entry.setSpotId(event.getSpotId());
             entry.setStartTime(event.getStartTime());
             entry.setEndTime(event.getEndTime());
             entry.setRecurrenceRule(event.getRecurrenceRule());
@@ -542,6 +550,12 @@ public class EventService {
                     "EVENT"
             );
         }
+    }
+
+    private String getEventLocation(Event event) {
+        return spotRepository.findById(event.getSpotId())
+                .map(Spot::getAddress)
+                .orElse(null);
     }
 }
 

@@ -4,6 +4,7 @@ import { useApi } from '../hooks/useApi'
 import { useAuth } from '../context/AuthContext'
 import Lightbox from '../components/Lightbox'
 import ReportModal from '../components/ReportModal'
+import ConfirmDialog from '../components/ConfirmDialog'
 import './EventDetailPage.css'
 
 export default function EventDetailPage() {
@@ -19,6 +20,7 @@ export default function EventDetailPage() {
   const [lightboxIndex, setLightboxIndex] = useState(0)
   const [reportModalOpen, setReportModalOpen] = useState(false)
   const [reportTarget, setReportTarget] = useState({ type: '', id: null })
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   useEffect(() => {
     async function fetchEvent() {
@@ -56,7 +58,6 @@ export default function EventDetailPage() {
 
   const deleteEvent = async () => {
     if (!event) return
-    if (!window.confirm('Delete this event?')) return
     try {
       const endpoint = isAdmin ? `/api/v1/admin/events/${event.id}` : `/api/v1/events/${event.id}`
       const res = await apiFetch(endpoint, { method: 'DELETE' })
@@ -315,7 +316,7 @@ export default function EventDetailPage() {
               <button className="ed-manage-btn" onClick={() => navigate('/add-event', { state: { editEvent: event } })}>
                 ✏️ Edit Event
               </button>
-              <button className="ed-manage-btn ed-delete-btn" onClick={deleteEvent}>
+              <button className="ed-manage-btn ed-delete-btn" onClick={() => setShowDeleteConfirm(true)}>
                 🗑️ Delete
               </button>
             </div>
@@ -338,6 +339,17 @@ export default function EventDetailPage() {
           onSuccess={() => alert('Thank you. This event has been reported for review.')}
         />
       )}
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        title="Delete event?"
+        message="This will permanently remove this event."
+        confirmLabel="Delete event"
+        onCancel={() => setShowDeleteConfirm(false)}
+        onConfirm={async () => {
+          setShowDeleteConfirm(false)
+          await deleteEvent()
+        }}
+      />
     </div>
   )
 }

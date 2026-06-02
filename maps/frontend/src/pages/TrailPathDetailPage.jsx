@@ -7,6 +7,7 @@ import { useApi } from '../hooks/useApi'
 import { useAuth } from '../context/AuthContext'
 import Lightbox from '../components/Lightbox'
 import ReportModal from '../components/ReportModal'
+import ConfirmDialog from '../components/ConfirmDialog'
 import './TrailPathDetailPage.css'
 
 // Haversine distance in meters
@@ -112,6 +113,7 @@ export default function TrailPathDetailPage() {
   const [upvoting, setUpvoting] = useState(false)
   const [reportModalOpen, setReportModalOpen] = useState(false)
   const [reportTarget, setReportTarget] = useState({ type: '', id: null })
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   // Navigation states
   const [isNavigating, setIsNavigating] = useState(false)
@@ -242,7 +244,6 @@ export default function TrailPathDetailPage() {
   }, [liveLocation, positions])
 
   const handleDelete = async () => {
-    if (!window.confirm('Delete this trail path? This cannot be undone.')) return
     setDeleting(true)
     try {
       const res = await apiFetch(`/api/v1/paths/${id}`, { method: 'DELETE' })
@@ -475,7 +476,7 @@ export default function TrailPathDetailPage() {
             )}
             {isOwner && (
               <div className="path-owner-actions">
-                <button className="btn btn-ghost btn-sm" onClick={handleDelete} disabled={deleting} style={{ color: 'var(--text-error)' }}>
+                <button className="btn btn-ghost btn-sm" onClick={() => setShowDeleteConfirm(true)} disabled={deleting} style={{ color: 'var(--text-error)' }}>
                   {deleting ? '...' : 'Delete'}
                 </button>
               </div>
@@ -556,6 +557,17 @@ export default function TrailPathDetailPage() {
           onSuccess={() => alert('Thank you. This trail path has been reported for review.')}
         />
       )}
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        title="Delete trail path?"
+        message="This cannot be undone."
+        confirmLabel="Delete path"
+        onCancel={() => setShowDeleteConfirm(false)}
+        onConfirm={async () => {
+          setShowDeleteConfirm(false)
+          await handleDelete()
+        }}
+      />
     </div>
   )
 }

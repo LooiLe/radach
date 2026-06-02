@@ -6,6 +6,7 @@ import { formatRating } from '../components/StarRating'
 import StatusBadge from '../components/StatusBadge'
 import Lightbox from '../components/Lightbox'
 import ReportModal from '../components/ReportModal'
+import ConfirmDialog from '../components/ConfirmDialog'
 import './SpotDetailPage.css'
 
 // Vibe tag keyword mapping for filtering reviews
@@ -74,6 +75,7 @@ export default function SpotDetailPage() {
   const [lightboxIndex, setLightboxIndex] = useState(0)
   const [reportModalOpen, setReportModalOpen] = useState(false)
   const [reportTarget, setReportTarget] = useState({ type: '', id: null })
+  const [confirmDialog, setConfirmDialog] = useState(null)
 
   // Admin edit fields
   const [editName, setEditName] = useState('')
@@ -238,7 +240,6 @@ export default function SpotDetailPage() {
   }
 
   const deleteReview = async (reviewId) => {
-    if (!window.confirm('Delete this review? This cannot be undone.')) return
     setDeletingReviewId(reviewId)
     try {
       const res = await apiFetch(`/api/v1/spots/${id}/reviews/${reviewId}`, { method: 'DELETE' })
@@ -277,7 +278,6 @@ export default function SpotDetailPage() {
   }
 
   const deleteSpot = async () => {
-    if (!window.confirm('Are you sure you want to delete this spot? This action cannot be undone.')) return
     setSaving(true)
     try {
       const res = await apiFetch(`/api/v1/spots/${id}`, { method: 'DELETE' })
@@ -363,7 +363,19 @@ export default function SpotDetailPage() {
               <button className="btn btn-primary" onClick={() => { trackEvent('view'); navigate(`/spots?mode=nearby&lat=${spot.latitude}&lng=${spot.longitude}&radiusKm=0.1`) }}> View on map</button>
               <button className="btn btn-ghost" style={{ border: '1px solid var(--border-color)' }} onClick={() => navigate(`/directions/${spot.id}`)}> Directions</button>
               <button className="btn btn-primary" onClick={saveSpot} disabled={saving}>{saving ? 'Saving...' : ' Save changes'}</button>
-              <button className="btn btn-ghost" onClick={deleteSpot} disabled={saving} style={{ color: 'var(--text-error)' }}> Delete spot</button>
+              <button
+                className="btn btn-ghost"
+                onClick={() => setConfirmDialog({
+                  title: 'Delete spot?',
+                  message: 'This action cannot be undone.',
+                  confirmLabel: 'Delete spot',
+                  onConfirm: deleteSpot
+                })}
+                disabled={saving}
+                style={{ color: 'var(--text-error)' }}
+              >
+                Delete spot
+              </button>
             </div>
           </div>
         ) : (
@@ -642,7 +654,19 @@ export default function SpotDetailPage() {
                     {(String(r.authorId) === String(userId)) && (
                       <span style={{ display: 'inline-flex', gap: '0.25rem', marginLeft: '0.5rem' }}>
                         <button className="btn btn-ghost btn-sm" onClick={() => startEditReview(r)} style={{ fontSize: '0.75rem', padding: '0.1rem 0.4rem', lineHeight: 1.2 }}>Edit</button>
-                        <button className="btn btn-ghost btn-sm" onClick={() => deleteReview(r.id)} disabled={deletingReviewId === r.id} style={{ fontSize: '0.75rem', padding: '0.1rem 0.4rem', lineHeight: 1.2, color: 'var(--text-error)' }}>{deletingReviewId === r.id ? '...' : 'Delete'}</button>
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          onClick={() => setConfirmDialog({
+                            title: 'Delete review?',
+                            message: 'This cannot be undone.',
+                            confirmLabel: 'Delete review',
+                            onConfirm: () => deleteReview(r.id)
+                          })}
+                          disabled={deletingReviewId === r.id}
+                          style={{ fontSize: '0.75rem', padding: '0.1rem 0.4rem', lineHeight: 1.2, color: 'var(--text-error)' }}
+                        >
+                          {deletingReviewId === r.id ? '...' : 'Delete'}
+                        </button>
                       </span>
                     )}
                     {isAuthenticated && (String(r.authorId) !== String(userId)) && (
@@ -671,6 +695,18 @@ export default function SpotDetailPage() {
           onSuccess={() => alert('Thank you. The content has been reported for review.')}
         />
       )}
+      <ConfirmDialog
+        open={!!confirmDialog}
+        title={confirmDialog?.title}
+        message={confirmDialog?.message}
+        confirmLabel={confirmDialog?.confirmLabel}
+        onCancel={() => setConfirmDialog(null)}
+        onConfirm={async () => {
+          const action = confirmDialog?.onConfirm
+          setConfirmDialog(null)
+          await action?.()
+        }}
+      />
     </div>
   )
 }

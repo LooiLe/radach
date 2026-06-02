@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useApi } from '../hooks/useApi'
 import { useAuth } from '../context/AuthContext'
 import StatusBadge from '../components/StatusBadge'
+import ConfirmDialog from '../components/ConfirmDialog'
 import './EventsPage.css'
 
 const MONTHS = [
@@ -27,7 +28,11 @@ export default function EventsPage() {
   const { apiFetch } = useApi()
   const { isAuthenticated, isAdmin, userId } = useAuth()
   const navigate = useNavigate()
-  const [view, setView] = useState('events') // 'events' | 'calendar' | 'submissions'
+  const [searchParams, setSearchParams] = useSearchParams()
+  const initialView = ['events', 'calendar', 'submissions'].includes(searchParams.get('view'))
+    ? searchParams.get('view')
+    : 'events'
+  const [view, setView] = useState(initialView) // 'events' | 'calendar' | 'submissions'
 
   // ---- Submissions State ----
   const [submissions, setSubmissions] = useState([])
@@ -51,9 +56,11 @@ export default function EventsPage() {
   const [modalMode, setModalMode] = useState('create') // 'create' | 'edit' | 'view'
   const [modalEntry, setModalEntry] = useState(null)
   const [clickedDate, setClickedDate] = useState(null)
+  const [selectedCalendarDay, setSelectedCalendarDay] = useState(null)
   const [showDeleteOptions, setShowDeleteOptions] = useState(false)
+  const [confirmDialog, setConfirmDialog] = useState(null)
   const [modalForm, setModalForm] = useState({
-    title: '', description: '', startTime: '', endTime: '', recurrenceRule: '', color: '#4f8cff'
+    title: '', description: '', location: '', startTime: '', endTime: '', recurrenceRule: '', color: '#4f8cff'
   })
 
   // ---- Load Events ----
@@ -73,6 +80,18 @@ export default function EventsPage() {
   }, [apiFetch, cityFilter, monthFilter, yearFilter, sortBy])
 
   useEffect(() => { loadEvents() }, [loadEvents])
+
+  useEffect(() => {
+    const nextView = ['events', 'calendar', 'submissions'].includes(searchParams.get('view'))
+      ? searchParams.get('view')
+      : 'events'
+    setView(nextView)
+  }, [searchParams])
+
+  const changeView = (nextView) => {
+    setView(nextView)
+    setSearchParams(nextView === 'events' ? {} : { view: nextView })
+  }
 
   // ---- Load Calendar Entries ----
   const loadCalendarEntries = useCallback(async () => {
@@ -135,7 +154,6 @@ export default function EventsPage() {
   }
 
   const deleteAdminEvent = async (eventId) => {
-    if (!window.confirm('Delete this public event? This will remove it for everyone.')) return
     try {
       const res = await apiFetch(`/api/v1/admin/events/${eventId}`, { method: 'DELETE' })
       if (res.ok) {
@@ -146,7 +164,6 @@ export default function EventsPage() {
   }
 
   const deleteMySubmission = async (eventId) => {
-    if (!window.confirm('Delete your submitted event?')) return
     try {
       const res = await apiFetch(`/api/v1/events/${eventId}`, { method: 'DELETE' })
       if (res.ok) {
@@ -252,6 +269,20 @@ export default function EventsPage() {
     setCalendarDate(prev => new Date(prev.getFullYear(), prev.getMonth() + delta, 1))
   }
 
+  const openDayAgenda = (date) => {
+    if (!isAuthenticated) return
+    setSelectedCalendarDay(new Date(date))
+  }
+
+  const handleCalendarDayClick = (date, dayEntries) => {
+    if (!isAuthenticated) return
+    if (dayEntries.length > 0) {
+      openDayAgenda(date)
+    } else {
+      openCreateModal(date)
+    }
+  }
+
   // ---- Calendar Entry CRUD ----
   const openCreateModal = (date) => {
     if (!isAuthenticated) return
@@ -262,6 +293,7 @@ export default function EventsPage() {
     setModalForm({
       title: '',
       description: '',
+      location: '',
       startTime: toLocalDatetimeString(d),
       endTime: toLocalDatetimeString(new Date(d.getTime() + 3600000)),
       recurrenceRule: '',
@@ -278,6 +310,7 @@ export default function EventsPage() {
     setModalForm({
       title: entry.title,
       description: entry.description || '',
+      location: getEntryLocation(entry),
       startTime: toLocalDatetimeString(new Date(entry.startTime)),
       endTime: entry.endTime ? toLocalDatetimeString(new Date(entry.endTime)) : '',
       recurrenceRule: entry.recurrenceRule || '',
@@ -286,11 +319,35 @@ export default function EventsPage() {
     setModalOpen(true)
   }
 
+  const openViewModal = (entry, clickedDateObj) => {
+    setModalMode('view')
+    setModalEntry(entry)
+    setClickedDate(clickedDateObj)
+    setShowDeleteOptions(false)
+    setModalForm({
+      title: entry.title,
+      description: entry.description || '',
+      location: getEntryLocation(entry),
+      startTime: toLocalDatetimeString(new Date(entry.startTime)),
+      endTime: entry.endTime ? toLocalDatetimeString(new Date(entry.endTime)) : '',
+      recurrenceRule: entry.recurrenceRule || '',
+      color: entry.color || '#4f8cff'
+    })
+    setModalOpen(true)
+  }
+
+  const switchToEditMode = () => {
+    if (!modalEntry) return
+    openEditModal(modalEntry, clickedDate)
+  }
+
   const saveEntry = async () => {
     if (!modalForm.title.trim() || !modalForm.startTime) return
     const payload = {
       title: modalForm.title.trim(),
       description: modalForm.description.trim() || null,
+      location: modalForm.location.trim() || null,
+      spotId: modalEntry?.spotId || null,
       startTime: new Date(modalForm.startTime).toISOString(),
       endTime: modalForm.endTime ? new Date(modalForm.endTime).toISOString() : null,
       recurrenceRule: modalForm.recurrenceRule || null,
@@ -318,7 +375,6 @@ export default function EventsPage() {
 
   const confirmDelete = async (mode) => {
     if (!modalEntry) return
-    if (!modalEntry.recurrenceRule && mode === 'all' && !window.confirm('Delete this calendar entry?')) return
     try {
       let qs = ''
       if (mode !== 'all' && clickedDate) {
@@ -345,6 +401,17 @@ export default function EventsPage() {
   const formatTime = (iso) => {
     if (!iso) return ''
     return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+  }
+
+  const formatDayHeading = (date) => {
+    if (!date) return ''
+    return date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+  }
+
+  const getEntryLocation = (entry) => {
+    if (entry?.location) return entry.location
+    const match = (entry?.description || '').match(/^Address:\s*(.+)$/m)
+    return match ? match[1].trim() : ''
   }
 
   const isSameDay = (iso1, iso2) => {
@@ -380,15 +447,15 @@ export default function EventsPage() {
 
       {/* View Toggle */}
       <div className="events-view-tabs">
-        <button className={`events-view-tab ${view === 'events' ? 'active' : ''}`} onClick={() => setView('events')}>
+        <button className={`events-view-tab ${view === 'events' ? 'active' : ''}`} onClick={() => changeView('events')}>
           📋 Events
         </button>
         {isAuthenticated && (
-          <button className={`events-view-tab ${view === 'submissions' ? 'active' : ''}`} onClick={() => setView('submissions')}>
+          <button className={`events-view-tab ${view === 'submissions' ? 'active' : ''}`} onClick={() => changeView('submissions')}>
             📤 My Submissions
           </button>
         )}
-        <button className={`events-view-tab ${view === 'calendar' ? 'active' : ''}`} onClick={() => setView('calendar')}>
+        <button className={`events-view-tab ${view === 'calendar' ? 'active' : ''}`} onClick={() => changeView('calendar')}>
           📅 My Calendar
         </button>
       </div>
@@ -531,7 +598,18 @@ export default function EventsPage() {
                     {(isAdmin || (userId && Number(event.submittedBy) === Number(userId))) && (
                       <>
                         <button className="event-action-btn" onClick={() => navigate('/add-event', { state: { editEvent: event } })}>✏️ Edit</button>
-                        <button className="event-action-btn" onClick={() => isAdmin ? deleteAdminEvent(event.id) : deleteMySubmission(event.id)} style={{ color: 'var(--danger)' }}>🗑️ Delete</button>
+                        <button
+                          className="event-action-btn"
+                          onClick={() => setConfirmDialog({
+                            title: isAdmin ? 'Delete public event?' : 'Delete your submitted event?',
+                            message: isAdmin ? 'This will remove it for everyone.' : 'This will permanently remove your submission.',
+                            confirmLabel: 'Delete event',
+                            onConfirm: () => isAdmin ? deleteAdminEvent(event.id) : deleteMySubmission(event.id)
+                          })}
+                          style={{ color: 'var(--danger)' }}
+                        >
+                          🗑️ Delete
+                        </button>
                       </>
                     )}
                   </div>
@@ -645,7 +723,18 @@ export default function EventsPage() {
                       </>
                     )}
                     <button className="event-action-btn" onClick={() => navigate('/add-event', { state: { editEvent: event } })}>✏️ Edit</button>
-                    <button className="event-action-btn" onClick={() => deleteMySubmission(event.id)} style={{ color: 'var(--danger)' }}>🗑️ Delete</button>
+                    <button
+                      className="event-action-btn"
+                      onClick={() => setConfirmDialog({
+                        title: 'Delete your submitted event?',
+                        message: 'This will permanently remove your submission.',
+                        confirmLabel: 'Delete event',
+                        onConfirm: () => deleteMySubmission(event.id)
+                      })}
+                      style={{ color: 'var(--danger)' }}
+                    >
+                      🗑️ Delete
+                    </button>
                   </div>
                 </div>
               ))}
@@ -706,11 +795,12 @@ export default function EventsPage() {
                 ))}
                 {getCalendarDays().map((day, idx) => {
                   const dayEntries = getEntriesForDay(day.date)
+                    .sort((a, b) => new Date(a.startTime) - new Date(b.startTime))
                   return (
                     <div
                       key={idx}
                       className={`calendar-day ${!day.currentMonth ? 'other-month' : ''} ${isToday(day.date) ? 'today' : ''}`}
-                      onClick={() => day.currentMonth && openCreateModal(day.date)}
+                      onClick={() => day.currentMonth && handleCalendarDayClick(day.date, dayEntries)}
                     >
                       <div className="calendar-day-number">{day.day}</div>
                       {dayEntries.slice(0, 3).map(entry => (
@@ -718,16 +808,19 @@ export default function EventsPage() {
                           key={entry.id}
                           className="calendar-event-pill"
                           style={{ background: `${entry.color || '#4f8cff'}22`, color: entry.color || '#4f8cff' }}
-                          onClick={(e) => { e.stopPropagation(); openEditModal(entry, day.date) }}
+                          onClick={(e) => { e.stopPropagation(); openViewModal(entry, day.date) }}
                           title={entry.title}
                         >
                           {entry.title}
                         </div>
                       ))}
                       {dayEntries.length > 3 && (
-                        <div className="calendar-event-pill" style={{ color: 'var(--text-muted)', fontSize: '0.62rem' }}>
+                        <button
+                          className="calendar-more-pill"
+                          onClick={(e) => { e.stopPropagation(); openDayAgenda(day.date) }}
+                        >
                           +{dayEntries.length - 3} more
-                        </div>
+                        </button>
                       )}
                     </div>
                   )
@@ -741,63 +834,161 @@ export default function EventsPage() {
         </>
       )}
 
+      {selectedCalendarDay && (
+        <div className="calendar-modal-overlay" onClick={() => setSelectedCalendarDay(null)}>
+          <div className="calendar-modal calendar-day-modal" onClick={e => e.stopPropagation()}>
+            <div className="calendar-modal-header">
+              <div>
+                <h3>{formatDayHeading(selectedCalendarDay)}</h3>
+                <p className="calendar-day-modal-subtitle">
+                  {getEntriesForDay(selectedCalendarDay).length} activit{getEntriesForDay(selectedCalendarDay).length === 1 ? 'y' : 'ies'}
+                </p>
+              </div>
+              <button className="calendar-modal-close" onClick={() => setSelectedCalendarDay(null)}>×</button>
+            </div>
+            <div className="calendar-day-agenda">
+              {getEntriesForDay(selectedCalendarDay)
+                .sort((a, b) => new Date(a.startTime) - new Date(b.startTime))
+                .map(entry => (
+                  <button
+                    key={entry.id}
+                    className="calendar-agenda-item"
+                    onClick={() => {
+                      setSelectedCalendarDay(null)
+                      openViewModal(entry, selectedCalendarDay)
+                    }}
+                  >
+                    <span className="calendar-agenda-color" style={{ background: entry.color || '#4f8cff' }} />
+                    <span className="calendar-agenda-time">
+                      {formatTime(entry.startTime)}
+                      {entry.endTime && ` - ${formatTime(entry.endTime)}`}
+                    </span>
+                    <span className="calendar-agenda-title">{entry.title}</span>
+                    {getEntryLocation(entry) && <span className="calendar-agenda-location">{getEntryLocation(entry)}</span>}
+                  </button>
+                ))}
+            </div>
+            <div className="calendar-modal-footer">
+              <button className="btn" onClick={() => setSelectedCalendarDay(null)}>Close</button>
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  const date = selectedCalendarDay
+                  setSelectedCalendarDay(null)
+                  openCreateModal(date)
+                }}
+              >
+                + New Entry
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ============ MODAL ============ */}
       {modalOpen && (
         <div className="calendar-modal-overlay" onClick={() => setModalOpen(false)}>
           <div className="calendar-modal" onClick={e => e.stopPropagation()}>
             <div className="calendar-modal-header">
-              <h3>{modalMode === 'edit' ? 'Edit Entry' : 'New Calendar Entry'}</h3>
+              <h3>
+                {modalMode === 'view' ? 'Calendar Details' : modalMode === 'edit' ? 'Edit Entry' : 'New Calendar Entry'}
+              </h3>
               <button className="calendar-modal-close" onClick={() => setModalOpen(false)}>✕</button>
             </div>
-            <div className="calendar-modal-body">
-              <div className="field">
-                <label className="label">Title</label>
-                <input className="input" value={modalForm.title} onChange={e => setModalForm(f => ({ ...f, title: e.target.value }))} placeholder="Event title..." />
+            {modalMode === 'view' ? (
+              <div className="calendar-modal-body calendar-details-body">
+                <div className="calendar-detail-title-row">
+                  <span className="calendar-detail-color" style={{ background: modalForm.color }} />
+                  <h4>{modalForm.title}</h4>
+                </div>
+                <div className="calendar-detail-block">
+                  <span className="calendar-detail-label">Time</span>
+                  <span className="calendar-detail-value">
+                    {formatDate(modalEntry.startTime)}
+                    {modalEntry.endTime && ` - ${formatTime(modalEntry.endTime)}`}
+                  </span>
+                </div>
+                {modalForm.location && (
+                  <div className="calendar-detail-block">
+                    <span className="calendar-detail-label">Location</span>
+                    <p className="calendar-detail-description">{modalForm.location}</p>
+                  </div>
+                )}
+                {modalForm.description && (
+                  <div className="calendar-detail-block">
+                    <span className="calendar-detail-label">Description</span>
+                    <p className="calendar-detail-description">{modalForm.description}</p>
+                  </div>
+                )}
+                {modalEntry.recurrenceRule && (
+                  <div className="calendar-detail-block">
+                    <span className="calendar-detail-label">Repeat</span>
+                    <span className="calendar-detail-value">
+                      {modalEntry.recurrenceRule === 'FREQ=DAILY' ? 'Daily' :
+                        modalEntry.recurrenceRule === 'FREQ=WEEKLY' ? 'Weekly' :
+                        modalEntry.recurrenceRule === 'FREQ=WEEKLY;INTERVAL=2' ? 'Bi-weekly' :
+                        modalEntry.recurrenceRule === 'FREQ=MONTHLY' ? 'Monthly' :
+                        modalEntry.recurrenceRule === 'FREQ=YEARLY' ? 'Yearly' :
+                        'Recurring'}
+                    </span>
+                  </div>
+                )}
               </div>
-              <div className="field">
-                <label className="label">Description</label>
-                <textarea className="input textarea" value={modalForm.description} onChange={e => setModalForm(f => ({ ...f, description: e.target.value }))} placeholder="Optional description..." rows={2} />
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+            ) : (
+              <div className="calendar-modal-body">
                 <div className="field">
-                  <label className="label">Start</label>
-                  <input type="datetime-local" className="input" value={modalForm.startTime} onChange={e => setModalForm(f => ({ ...f, startTime: e.target.value }))} />
+                  <label className="label">Title</label>
+                  <input className="input" value={modalForm.title} onChange={e => setModalForm(f => ({ ...f, title: e.target.value }))} placeholder="Event title..." />
                 </div>
                 <div className="field">
-                  <label className="label">End</label>
-                  <input type="datetime-local" className="input" value={modalForm.endTime} onChange={e => setModalForm(f => ({ ...f, endTime: e.target.value }))} />
+                  <label className="label">Description</label>
+                  <textarea className="input textarea" value={modalForm.description} onChange={e => setModalForm(f => ({ ...f, description: e.target.value }))} placeholder="Optional description..." rows={2} />
+                </div>
+                <div className="field">
+                  <label className="label">Location</label>
+                  <input className="input" value={modalForm.location} onChange={e => setModalForm(f => ({ ...f, location: e.target.value }))} placeholder="Optional place or address..." />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                  <div className="field">
+                    <label className="label">Start</label>
+                    <input type="datetime-local" className="input" value={modalForm.startTime} onChange={e => setModalForm(f => ({ ...f, startTime: e.target.value }))} />
+                  </div>
+                  <div className="field">
+                    <label className="label">End</label>
+                    <input type="datetime-local" className="input" value={modalForm.endTime} onChange={e => setModalForm(f => ({ ...f, endTime: e.target.value }))} />
+                  </div>
+                </div>
+                <div className="field">
+                  <label className="label">Repeat</label>
+                  <div className="recurrence-options">
+                    {RECURRENCE_OPTIONS.map(opt => (
+                      <button
+                        key={opt.value}
+                        className={`recurrence-option ${modalForm.recurrenceRule === opt.value ? 'active' : ''}`}
+                        onClick={() => setModalForm(f => ({ ...f, recurrenceRule: opt.value }))}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="field">
+                  <label className="label">Color</label>
+                  <div style={{ display: 'flex', gap: '0.4rem' }}>
+                    {ENTRY_COLORS.map(c => (
+                      <button
+                        key={c}
+                        onClick={() => setModalForm(f => ({ ...f, color: c }))}
+                        style={{
+                          width: 28, height: 28, borderRadius: '50%', border: modalForm.color === c ? '2px solid var(--text-primary)' : '2px solid transparent',
+                          background: c, cursor: 'pointer', transition: 'all 0.15s'
+                        }}
+                      />
+                    ))}
+                  </div>
                 </div>
               </div>
-              <div className="field">
-                <label className="label">Repeat</label>
-                <div className="recurrence-options">
-                  {RECURRENCE_OPTIONS.map(opt => (
-                    <button
-                      key={opt.value}
-                      className={`recurrence-option ${modalForm.recurrenceRule === opt.value ? 'active' : ''}`}
-                      onClick={() => setModalForm(f => ({ ...f, recurrenceRule: opt.value }))}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="field">
-                <label className="label">Color</label>
-                <div style={{ display: 'flex', gap: '0.4rem' }}>
-                  {ENTRY_COLORS.map(c => (
-                    <button
-                      key={c}
-                      onClick={() => setModalForm(f => ({ ...f, color: c }))}
-                      style={{
-                        width: 28, height: 28, borderRadius: '50%', border: modalForm.color === c ? '2px solid var(--text-primary)' : '2px solid transparent',
-                        background: c, cursor: 'pointer', transition: 'all 0.15s'
-                      }}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
+            )}
             {showDeleteOptions ? (
               <div className="calendar-modal-footer" style={{ flexDirection: 'column', gap: '0.5rem', width: '100%' }}>
                 <p style={{ margin: '0 0 0.5rem', fontSize: '0.9rem', fontWeight: 500 }}>Delete recurring event</p>
@@ -811,18 +1002,51 @@ export default function EventsPage() {
                 {modalMode === 'edit' && (
                   <button className="btn btn-danger" onClick={() => {
                     if (modalEntry.recurrenceRule) setShowDeleteOptions(true)
-                    else confirmDelete('all')
+                    else setConfirmDialog({
+                      title: 'Delete calendar entry?',
+                      message: 'This will permanently remove this calendar entry.',
+                      confirmLabel: 'Delete entry',
+                      onConfirm: () => confirmDelete('all')
+                    })
                   }} style={{ marginRight: 'auto' }}>Delete</button>
                 )}
                 <button className="btn" onClick={() => setModalOpen(false)}>Cancel</button>
-                <button className="btn btn-primary" onClick={saveEntry}>
-                  {modalMode === 'edit' ? 'Save Changes' : 'Create Entry'}
-                </button>
+                {modalMode === 'view' ? (
+                  <>
+                    {modalEntry?.eventId && (
+                      <button className="btn btn-primary" onClick={() => navigate(`/event/${modalEntry.eventId}`)}>
+                        View Event
+                      </button>
+                    )}
+                    {modalEntry?.spotId && (
+                      <button className="btn btn-primary" onClick={() => navigate(`/spot/${modalEntry.spotId}`)}>
+                        View Spot
+                      </button>
+                    )}
+                    <button className="btn btn-primary" onClick={switchToEditMode}>Edit</button>
+                  </>
+                ) : (
+                  <button className="btn btn-primary" onClick={saveEntry}>
+                    {modalMode === 'edit' ? 'Save Changes' : 'Create Entry'}
+                  </button>
+                )}
               </div>
             )}
           </div>
         </div>
       )}
+      <ConfirmDialog
+        open={!!confirmDialog}
+        title={confirmDialog?.title}
+        message={confirmDialog?.message}
+        confirmLabel={confirmDialog?.confirmLabel}
+        onCancel={() => setConfirmDialog(null)}
+        onConfirm={async () => {
+          const action = confirmDialog?.onConfirm
+          setConfirmDialog(null)
+          await action?.()
+        }}
+      />
     </div>
   )
 }

@@ -124,6 +124,9 @@ export default function Navbar() {
         <Link to="/spots" className={`menu-item ${isActive('/spots') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
           <span className="menu-icon"></span> Spots
         </Link>
+        <Link to="/itineraries" className={`menu-item ${isActive('/itineraries') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
+          <span className="menu-icon"></span> Itineraries
+        </Link>
         <Link to="/events" className={`menu-item ${isActive('/events') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
           <span className="menu-icon"></span> Events
         </Link>

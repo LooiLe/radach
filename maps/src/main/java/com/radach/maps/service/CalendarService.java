@@ -42,6 +42,8 @@ public class CalendarService {
         entry.setUserId(userId);
         entry.setTitle(request.title());
         entry.setDescription(request.description());
+        entry.setLocation(request.location());
+        entry.setSpotId(request.spotId());
         entry.setStartTime(request.startTime());
         entry.setEndTime(request.endTime());
         entry.setRecurrenceRule(request.recurrenceRule());
@@ -66,6 +68,8 @@ public class CalendarService {
 
         entry.setTitle(request.title());
         entry.setDescription(request.description());
+        entry.setLocation(request.location());
+        entry.setSpotId(request.spotId());
         entry.setStartTime(request.startTime());
         entry.setEndTime(request.endTime());
         entry.setRecurrenceRule(request.recurrenceRule());
@@ -116,8 +120,10 @@ public class CalendarService {
                 entry.getId(),
                 entry.getUserId(),
                 entry.getEventId(),
+                entry.getSpotId(),
                 entry.getTitle(),
                 entry.getDescription(),
+                entry.getLocation(),
                 entry.getStartTime(),
                 entry.getEndTime(),
                 entry.getRecurrenceRule(),

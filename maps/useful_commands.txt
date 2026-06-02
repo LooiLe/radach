@@ -66,5 +66,12 @@ UPDATE users SET role = 'SUPER_ADMIN' WHERE email = 'your@email.com';
 # ENVIRONMENT VARIABLES
 # ============================================
 
-scp .env root@93.127.194.132:/opt/radach-maps/.env
+scp .env.production root@93.127.194.132:/opt/radach-maps/.env
 ssh root@93.127.194.132 "systemctl restart radach-maps"
+
+# ============================================
+# STRIPE / LOCAL DEVELOPMENT
+# ============================================
+
+# Run this locally so Stripe can forward webhooks to your local dev server:
+stripe listen --forward-to localhost:8080/api/v1/webhooks/stripe

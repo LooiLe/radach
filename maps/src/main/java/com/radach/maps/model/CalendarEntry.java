@@ -24,11 +24,15 @@ public class CalendarEntry {
     /** Nullable — null means this is a user-created custom entry, not linked to an event. */
     private Long eventId;
 
+    private Long spotId;
+
     @Column(nullable = false)
     private String title;
 
     @Column(columnDefinition = "text")
     private String description;
+
+    private String location;
 
     @Column(nullable = false)
     private Instant startTime;
@@ -61,11 +65,17 @@ public class CalendarEntry {
     public Long getEventId() { return eventId; }
     public void setEventId(Long eventId) { this.eventId = eventId; }
 
+    public Long getSpotId() { return spotId; }
+    public void setSpotId(Long spotId) { this.spotId = spotId; }
+
     public String getTitle() { return title; }
     public void setTitle(String title) { this.title = title; }
 
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
+
+    public String getLocation() { return location; }
+    public void setLocation(String location) { this.location = location; }
 
     public Instant getStartTime() { return startTime; }
     public void setStartTime(Instant startTime) { this.startTime = startTime; }

@@ -3,6 +3,7 @@ import Navbar from './components/Navbar'
 import ProtectedRoute from './components/ProtectedRoute'
 import AdminRoute from './components/AdminRoute'
 import FloatingAddButton from './components/FloatingAddButton'
+import BrowserDialogProvider from './components/BrowserDialogProvider'
 import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
@@ -22,10 +23,14 @@ import AddEventPage from './pages/AddEventPage'
 import EventDetailPage from './pages/EventDetailPage'
 import SubmitTrailPathPage from './pages/SubmitTrailPathPage'
 import TrailPathDetailPage from './pages/TrailPathDetailPage'
+import MyItinerariesPage from './pages/MyItinerariesPage'
+import ItineraryPlannerPage from './pages/ItineraryPlannerPage'
+import ItineraryDetailPage from './pages/ItineraryDetailPage'
+import PaymentSuccessPage from './pages/PaymentSuccessPage'
 
 export default function App() {
   return (
-    <>
+    <BrowserDialogProvider>
       <Navbar />
        <Routes>
          <Route path="/" element={<LandingPage />} />
@@ -48,8 +53,12 @@ export default function App() {
          <Route path="/add-spot" element={<ProtectedRoute><AddSpotPage /></ProtectedRoute>} />
          <Route path="/add-event" element={<ProtectedRoute><AddEventPage /></ProtectedRoute>} />
          <Route path="/admin" element={<AdminRoute><AdminDashboardPage /></AdminRoute>} />
-       </Routes>
+         <Route path="/itineraries" element={<ProtectedRoute><MyItinerariesPage /></ProtectedRoute>} />
+         <Route path="/itineraries/plan" element={<ProtectedRoute><ItineraryPlannerPage /></ProtectedRoute>} />
+         <Route path="/itineraries/:id" element={<ProtectedRoute><ItineraryDetailPage /></ProtectedRoute>} />
+         <Route path="/payment/success" element={<ProtectedRoute><PaymentSuccessPage /></ProtectedRoute>} />
+      </Routes>
       <FloatingAddButton />
-    </>
+    </BrowserDialogProvider>
   )
 }
