@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useApi } from '../hooks/useApi'
+import { useToast } from '../components/ToastProvider'
 import './MyItinerariesPage.css'
 
 export default function MyItinerariesPage() {
   const { apiFetch } = useApi()
   const navigate = useNavigate()
+  const { toast } = useToast()
   const [itineraries, setItineraries] = useState([])
   const [credits, setCredits] = useState(0)
   const [subscription, setSubscription] = useState(null)
@@ -14,6 +16,7 @@ export default function MyItinerariesPage() {
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [calendarMessage, setCalendarMessage] = useState(null)
   const [addingCalendarId, setAddingCalendarId] = useState(null)
+  const [cloningId, setCloningId] = useState(null)
 
   useEffect(() => {
     loadData()
@@ -54,11 +57,30 @@ export default function MyItinerariesPage() {
         setItineraries(prev => prev.filter(it => it.id !== id))
         setDeleteTarget(null)
       } else {
-        alert('Failed to delete itinerary')
+        toast.error('Failed to delete itinerary')
       }
     } catch (err) {
       console.error('Delete failed', err)
-      alert('Failed to delete itinerary')
+      toast.error('Failed to delete itinerary')
+    }
+  }
+
+  async function handleClone(event, itinerary) {
+    event.stopPropagation()
+    setCloningId(itinerary.id)
+    try {
+      const res = await apiFetch(`/api/v1/itineraries/${itinerary.id}/clone`, { method: 'POST' })
+      if (res.ok) {
+        const cloned = await res.json()
+        setItineraries(prev => [cloned, ...prev])
+      } else {
+        toast.error('Failed to duplicate itinerary')
+      }
+    } catch (err) {
+      console.error('Clone failed', err)
+      toast.error('Failed to duplicate itinerary')
+    } finally {
+      setCloningId(null)
     }
   }
 
@@ -238,11 +260,11 @@ export default function MyItinerariesPage() {
       if (res.ok && data.checkoutUrl) {
         window.location.href = data.checkoutUrl
       } else {
-        alert(data.error || 'Payment checkout initialization failed')
+        toast.error(data.error || 'Payment checkout initialization failed')
       }
     } catch (e) {
       console.error(e)
-      alert('Failed to connect to Stripe')
+      toast.error('Failed to connect to Stripe')
     }
   }
 
@@ -257,11 +279,11 @@ export default function MyItinerariesPage() {
       if (res.ok && data.checkoutUrl) {
         window.location.href = data.checkoutUrl
       } else {
-        alert(data.error || 'Subscription checkout initialization failed')
+        toast.error(data.error || 'Subscription checkout initialization failed')
       }
     } catch (e) {
       console.error(e)
-      alert('Failed to connect to Stripe')
+      toast.error('Failed to connect to Stripe')
     }
   }
 
@@ -384,6 +406,13 @@ export default function MyItinerariesPage() {
                 </button>
                 <button onClick={(e) => { e.stopPropagation(); navigate(`/itineraries/${it.id}`) }}>
                   View
+                </button>
+                <button
+                  className="clone-btn"
+                  disabled={cloningId === it.id}
+                  onClick={(e) => handleClone(e, it)}
+                >
+                  {cloningId === it.id ? 'Cloning...' : 'Duplicate'}
                 </button>
                 <button
                   className="delete-btn"

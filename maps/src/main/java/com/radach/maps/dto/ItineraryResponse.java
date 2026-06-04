@@ -14,6 +14,7 @@ public record ItineraryResponse(
         String source,
         List<StopResponse> stops,
         int stopCount,
+        String shareToken,
         Instant createdAt,
         Instant updatedAt
 ) {}

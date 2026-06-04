@@ -4,6 +4,7 @@ import ProtectedRoute from './components/ProtectedRoute'
 import AdminRoute from './components/AdminRoute'
 import FloatingAddButton from './components/FloatingAddButton'
 import BrowserDialogProvider from './components/BrowserDialogProvider'
+import { ToastProvider } from './components/ToastProvider'
 import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
@@ -26,12 +27,15 @@ import TrailPathDetailPage from './pages/TrailPathDetailPage'
 import MyItinerariesPage from './pages/MyItinerariesPage'
 import ItineraryPlannerPage from './pages/ItineraryPlannerPage'
 import ItineraryDetailPage from './pages/ItineraryDetailPage'
+import ItinerarySharePage from './pages/ItinerarySharePage'
 import PaymentSuccessPage from './pages/PaymentSuccessPage'
 
 export default function App() {
   return (
-    <BrowserDialogProvider>
-      <Navbar />
+    <ToastProvider>
+      <BrowserDialogProvider>
+        <Navbar />
+
        <Routes>
          <Route path="/" element={<LandingPage />} />
          <Route path="/login" element={<LoginPage />} />
@@ -56,9 +60,11 @@ export default function App() {
          <Route path="/itineraries" element={<ProtectedRoute><MyItinerariesPage /></ProtectedRoute>} />
          <Route path="/itineraries/plan" element={<ProtectedRoute><ItineraryPlannerPage /></ProtectedRoute>} />
          <Route path="/itineraries/:id" element={<ProtectedRoute><ItineraryDetailPage /></ProtectedRoute>} />
+         <Route path="/itineraries/share/:shareToken" element={<ItinerarySharePage />} />
          <Route path="/payment/success" element={<ProtectedRoute><PaymentSuccessPage /></ProtectedRoute>} />
       </Routes>
       <FloatingAddButton />
-    </BrowserDialogProvider>
+     </BrowserDialogProvider>
+    </ToastProvider>
   )
 }

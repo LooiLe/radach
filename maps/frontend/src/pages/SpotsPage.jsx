@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { memo, useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from 'react-leaflet'
 import { useSearchParams } from 'react-router-dom'
 import L from 'leaflet'
@@ -152,6 +152,38 @@ function ZoomControls() {
   )
 }
 
+const SpotResultsList = memo(function SpotResultsList({ filteredSpots, status }) {
+  return (
+    <div className="spots-list">
+      {filteredSpots.length === 0 && status && !status.includes('Loading') && (
+        <div className="empty-state">No spots found.</div>
+      )}
+      {filteredSpots.slice(0, 100).map(s => (
+        s.isGlobal ? (
+          <article key={s.id} className="spot-card glass" style={{ cursor: 'default' }}>
+            <div className="spot-card-header">
+              <div className="spot-card-title">
+                <img src="/icons/stash--pin-location-light.svg" alt={`${s.type} icon`} className="spot-card-type-icon" />
+                <div>
+                  <h3 className="spot-card-name">{s.name} <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 400 }}>Global</span></h3>
+                  <p className="spot-card-meta">{s.type} - {s.address}</p>
+                </div>
+              </div>
+            </div>
+          </article>
+        ) : (
+          <SpotCard key={s.id} spot={s} />
+        )
+      ))}
+      {filteredSpots.length > 100 && (
+        <div className="spots-limit-info" style={{ padding: '1rem', textAlign: 'center', fontSize: '0.85rem', color: 'var(--text-secondary)', borderTop: '1px dashed var(--border)' }}>
+          Showing top 100 of {filteredSpots.length} spots. Use filters or search to find specific spots.
+        </div>
+      )}
+    </div>
+  )
+})
+
 export default function SpotsPage() {
   const { apiFetch } = useApi()
   const [spots, setSpots] = useState([])
@@ -168,6 +200,8 @@ export default function SpotsPage() {
   const [suggestions, setSuggestions] = useState([])
   const [bounds, setBounds] = useState([])
   const geocodeTimer = useRef(null)
+  const suggestionsAbort = useRef(null)
+  const suggestionsRequestId = useRef(0)
 
   // Category filter state
   const [categoriesList, setCategoriesList] = useState([])
@@ -205,6 +239,13 @@ export default function SpotsPage() {
     fetchCatList()
   }, [apiFetch])
 
+  useEffect(() => {
+    return () => {
+      clearTimeout(geocodeTimer.current)
+      suggestionsAbort.current?.abort()
+    }
+  }, [])
+
   const toggleCategory = (categoryId) => {
     if (categoryId === 'all') {
       const allSelected = Object.keys(selectedCategories).filter(k => k !== 'all').every(k => selectedCategories[k] === true)
@@ -222,10 +263,15 @@ export default function SpotsPage() {
     }
   }
 
-  const filteredSpots = spots.filter(spot => {
+  const filteredSpots = useMemo(() => spots.filter(spot => {
     const normalized = (spot.type || '').trim().toLowerCase().replace('é', 'e')
     return selectedCategories[normalized]
-  })
+  }), [spots, selectedCategories])
+
+  const filteredSpotCounts = useMemo(() => ({
+    db: filteredSpots.filter(s => !s.isGlobal).length,
+    global: filteredSpots.filter(s => s.isGlobal).length,
+  }), [filteredSpots])
 
   const loadSpots = useCallback(async (filters) => {
     setStatus('Loading spots...')
@@ -422,7 +468,6 @@ export default function SpotsPage() {
     } else {
       // Default search - load popular spots
       loadSpots({ sortBy: pSort, mode: pMode })
-      loadSpots({ sortBy: pSort, mode: pMode })
     }
     /* eslint-enable react-hooks/set-state-in-effect */
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -434,9 +479,7 @@ export default function SpotsPage() {
       if (spots.length > 0) {
         const globalCount = spots.filter(s => s.isGlobal).length
         if (globalCount > 0) {
-          const filteredDbCount = filteredSpots.filter(s => !s.isGlobal).length
-          const filteredGlobalCount = filteredSpots.filter(s => s.isGlobal).length
-          msg += ` (${filteredDbCount} from Radach, ${filteredGlobalCount} nearby)`
+          msg += ` (${filteredSpotCounts.db} from Radach, ${filteredSpotCounts.global} nearby)`
         }
       }
       msg += '.'
@@ -449,28 +492,37 @@ export default function SpotsPage() {
   const handlePlaceInput = (q) => {
     setPlace(q)
     clearTimeout(geocodeTimer.current)
+    suggestionsAbort.current?.abort()
+    const requestId = ++suggestionsRequestId.current
     if (q.length < 2) {
       setSuggestions([]);
       return
     }
     geocodeTimer.current = setTimeout(async () => {
+      const controller = new AbortController()
+      suggestionsAbort.current = controller
       try {
         let combinedSuggestions = []
 
         // 1. Fetch from local backend spots
         try {
-          const res = await apiFetch(`/api/v1/spots/search?q=${encodeURIComponent(q)}&limit=5`)
+          const res = await apiFetch(`/api/v1/spots/search?q=${encodeURIComponent(q)}&limit=5`, {
+            signal: controller.signal,
+          })
           const data = await res.json()
           if (res.ok && data?.length > 0) {
             combinedSuggestions = [...data]
           }
-        } catch (e) { console.error('Backend search error:', e) }
+        } catch (e) {
+          if (e.name !== 'AbortError') console.error('Backend search error:', e)
+        }
 
         // 2. Only fetch from Nominatim in 'nearby' mode (place mode = database only)
         if (searchMode === 'nearby') {
           try {
             const nomRes = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=3`, {
-              headers: { 'Accept-Language': 'en' }
+              headers: { 'Accept-Language': 'en' },
+              signal: controller.signal,
             })
             const nomData = await nomRes.json()
             if (nomData?.length > 0) {
@@ -486,15 +538,20 @@ export default function SpotsPage() {
               const uniqueFormatted = formatted.filter(f => !existingNames.has(f.name?.toLowerCase()))
               combinedSuggestions = [...combinedSuggestions, ...uniqueFormatted]
             }
-          } catch (e) { console.error('Nominatim search error:', e) }
+          } catch (e) {
+            if (e.name !== 'AbortError') console.error('Nominatim search error:', e)
+          }
         }
 
-        setSuggestions(combinedSuggestions)
+        if (requestId === suggestionsRequestId.current && !controller.signal.aborted) {
+          setSuggestions(combinedSuggestions)
+        }
       } catch (error) {
+        if (error.name === 'AbortError') return
         console.error('Error fetching suggestions:', error)
-        setSuggestions([])
+        if (requestId === suggestionsRequestId.current) setSuggestions([])
       }
-    }, 400)
+    }, 250)
   }
 
   const selectSuggestion = (spot) => {
@@ -799,28 +856,7 @@ export default function SpotsPage() {
 
 
 
-        <div className="spots-list">
-          {filteredSpots.length === 0 && status && !status.includes('Loading') && (
-            <div className="empty-state">No spots found.</div>
-          )}
-          {filteredSpots.map(s => (
-            s.isGlobal ? (
-              <article key={s.id} className="spot-card glass" style={{ cursor: 'default' }}>
-                <div className="spot-card-header">
-                  <div className="spot-card-title">
-                    <img src="/icons/stash--pin-location-light.svg" alt={`${s.type} icon`} className="spot-card-type-icon" />
-                    <div>
-                      <h3 className="spot-card-name">{s.name} <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 400 }}>🌐 Global</span></h3>
-                      <p className="spot-card-meta">{s.type} · {s.address}</p>
-                    </div>
-                  </div>
-                </div>
-              </article>
-            ) : (
-              <SpotCard key={s.id} spot={s} />
-            )
-          ))}
-        </div>
+        <SpotResultsList filteredSpots={filteredSpots} status={status} />
       </div>
     </div>
   )

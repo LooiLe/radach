@@ -84,10 +84,40 @@ public class SpotService {
                 .collect(Collectors.toMap(com.radach.maps.model.User::getId, java.util.function.Function.identity()));
 
         // Batch-load vibe tags for all spots to avoid N+1
+        List<SpotVibeTag> spotVibeTags = spotVibeRepo.findBySpotIdIn(spotIds);
+        List<Long> vibeTagIds = spotVibeTags.stream()
+                .map(SpotVibeTag::getVibeTagId)
+                .distinct()
+                .toList();
+
+        Map<Long, VibeTagDefinition> vibeDefs = vibeTagIds.isEmpty() ? Map.of() :
+                vibeDefRepo.findAllById(vibeTagIds).stream()
+                        .collect(Collectors.toMap(VibeTagDefinition::getId, java.util.function.Function.identity()));
+
+        Map<Long, List<SpotVibeTag>> tagsBySpotId = spotVibeTags.stream()
+                .collect(Collectors.groupingBy(SpotVibeTag::getSpotId));
+
         Map<Long, List<VibeTagDTO>> vibeTagMap = spotIds.stream()
                 .collect(Collectors.toMap(
                         id -> id,
-                        id -> loadVibeTags(id)
+                        id -> {
+                            List<SpotVibeTag> svts = tagsBySpotId.getOrDefault(id, List.of());
+                            return svts.stream()
+                                    .map(svt -> {
+                                        VibeTagDefinition def = vibeDefs.get(svt.getVibeTagId());
+                                        if (def == null) return null;
+                                        return new VibeTagDTO(
+                                                def.getId(),
+                                                def.getName(),
+                                                def.getEmoji(),
+                                                def.getCategory(),
+                                                svt.getConfidence(),
+                                                svt.getSource()
+                                        );
+                                    })
+                                    .filter(java.util.Objects::nonNull)
+                                    .toList();
+                        }
                 ));
 
         return spots.stream()
@@ -324,20 +354,25 @@ public class SpotService {
         };
     }
 
-    public List<SpotResponse> search(String q, Long authenticatedUserId) {
+    public List<SpotResponse> search(String q, Integer limit, Long authenticatedUserId) {
         if (q == null || q.isBlank()) {
             throw new IllegalArgumentException("Search query is required");
         }
         String trimmed = q.trim();
+        int effectiveLimit = limit != null && limit > 0 ? Math.min(limit, 100) : 100;
+        List<Spot> spots;
         // Handle vibe: prefix — search by vibe tag name
         if (trimmed.toLowerCase().startsWith("vibe:")) {
             String vibeName = trimmed.substring(5).trim();
             if (vibeName.isEmpty()) {
                 throw new IllegalArgumentException("Vibe tag name is required after 'vibe:'");
             }
-            return withRatingsAndInteractions(spotRepository.findByVibeTagName(vibeName), authenticatedUserId);
+            spots = spotRepository.findByVibeTagName(vibeName, effectiveLimit);
+        } else {
+            spots = spotRepository.searchByNameOrTag(trimmed, effectiveLimit);
         }
-        return withRatingsAndInteractions(spotRepository.searchByNameOrTag(trimmed), authenticatedUserId);
+
+        return withRatingsAndInteractions(spots, authenticatedUserId);
     }
     
     @Transactional

@@ -3,6 +3,7 @@ import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import { useApi } from '../hooks/useApi'
+import { useToast } from '../components/ToastProvider'
 import 'leaflet/dist/leaflet.css'
 import './ItineraryPlannerPage.css'
 
@@ -43,6 +44,26 @@ function createNumberMarkerIcon(number, type) {
   })
 }
 
+function haversineDistance(lat1, lng1, lat2, lng2) {
+  const R = 6371.0
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLng = (lng2 - lng1) * Math.PI / 180
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLng / 2) * Math.sin(dLng / 2)
+  return R * 2 * Math.asin(Math.sqrt(a))
+}
+
+function estimateTravelTimeMinutes(lat1, lng1, lat2, lng2) {
+  if (lat1 == null || lng1 == null || lat2 == null || lng2 == null) return 15
+  const dist = haversineDistance(lat1, lng1, lat2, lng2)
+  if (dist < 1.0) {
+    return Math.max(5, Math.round((dist * 12.0) + 2.0))
+  } else {
+    return Math.max(7, Math.round((dist * 2.0) + 3.0))
+  }
+}
+
 function MapEventsHandler({ onMapClick }) {
   useMapEvents({
     click(e) {
@@ -66,6 +87,7 @@ export default function ItineraryPlannerPage() {
   const { apiFetch } = useApi()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
+  const { toast } = useToast()
 
   // Tab state: 'manual' or 'generate'
   const plannerTabs = ['manual', 'generate']
@@ -99,6 +121,7 @@ export default function ItineraryPlannerPage() {
   const [centerLat, setCenterLat] = useState(13.7563) // default Bangkok
   const [centerLng, setCenterLng] = useState(100.5018)
   const [radiusKm, setRadiusKm] = useState(5.0)
+  const [strictCategories, setStrictCategories] = useState(false)
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('ONE_TIME')
   const [generating, setGenerating] = useState(false)
   const [genError, setGenError] = useState(null)
@@ -169,8 +192,17 @@ export default function ItineraryPlannerPage() {
       const endMin = endMinTotal % 60
       updated[i].endTime = `${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}`
 
-      // Add 15 mins travel buffer for the next start time
-      let nextMinTotal = endHour * 60 + endMin + 15
+      // Add dynamic travel buffer for the next start time
+      let buffer = 15
+      if (i < updated.length - 1) {
+        const curSpot = updated[i].spot
+        const nextSpot = updated[i + 1].spot
+        if (curSpot && nextSpot && curSpot.latitude != null && curSpot.longitude != null && nextSpot.latitude != null && nextSpot.longitude != null) {
+          buffer = estimateTravelTimeMinutes(curSpot.latitude, curSpot.longitude, nextSpot.latitude, nextSpot.longitude)
+        }
+      }
+
+      let nextMinTotal = endHour * 60 + endMin + buffer
       currentHour = Math.floor(nextMinTotal / 60) % 24
       currentMin = nextMinTotal % 60
     }
@@ -271,7 +303,7 @@ export default function ItineraryPlannerPage() {
 
   const handleAddStop = (spot) => {
     if (stops.some(s => s.spot.id === spot.id)) {
-      alert('This spot is already in your itinerary')
+      toast.warning('This spot is already in your itinerary')
       return
     }
     setStops(prev => [
@@ -306,11 +338,11 @@ export default function ItineraryPlannerPage() {
   // Save manual itinerary
   async function handleSaveManual() {
     if (!itTitle.trim()) {
-      alert('Please enter a title for your itinerary')
+      toast.warning('Please enter a title for your itinerary')
       return
     }
     if (stops.length === 0) {
-      alert('Please add at least one spot to your itinerary')
+      toast.warning('Please add at least one spot to your itinerary')
       return
     }
 
@@ -341,11 +373,11 @@ export default function ItineraryPlannerPage() {
         navigate(`/itineraries/${data.id}`)
       } else {
         const err = await res.json()
-        alert(`Error: ${err.error || 'Failed to save itinerary'}`)
+        toast.error(`Error: ${err.error || 'Failed to save itinerary'}`)
       }
     } catch (err) {
       console.error(err)
-      alert('Network error saving itinerary')
+      toast.error('Network error saving itinerary')
     } finally {
       setSaving(false)
     }
@@ -365,6 +397,7 @@ export default function ItineraryPlannerPage() {
       centerLongitude: centerLng,
       radiusKm: parseFloat(radiusKm),
       paymentMethod: selectedPaymentMethod,
+      strictCategories,
       cancelUrl: window.location.href
     }
 
@@ -407,11 +440,11 @@ export default function ItineraryPlannerPage() {
       if (res.ok && data.checkoutUrl) {
         window.location.href = data.checkoutUrl
       } else {
-        alert(data.error || 'Payment checkout initialization failed')
+        toast.error(data.error || 'Payment checkout initialization failed')
       }
     } catch (e) {
       console.error(e)
-      alert('Failed to connect to Stripe')
+      toast.error('Failed to connect to Stripe')
     }
   }
 
@@ -426,11 +459,11 @@ export default function ItineraryPlannerPage() {
       if (res.ok && data.checkoutUrl) {
         window.location.href = data.checkoutUrl
       } else {
-        alert(data.error || 'Subscription checkout initialization failed')
+        toast.error(data.error || 'Subscription checkout initialization failed')
       }
     } catch (e) {
       console.error(e)
-      alert('Failed to connect to Stripe')
+      toast.error('Failed to connect to Stripe')
     }
   }
 
@@ -850,6 +883,28 @@ export default function ItineraryPlannerPage() {
                   })}
                 </div>
                 {categoriesLoading && <div className="field-note">Loading categories...</div>}
+              </div>
+
+              <div className="form-group">
+                <label>Category Matching</label>
+                <div className="itinerary-mode-toggle">
+                  <button
+                    type="button"
+                    className={`mode-option ${!strictCategories ? 'active' : ''}`}
+                    onClick={() => setStrictCategories(false)}
+                  >
+                    <span>Balanced day</span>
+                    <small>Prefer selected categories, but add variety for a usable route.</small>
+                  </button>
+                  <button
+                    type="button"
+                    className={`mode-option ${strictCategories ? 'active' : ''}`}
+                    onClick={() => setStrictCategories(true)}
+                  >
+                    <span>Only selected types</span>
+                    <small>Use this when you only want selected categories.</small>
+                  </button>
+                </div>
               </div>
 
               <div className="form-group">

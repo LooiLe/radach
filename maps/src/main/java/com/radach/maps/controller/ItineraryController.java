@@ -10,6 +10,7 @@ import com.radach.maps.dto.ItineraryRequest;
 import com.radach.maps.dto.ItineraryResponse;
 import com.radach.maps.dto.StopRequest;
 import com.radach.maps.service.AuthenticatedUserService;
+import com.radach.maps.service.ItineraryGenerationService;
 import com.radach.maps.service.ItineraryService;
 
 @RestController
@@ -17,11 +18,14 @@ import com.radach.maps.service.ItineraryService;
 public class ItineraryController {
 
     private final ItineraryService itineraryService;
+    private final ItineraryGenerationService generationService;
     private final AuthenticatedUserService authenticatedUserService;
 
     public ItineraryController(ItineraryService itineraryService,
+                                ItineraryGenerationService generationService,
                                 AuthenticatedUserService authenticatedUserService) {
         this.itineraryService = itineraryService;
+        this.generationService = generationService;
         this.authenticatedUserService = authenticatedUserService;
     }
 
@@ -42,6 +46,11 @@ public class ItineraryController {
     public ResponseEntity<ItineraryResponse> getItinerary(Authentication auth, @PathVariable Long id) {
         Long userId = authenticatedUserService.getUserId(auth);
         return ResponseEntity.ok(itineraryService.getItinerary(userId, id));
+    }
+
+    @GetMapping("/share/{shareToken}")
+    public ResponseEntity<ItineraryResponse> getSharedItinerary(@PathVariable String shareToken) {
+        return ResponseEntity.ok(itineraryService.getSharedItinerary(shareToken));
     }
 
     @PutMapping("/{id}")
@@ -77,5 +86,24 @@ public class ItineraryController {
                                                          @PathVariable Long stopId) {
         Long userId = authenticatedUserService.getUserId(auth);
         return ResponseEntity.ok(itineraryService.removeStop(userId, id, stopId));
+    }
+
+    @PostMapping("/{id}/clone")
+    public ResponseEntity<ItineraryResponse> cloneItinerary(Authentication auth, @PathVariable Long id) {
+        Long userId = authenticatedUserService.getUserId(auth);
+        return ResponseEntity.ok(itineraryService.cloneItinerary(userId, id));
+    }
+
+    @PostMapping("/{id}/regenerate")
+    public ResponseEntity<ItineraryResponse> regenerateItinerary(Authentication auth, @PathVariable Long id) {
+        Long userId = authenticatedUserService.getUserId(auth);
+        return ResponseEntity.ok(generationService.regenerateItinerary(userId, id));
+    }
+
+    @PostMapping("/{id}/stops/{stopId}/swap")
+    public ResponseEntity<ItineraryResponse> swapStop(Authentication auth, @PathVariable Long id,
+                                                       @PathVariable Long stopId) {
+        Long userId = authenticatedUserService.getUserId(auth);
+        return ResponseEntity.ok(generationService.swapStop(userId, id, stopId));
     }
 }

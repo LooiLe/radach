@@ -65,4 +65,24 @@ public class SpotServiceSaveTest {
         String json = objectMapper.writeValueAsString(spot);
         assertThat(json).contains("\"isSaved\":true");
     }
+
+    @Test
+    public void testSearchLimit() {
+        User user = new User();
+        user.setEmail("search-limit-test@example.com");
+        user.setPasswordHash("hash");
+        user.setName("Test");
+        user.setRole(com.radach.maps.model.Role.USER);
+        userRepository.saveAndFlush(user);
+
+        spotService.create(new SpotRequest("Alpha Spot", "Cafe", "Address 1", 10.0, 10.0, List.of("tag"), List.of(), null, com.radach.maps.model.SpotStatus.ACTIVE), true, user.getId());
+        spotService.create(new SpotRequest("Beta Spot", "Cafe", "Address 2", 10.0, 10.0, List.of("tag"), List.of(), null, com.radach.maps.model.SpotStatus.ACTIVE), true, user.getId());
+        spotService.create(new SpotRequest("Gamma Spot", "Cafe", "Address 3", 10.0, 10.0, List.of("tag"), List.of(), null, com.radach.maps.model.SpotStatus.ACTIVE), true, user.getId());
+
+        List<SpotResponse> results = spotService.search("Spot", 2, user.getId());
+        assertThat(results).hasSize(2);
+
+        List<SpotResponse> results2 = spotService.search("Spot", 1, user.getId());
+        assertThat(results2).hasSize(1);
+    }
 }

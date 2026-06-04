@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useApi } from '../hooks/useApi'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../components/ToastProvider'
 import { formatRating } from '../components/StarRating'
 import StatusBadge from '../components/StatusBadge'
 import Lightbox from '../components/Lightbox'
@@ -56,6 +57,7 @@ export default function SpotDetailPage() {
   const { id } = useParams()
   const { apiFetch } = useApi()
   const { isAdmin, isAuthenticated, userId } = useAuth()
+  const { toast } = useToast()
   const navigate = useNavigate()
   const [spot, setSpot] = useState(null)
   const [reviews, setReviews] = useState([])
@@ -157,7 +159,7 @@ export default function SpotDetailPage() {
       const newPhotoUrls = [];
       for (const file of files) {
         if (file.size > 5 * 1024 * 1024) {
-          alert(`File ${file.name} exceeds 5MB limit.`);
+          toast.warning(`File ${file.name} exceeds 5MB limit.`);
           continue;
         }
         const formData = new FormData();
@@ -168,12 +170,12 @@ export default function SpotDetailPage() {
           newPhotoUrls.push(data.url);
           newlyUploaded.current.push(data.url);
         } else {
-          alert(`Failed to upload ${file.name}`);
+          toast.error(`Failed to upload ${file.name}`);
         }
       }
       setEditPhotos(prev => [...prev, ...newPhotoUrls]);
     } catch (err) {
-      alert('Error uploading files');
+      toast.error('Error uploading files');
     } finally {
       setUploading(false);
       e.target.value = '';
@@ -270,10 +272,10 @@ export default function SpotDetailPage() {
       if (res.ok) {
         setSpot(data);
         newlyUploaded.current = []; // Clear tracking so they aren't deleted on unmount
-        alert('✓ Spot updated!')
+        toast.success('✓ Spot updated!')
       }
-      else { alert(data.error || 'Failed.') }
-    } catch { alert('Server error.') }
+      else { toast.error(data.error || 'Failed.') }
+    } catch { toast.error('Server error.') }
     finally { setSaving(false) }
   }
 
@@ -282,15 +284,15 @@ export default function SpotDetailPage() {
     try {
       const res = await apiFetch(`/api/v1/spots/${id}`, { method: 'DELETE' })
       if (res.ok) {
-        alert('Spot deleted successfully.')
+        toast.success('Spot deleted successfully.')
         navigate('/spots')
       } else {
         const data = await res.json()
-        alert(data.error || 'Failed to delete spot.')
+        toast.error(data.error || 'Failed to delete spot.')
         setSaving(false)
       }
     } catch {
-      alert('Could not reach server.')
+      toast.error('Could not reach server.')
       setSaving(false)
     }
   }
@@ -692,7 +694,7 @@ export default function SpotDetailPage() {
           contentType={reportTarget.type} 
           contentId={reportTarget.id} 
           onClose={() => setReportModalOpen(false)}
-          onSuccess={() => alert('Thank you. The content has been reported for review.')}
+          onSuccess={() => toast.success('Thank you. The content has been reported for review.')}
         />
       )}
       <ConfirmDialog

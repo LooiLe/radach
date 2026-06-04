@@ -5,6 +5,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { useApi } from '../hooks/useApi'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../components/ToastProvider'
 import Lightbox from '../components/Lightbox'
 import ReportModal from '../components/ReportModal'
 import ConfirmDialog from '../components/ConfirmDialog'
@@ -104,6 +105,7 @@ export default function TrailPathDetailPage() {
   const navigate = useNavigate()
   const { apiFetch } = useApi()
   const { userId } = useAuth()
+  const { toast } = useToast()
 
   const [path, setPath] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -169,7 +171,7 @@ export default function TrailPathDetailPage() {
           if (next >= positions.length) {
             clearInterval(interval)
             setIsSimulating(false)
-            alert('✓ Simulation complete! You reached the end of the trail.')
+            toast.success('✓ Simulation complete! You reached the end of the trail.')
             return prev
           }
           const p1 = positions[prev]
@@ -251,7 +253,7 @@ export default function TrailPathDetailPage() {
         navigate(`/spot/${path?.spotId}`)
       }
     } catch {
-      alert('Error deleting path.')
+      toast.error('Error deleting path.')
     } finally {
       setDeleting(false)
     }
@@ -259,7 +261,7 @@ export default function TrailPathDetailPage() {
 
   const handleUpvote = async () => {
     if (!userId) {
-      alert('Please log in to upvote.')
+      toast.warning('Please log in to upvote.')
       return
     }
     setUpvoting(true)
@@ -270,7 +272,7 @@ export default function TrailPathDetailPage() {
         setPath(data)
       }
     } catch {
-      alert('Error upvoting path.')
+      toast.error('Error upvoting path.')
     } finally {
       setUpvoting(false)
     }
@@ -297,13 +299,13 @@ export default function TrailPathDetailPage() {
           },
           (error) => {
             console.warn('GPS error:', error)
-            alert('GPS Error: ' + (error.message || 'Unable to retrieve location'))
+            toast.error('GPS Error: ' + (error.message || 'Unable to retrieve location'))
           },
           { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
         )
         setWatchId(id)
       } else {
-        alert('Geolocation is not supported by your browser.')
+        toast.warning('Geolocation is not supported by your browser.')
       }
     }
   }
@@ -554,7 +556,7 @@ export default function TrailPathDetailPage() {
           contentType={reportTarget.type} 
           contentId={reportTarget.id} 
           onClose={() => setReportModalOpen(false)}
-          onSuccess={() => alert('Thank you. This trail path has been reported for review.')}
+          onSuccess={() => toast.success('Thank you. This trail path has been reported for review.')}
         />
       )}
       <ConfirmDialog

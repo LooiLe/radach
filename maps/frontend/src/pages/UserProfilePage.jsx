@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useApi } from '../hooks/useApi'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../components/ToastProvider'
 import StarRating, { formatRating } from '../components/StarRating'
 import '../components/ReportModal.css'
 import './UserProfilePage.css'
@@ -10,7 +11,8 @@ export default function UserProfilePage() {
   const { id } = useParams()
   const { apiFetch } = useApi()
   const { userId, isExpert: authIsExpert, logout } = useAuth()
-const navigate = useNavigate()
+  const { toast } = useToast()
+  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   
   const handleLogout = () => {
@@ -107,7 +109,7 @@ const navigate = useNavigate()
       if (res.ok) {
         logout()
         navigate('/login')
-        alert('Your account has been deleted successfully.')
+        toast.success('Your account has been deleted successfully.')
       } else {
         const data = await res.json()
         setDeleteError(data.error || 'Failed to delete account.')
@@ -390,7 +392,7 @@ const navigate = useNavigate()
                                 if (!uploadRes.ok) throw new Error('Upload failed');
                                 const { url } = await uploadRes.json();
                                 setEditForm({ ...editForm, profilePicture: url });
-                              } catch (err) { alert('Failed to upload picture.'); }
+                              } catch (err) { toast.error('Failed to upload picture.'); }
                             }} />
                           </label>
                           {(editForm.profilePicture || (editForm.profilePicture === '' ? false : user?.profilePicture)) && (

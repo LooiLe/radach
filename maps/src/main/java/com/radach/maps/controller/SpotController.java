@@ -68,8 +68,12 @@ public class SpotController {
     }
 
     @GetMapping("/search")
-    public List<SpotResponse> searchSpots(@RequestParam String q, org.springframework.security.core.Authentication auth) {
-        return spotService.search(q, getUserIdOrNull(auth));
+    public List<SpotResponse> searchSpots(
+            @RequestParam String q,
+            @RequestParam(required = false) Integer limit,
+            org.springframework.security.core.Authentication auth
+    ) {
+        return spotService.search(q, limit, getUserIdOrNull(auth));
     }
 
     @GetMapping("/{id}")

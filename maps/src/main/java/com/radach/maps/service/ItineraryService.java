@@ -56,6 +56,12 @@ public class ItineraryService {
         return toResponse(itinerary, true);
     }
 
+    public ItineraryResponse getSharedItinerary(String shareToken) {
+        Itinerary itinerary = itineraryRepository.findByShareToken(shareToken)
+                .orElseThrow(() -> new IllegalArgumentException("Itinerary not found"));
+        return toResponse(itinerary, true);
+    }
+
     @Transactional
     public ItineraryResponse createItinerary(Long userId, ItineraryRequest request) {
         Itinerary itinerary = new Itinerary();
@@ -171,6 +177,40 @@ public class ItineraryService {
         return toResponse(itinerary, true);
     }
 
+    @Transactional
+    public ItineraryResponse cloneItinerary(Long userId, Long itineraryId) {
+        Itinerary source = itineraryRepository.findByIdAndUserId(itineraryId, userId)
+                .orElseThrow(() -> new IllegalArgumentException("Itinerary not found"));
+
+        Itinerary clone = new Itinerary();
+        clone.setUserId(userId);
+        clone.setTitle("Copy of " + source.getTitle());
+        clone.setDescription(source.getDescription());
+        clone.setDate(LocalDate.now());
+        clone.setStatus(ItineraryStatus.DRAFT);
+        clone.setSource(source.getSource());
+        clone.setGenerationPreferences(source.getGenerationPreferences());
+        clone = itineraryRepository.save(clone);
+
+        // Copy all stops
+        List<ItineraryStop> sourceStops = stopRepository.findByItineraryIdOrderByStopOrderAsc(itineraryId);
+        List<ItineraryStop> clonedStops = new ArrayList<>();
+        for (ItineraryStop srcStop : sourceStops) {
+            ItineraryStop newStop = new ItineraryStop();
+            newStop.setItineraryId(clone.getId());
+            newStop.setSpotId(srcStop.getSpotId());
+            newStop.setStopOrder(srcStop.getStopOrder());
+            newStop.setStartTime(srcStop.getStartTime());
+            newStop.setEndTime(srcStop.getEndTime());
+            newStop.setDurationMinutes(srcStop.getDurationMinutes());
+            newStop.setNotes(srcStop.getNotes());
+            clonedStops.add(newStop);
+        }
+        stopRepository.saveAll(clonedStops);
+
+        return toResponse(clone, true);
+    }
+
     // --- Helper methods ---
 
     private void saveStops(Long itineraryId, List<StopRequest> stopRequests) {
@@ -245,6 +285,7 @@ public class ItineraryService {
                 itinerary.getSource().name(),
                 stopResponses,
                 stopCount,
+                itinerary.getShareToken(),
                 itinerary.getCreatedAt(),
                 itinerary.getUpdatedAt()
         );

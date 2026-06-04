@@ -1,5 +1,6 @@
 package com.radach.maps.controller;
 
+import java.time.Instant;
 import java.util.Comparator;
 import java.util.Map;
 
@@ -7,11 +8,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
+import com.radach.maps.model.ProcessedStripeEvent;
 import com.radach.maps.model.SubscriptionStatus;
 import com.radach.maps.model.SubscriptionTier;
 import com.radach.maps.model.UserSubscription;
+import com.radach.maps.repository.ProcessedStripeEventRepository;
 import com.radach.maps.repository.UserSubscriptionRepository;
 import com.radach.maps.service.AuthenticatedUserService;
 import com.radach.maps.service.CreditService;
@@ -36,22 +40,26 @@ public class StripeController {
     private final ItineraryGenerationService generationService;
     private final UserSubscriptionRepository subscriptionRepository;
     private final AuthenticatedUserService authenticatedUserService;
+    private final ProcessedStripeEventRepository processedStripeEventRepository;
 
     public StripeController(StripeService stripeService,
                             CreditService creditService,
                             ItineraryGenerationService generationService,
                             UserSubscriptionRepository subscriptionRepository,
-                            AuthenticatedUserService authenticatedUserService) {
+                            AuthenticatedUserService authenticatedUserService,
+                            ProcessedStripeEventRepository processedStripeEventRepository) {
         this.stripeService = stripeService;
         this.creditService = creditService;
         this.generationService = generationService;
         this.subscriptionRepository = subscriptionRepository;
         this.authenticatedUserService = authenticatedUserService;
+        this.processedStripeEventRepository = processedStripeEventRepository;
     }
 
     // ─── Webhook (public, no JWT) ───
 
     @PostMapping("/webhooks/stripe")
+    @Transactional
     public ResponseEntity<String> handleWebhook(@RequestBody String payload,
                                                  @RequestHeader("Stripe-Signature") String sigHeader) {
         Event event;
@@ -63,6 +71,20 @@ public class StripeController {
         }
 
         log.info("Received Stripe event: {} (id={})", event.getType(), event.getId());
+
+        // Idempotency check:
+        if (processedStripeEventRepository.existsById(event.getId())) {
+            log.info("Stripe event {} already processed, skipping", event.getId());
+            return ResponseEntity.ok("OK");
+        }
+
+        // Save event to prevent concurrent/future duplicate processing
+        try {
+            processedStripeEventRepository.saveAndFlush(new ProcessedStripeEvent(event.getId(), event.getType(), Instant.now()));
+        } catch (Exception e) {
+            log.warn("Stripe event {} could not be saved (probably duplicate), skipping: {}", event.getId(), e.getMessage());
+            return ResponseEntity.ok("OK");
+        }
 
         EventDataObjectDeserializer deserializer = event.getDataObjectDeserializer();
         StripeObject stripeObject;

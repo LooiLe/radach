@@ -12,4 +12,6 @@ public interface ItineraryRepository extends JpaRepository<Itinerary, Long> {
     List<Itinerary> findByUserIdOrderByCreatedAtDesc(Long userId);
 
     Optional<Itinerary> findByIdAndUserId(Long id, Long userId);
+
+    Optional<Itinerary> findByShareToken(String shareToken);
 }
