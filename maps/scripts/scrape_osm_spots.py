@@ -1,57 +1,64 @@
-import json
+﻿import json
 import os
+import argparse
 import requests
 import urllib.parse
 
 # Overpass API URL
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 
-# Overpass QL Query for Phuket spots inside bounding box
-# Latitude: 7.7 to 8.25, Longitude: 98.15 to 98.5
-QUERY = """
+# Default bounding box is Phuket.
+DEFAULT_BBOX = (7.7, 98.15, 8.25, 98.5)
+DEFAULT_CITY = "Phuket"
+DEFAULT_COUNTRY = "Thailand"
+
+def build_query(bbox):
+    south, west, north, east = bbox
+    bbox_text = f"{south},{west},{north},{east}"
+    return f"""
 [out:json][timeout:180];
 (
   // Beach
-  nwr["natural"="beach"](7.7,98.15,8.25,98.5);
+  nwr["natural"="beach"]({bbox_text});
   
   // Viewpoint
-  nwr["tourism"="viewpoint"](7.7,98.15,8.25,98.5);
+  nwr["tourism"="viewpoint"]({bbox_text});
   
   // Market
-  nwr["amenity"="marketplace"](7.7,98.15,8.25,98.5);
-  nwr["shop"="market"](7.7,98.15,8.25,98.5);
+  nwr["amenity"="marketplace"]({bbox_text});
+  nwr["shop"="market"]({bbox_text});
   
   // Cafe
-  nwr["amenity"="cafe"](7.7,98.15,8.25,98.5);
+  nwr["amenity"="cafe"]({bbox_text});
   
   // Restaurant
-  nwr["amenity"="restaurant"](7.7,98.15,8.25,98.5);
-  nwr["amenity"="food_court"](7.7,98.15,8.25,98.5);
+  nwr["amenity"="restaurant"]({bbox_text});
+  nwr["amenity"="food_court"]({bbox_text});
   
   // Bar
-  nwr["amenity"="bar"](7.7,98.15,8.25,98.5);
-  nwr["amenity"="pub"](7.7,98.15,8.25,98.5);
-  nwr["amenity"="nightclub"](7.7,98.15,8.25,98.5);
+  nwr["amenity"="bar"]({bbox_text});
+  nwr["amenity"="pub"]({bbox_text});
+  nwr["amenity"="nightclub"]({bbox_text});
   
   // Hotel
-  nwr["tourism"="hotel"](7.7,98.15,8.25,98.5);
-  nwr["tourism"="resort"](7.7,98.15,8.25,98.5);
-  nwr["tourism"="guest_house"](7.7,98.15,8.25,98.5);
-  nwr["tourism"="hostel"](7.7,98.15,8.25,98.5);
+  nwr["tourism"="hotel"]({bbox_text});
+  nwr["tourism"="resort"]({bbox_text});
+  nwr["tourism"="guest_house"]({bbox_text});
+  nwr["tourism"="hostel"]({bbox_text});
   
   // Activities / Attractions
-  nwr["tourism"="theme_park"](7.7,98.15,8.25,98.5);
-  nwr["tourism"="zoo"](7.7,98.15,8.25,98.5);
-  nwr["tourism"="aquarium"](7.7,98.15,8.25,98.5);
-  nwr["tourism"="museum"](7.7,98.15,8.25,98.5);
-  nwr["tourism"="gallery"](7.7,98.15,8.25,98.5);
-  nwr["tourism"="attraction"](7.7,98.15,8.25,98.5);
-  nwr["leisure"="water_park"](7.7,98.15,8.25,98.5);
-  nwr["leisure"="park"](7.7,98.15,8.25,98.5);
+  nwr["tourism"="theme_park"]({bbox_text});
+  nwr["tourism"="zoo"]({bbox_text});
+  nwr["tourism"="aquarium"]({bbox_text});
+  nwr["tourism"="museum"]({bbox_text});
+  nwr["tourism"="gallery"]({bbox_text});
+  nwr["tourism"="attraction"]({bbox_text});
+  nwr["leisure"="water_park"]({bbox_text});
+  nwr["leisure"="park"]({bbox_text});
   
   // Trailhead / Trail
-  nwr["tourism"="trailhead"](7.7,98.15,8.25,98.5);
-  nwr["highway"="trailhead"](7.7,98.15,8.25,98.5);
+  nwr["tourism"="trailhead"]({bbox_text});
+  nwr["highway"="trailhead"]({bbox_text});
 );
 out center;
 """
@@ -78,7 +85,7 @@ CATEGORY_IMAGES = {
         'https://images.unsplash.com/photo-1564507592333-c60657eea523?w=800&auto=format&fit=crop',
         'https://images.unsplash.com/photo-1529290130-4ca3753253ae?w=800&auto=format&fit=crop'
     ],
-    'Café': [
+    'Cafe': [
         'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=800&auto=format&fit=crop',
         'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=800&auto=format&fit=crop',
         'https://images.unsplash.com/photo-1511920170033-f8396924c348?w=800&auto=format&fit=crop',
@@ -155,14 +162,14 @@ CATEGORY_IMAGES = {
     ]
 }
 
-def fetch_osm_data():
+def fetch_osm_data(query):
     print("Fetching data from Overpass API (this can take up to a minute)...")
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Referer': 'https://github.com/LooiLe/radach'
     }
     try:
-        response = requests.post(OVERPASS_URL, data={'data': QUERY}, headers=headers, timeout=200)
+        response = requests.post(OVERPASS_URL, data={'data': query}, headers=headers, timeout=200)
         response.raise_for_status()
         data = response.json()
         elements = data.get('elements', [])
@@ -181,7 +188,7 @@ def map_osm_category(tags):
     elif tags.get('amenity') == 'marketplace' or tags.get('shop') == 'market':
         return 'Market'
     elif tags.get('amenity') == 'cafe':
-        return 'Café'
+        return 'Cafe'
     elif tags.get('amenity') in ['restaurant', 'food_court']:
         return 'Restaurant'
     elif tags.get('amenity') in ['bar', 'pub', 'nightclub']:
@@ -195,14 +202,22 @@ def map_osm_category(tags):
         return 'Trail'
     return 'Other'
 
-def clean_address(tags):
+def clean_address(tags, city=DEFAULT_CITY, country=DEFAULT_COUNTRY):
+    def clean_part(value):
+        if value is None:
+            return None
+        value = str(value).strip()
+        if not value or value.lower() in {"none", "null", "nan"}:
+            return None
+        return value
+
     parts = []
     # Try to build a readable address from OSM tags
-    housenumber = tags.get('addr:housenumber')
-    street = tags.get('addr:street')
-    suburb = tags.get('addr:suburb')
-    city = tags.get('addr:city')
-    postcode = tags.get('addr:postcode')
+    housenumber = clean_part(tags.get('addr:housenumber'))
+    street = clean_part(tags.get('addr:street'))
+    suburb = clean_part(tags.get('addr:suburb'))
+    tag_city = clean_part(tags.get('addr:city'))
+    postcode = clean_part(tags.get('addr:postcode'))
     
     if housenumber and street:
         parts.append(f"{housenumber} {street}")
@@ -211,8 +226,8 @@ def clean_address(tags):
         
     if suburb:
         parts.append(suburb)
-    if city:
-        parts.append(city)
+    if tag_city:
+        parts.append(tag_city)
     if postcode:
         parts.append(postcode)
         
@@ -220,13 +235,12 @@ def clean_address(tags):
     
     # Fallback if no specific address parts found
     if not address:
-        address = "Phuket, Thailand"
+        address = f"{city}, {country}"
     else:
-        # Append Phuket/Thailand if not already in there
-        if "phuket" not in address.lower():
-            address += ", Phuket"
-        if "thailand" not in address.lower():
-            address += ", Thailand"
+        if city and city.lower() not in address.lower():
+            address += f", {city}"
+        if country and country.lower() not in address.lower():
+            address += f", {country}"
             
     return address
 
@@ -242,7 +256,7 @@ def clean_website(tags):
 def get_photos_for_spot(spot_name, category):
     return []
 
-def process_elements(elements):
+def process_elements(elements, city=DEFAULT_CITY, country=DEFAULT_COUNTRY, max_spots=None):
     spots = []
     seen_keys = set() # (name.lower(), round(lat, 4), round(lon, 4)) to avoid exact duplicates
     
@@ -269,7 +283,7 @@ def process_elements(elements):
             continue
             
         category = map_osm_category(tags)
-        address = clean_address(tags)
+        address = clean_address(tags, city, country)
         website = clean_website(tags)
         photos = get_photos_for_spot(name, category)
         
@@ -288,6 +302,9 @@ def process_elements(elements):
             'website_url': website,
             'photos': photos
         })
+
+        if max_spots and len(spots) >= max_spots:
+            break
         
     return spots
 
@@ -298,11 +315,11 @@ def escape_sql_string(s):
     escaped = s.replace("'", "''")
     return f"'{escaped}'"
 
-def generate_migration_file(spots, output_path):
+def generate_migration_file(spots, output_path, city=DEFAULT_CITY):
     print(f"Generating migration file at {output_path} with {len(spots)} spots...")
     
     lines = [
-        "-- Migration to import scraped Phuket locations from OpenStreetMap via Overpass API with pre-populated photos",
+        f"-- Migration to import scraped {city} locations from OpenStreetMap via Overpass API",
         "-- Total spots: " + str(len(spots)),
         ""
     ]
@@ -323,7 +340,7 @@ def generate_migration_file(spots, output_path):
             lon = spot['longitude']
             
             # tags column takes a JSON array of strings
-            tags_json = json.dumps(["Phuket", spot['type']])
+            tags_json = json.dumps([city, spot['type']])
             tags_esc = escape_sql_string(tags_json)
             
             status_esc = "'ACTIVE'"
@@ -347,20 +364,37 @@ def generate_migration_file(spots, output_path):
         
     print("Migration file generated successfully.")
 
+def parse_bbox(value):
+    parts = [p.strip() for p in value.split(",")]
+    if len(parts) != 4:
+        raise argparse.ArgumentTypeError("bbox must be south,west,north,east")
+    try:
+        return tuple(float(p) for p in parts)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("bbox values must be numbers") from exc
+
 def main():
-    elements = fetch_osm_data()
+    parser = argparse.ArgumentParser(description="Scrape OSM spots into a Flyway migration.")
+    parser.add_argument("--city", default=DEFAULT_CITY)
+    parser.add_argument("--country", default=DEFAULT_COUNTRY)
+    parser.add_argument("--bbox", type=parse_bbox, default=DEFAULT_BBOX, help="south,west,north,east")
+    parser.add_argument("--output", default="src/main/resources/db/migration/V41__import_phuket_spots.sql")
+    parser.add_argument("--max-spots", type=int, default=None)
+    args = parser.parse_args()
+
+    query = build_query(args.bbox)
+    elements = fetch_osm_data(query)
     if not elements:
         print("No elements fetched. Exiting.")
         return
         
-    spots = process_elements(elements)
+    spots = process_elements(elements, args.city, args.country, args.max_spots)
     print(f"Processed and cleaned down to {len(spots)} unique spots.")
     
-    # Define migration output path
-    migration_file = "src/main/resources/db/migration/V41__import_phuket_spots.sql"
-    migration_path = os.path.abspath(migration_file)
+    migration_path = os.path.abspath(args.output)
     
-    generate_migration_file(spots, migration_path)
+    generate_migration_file(spots, migration_path, args.city)
 
 if __name__ == "__main__":
     main()
+

@@ -84,41 +84,73 @@ function MapRefSetter({ mapRefCallback }) {
   return null
 }
 
-function createPrintRouteOverlay(map, mapBounds) {
-  if (!map || mapBounds.length <= 1) return null
+function createPrintMapOverlay(map, printPoints) {
+  if (!map || printPoints.length === 0) return null
 
   const mapContainer = map.getContainer()
   const wrapper = mapContainer.closest('.detail-map-container')
   if (!wrapper) return null
 
-  wrapper.querySelector('.print-route-overlay')?.remove()
+  wrapper.querySelector('.print-map-overlay')?.remove()
 
   const size = map.getSize()
-  const points = mapBounds
-    .map(([lat, lng]) => {
-      const point = map.latLngToContainerPoint([lat, lng])
-      return `${point.x},${point.y}`
-    })
-    .join(' ')
+  const containerPoints = printPoints.map(point => ({
+    ...point,
+    containerPoint: map.latLngToContainerPoint([point.lat, point.lng])
+  }))
 
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
-  svg.setAttribute('class', 'print-route-overlay')
-  svg.setAttribute('viewBox', `0 0 ${size.x} ${size.y}`)
-  svg.setAttribute('preserveAspectRatio', 'none')
+  const overlay = document.createElement('div')
+  overlay.setAttribute('class', 'print-map-overlay')
 
-  const route = document.createElementNS('http://www.w3.org/2000/svg', 'polyline')
-  route.setAttribute('points', points)
-  route.setAttribute('fill', 'none')
-  route.setAttribute('stroke', '#7c3aed')
-  route.setAttribute('stroke-width', '5')
-  route.setAttribute('stroke-linecap', 'round')
-  route.setAttribute('stroke-linejoin', 'round')
-  route.setAttribute('stroke-dasharray', '10 12')
-  route.setAttribute('stroke-opacity', '0.96')
+  if (containerPoints.length > 1) {
+    const points = containerPoints
+      .map(point => `${point.containerPoint.x},${point.containerPoint.y}`)
+      .join(' ')
 
-  svg.appendChild(route)
-  wrapper.appendChild(svg)
-  return svg
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+    svg.setAttribute('class', 'print-route-overlay')
+    svg.setAttribute('viewBox', `0 0 ${size.x} ${size.y}`)
+    svg.setAttribute('preserveAspectRatio', 'none')
+
+    const route = document.createElementNS('http://www.w3.org/2000/svg', 'polyline')
+    route.setAttribute('points', points)
+    route.setAttribute('fill', 'none')
+    route.setAttribute('stroke', '#7c3aed')
+    route.setAttribute('stroke-width', '5')
+    route.setAttribute('stroke-linecap', 'round')
+    route.setAttribute('stroke-linejoin', 'round')
+    route.setAttribute('stroke-dasharray', '10 12')
+    route.setAttribute('stroke-opacity', '0.96')
+
+    svg.appendChild(route)
+    overlay.appendChild(svg)
+  }
+
+  containerPoints.forEach(point => {
+    const marker = document.createElement('div')
+    marker.setAttribute('class', 'print-map-marker')
+    marker.style.left = `${Math.round(point.containerPoint.x - 19)}px`
+    marker.style.top = `${Math.round(point.containerPoint.y - 42)}px`
+    marker.innerHTML = `
+      <div class="print-marker-number">${point.number}</div>
+      <img src="${getIconUrl(point.type)}" alt="${point.type || 'Spot'}" />
+    `
+    overlay.appendChild(marker)
+  })
+
+  wrapper.appendChild(overlay)
+  return overlay
+}
+
+function buildPrintPoints(stops) {
+  return stops
+    .filter(stop => stop.spotLatitude != null && stop.spotLongitude != null)
+    .map((stop, idx) => ({
+      lat: stop.spotLatitude,
+      lng: stop.spotLongitude,
+      type: stop.spotType,
+      number: idx + 1
+    }))
 }
 
 export default function ItinerarySharePage() {
@@ -290,6 +322,19 @@ export default function ItinerarySharePage() {
     const map = mapInstanceRef.current
     if (!pageEl) { window.print(); return }
 
+    const printPoints = buildPrintPoints(itinerary.stops || [])
+    let printMapOverlay = null
+
+    const renderPrintMapOverlay = () => {
+      if (!map) return
+      printMapOverlay?.remove()
+      map.invalidateSize({ animate: false })
+      if (mapBounds.length > 0) {
+        map.fitBounds(mapBounds, { padding: [40, 40], maxZoom: 15, animate: false })
+      }
+      printMapOverlay = createPrintMapOverlay(map, printPoints)
+    }
+
     pageEl.classList.add('print-layout-active')
 
     requestAnimationFrame(() => {
@@ -305,7 +350,6 @@ export default function ItinerarySharePage() {
             // Convert translate3d to translate (2D) inside the map container.
             // Chrome's print renderer skips GPU-composited layers created by translate3d.
             const saved = []
-            const printRouteOverlay = createPrintRouteOverlay(map, mapBounds)
             const mapContainer = map ? map.getContainer() : null
             if (mapContainer) {
               mapContainer.querySelectorAll('*').forEach(el => {
@@ -320,15 +364,18 @@ export default function ItinerarySharePage() {
               })
             }
 
+            renderPrintMapOverlay()
+
             let didCleanup = false
             const cleanupPrintLayout = () => {
               if (didCleanup) return
               didCleanup = true
 
               // Restore original 3D transforms and screen layout
-              printRouteOverlay?.remove()
+              printMapOverlay?.remove()
               saved.forEach(({ el, transform }) => { el.style.transform = transform })
               pageEl.classList.remove('print-layout-active')
+              window.removeEventListener('beforeprint', renderPrintMapOverlay)
               window.removeEventListener('afterprint', cleanupPrintLayout)
               if (map) {
                 map.invalidateSize({ animate: false })
@@ -338,9 +385,10 @@ export default function ItinerarySharePage() {
               }
             }
 
+            window.addEventListener('beforeprint', renderPrintMapOverlay)
             window.addEventListener('afterprint', cleanupPrintLayout, { once: true })
             window.print()
-          }, 150)
+          }, 350)
         })
       })
     })

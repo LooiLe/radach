@@ -404,9 +404,6 @@ export default function MyItinerariesPage() {
                 >
                   {addingCalendarId === it.id ? 'Adding...' : 'Add to calendar'}
                 </button>
-                <button onClick={(e) => { e.stopPropagation(); navigate(`/itineraries/${it.id}`) }}>
-                  View
-                </button>
                 <button
                   className="clone-btn"
                   disabled={cloningId === it.id}
