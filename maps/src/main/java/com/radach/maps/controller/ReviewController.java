@@ -49,10 +49,11 @@ public class ReviewController {
     public Page<ReviewResponse> getReviews(
             @PathVariable Long spotId,
             @RequestParam(required = false) String type,
+            @RequestParam(required = false) String vibeTag,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        return reviewService.getReviews(spotId, type, page, size);
+        return reviewService.getReviews(spotId, type, vibeTag, page, size);
     }
 
     /** Edit an existing review. Triggers vibe re-analysis for the spot. */

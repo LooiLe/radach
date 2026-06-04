@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import StatusBadge from './StatusBadge'
 import { formatRating } from './StarRating'
 import { useApi } from '../hooks/useApi'
 import { useAuth } from '../context/AuthContext'
+import PortalPopover from './PortalPopover'
 import './SpotCard.css'
 
 export default function SpotCard({ spot, rank, style }) {
@@ -13,20 +13,57 @@ export default function SpotCard({ spot, rank, style }) {
   
   const [isLiked, setIsLiked] = useState(spot.isLiked || spot.liked || false)
   const [isSaved, setIsSaved] = useState(spot.isSaved || spot.saved || false)
+  const [friendLikeCount, setFriendLikeCount] = useState(spot.friendLikeCount || 0)
+  const [showFriendLikes, setShowFriendLikes] = useState(false)
+  const [friendLikes, setFriendLikes] = useState([])
+  const [loadingFriendLikes, setLoadingFriendLikes] = useState(false)
+  const [popoverPos, setPopoverPos] = useState({ top: 0, left: 0 })
+  const popoverRef = useRef(null)
 
-  const handleLike = async (e) => {
+  // Close popover on outside click using a ref-based approach
+  useEffect(() => {
+    if (!showFriendLikes) return
+
+    const handleOutsideClick = (e) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target)) {
+        setShowFriendLikes(false)
+      }
+    }
+
+    // Defer adding listener so the current click doesn't close it
+    const timer = setTimeout(() => {
+      document.addEventListener('click', handleOutsideClick)
+    }, 0)
+
+    return () => {
+      clearTimeout(timer)
+      document.removeEventListener('click', handleOutsideClick)
+    }
+  }, [showFriendLikes])
+
+  const handleLike = useCallback(async (e) => {
     e.stopPropagation()
     if (!isAuthenticated) return navigate('/login')
     const original = isLiked
+    const originalCount = friendLikeCount
     setIsLiked(!original)
     try {
       await apiFetch(`/api/v1/spots/${spot.id}/like`, { method: 'POST' })
+      if (isAuthenticated) {
+        const res = await apiFetch(`/api/v1/spots/${spot.id}/friend-likes`, { method: 'GET' })
+        if (res.ok) {
+          const data = await res.json()
+          setFriendLikes(data)
+          setFriendLikeCount(data.length)
+        }
+      }
     } catch {
       setIsLiked(original)
+      setFriendLikeCount(originalCount)
     }
-  }
+  }, [isAuthenticated, apiFetch, spot.id, navigate, isLiked, friendLikeCount])
 
-  const handleSave = async (e) => {
+  const handleSave = useCallback(async (e) => {
     e.stopPropagation()
     if (!isAuthenticated) return navigate('/login')
     const original = isSaved || spot.saved
@@ -38,7 +75,43 @@ export default function SpotCard({ spot, rank, style }) {
     } catch {
       setIsSaved(original)
     }
-  }
+  }, [isAuthenticated, apiFetch, spot.id, navigate, isSaved, spot.saved])
+
+  const handleFriendLikesClick = useCallback(async (e) => {
+    e.stopPropagation()
+    if (!isAuthenticated || friendLikeCount === 0) return
+    
+    if (showFriendLikes) {
+      setShowFriendLikes(false)
+      return
+    }
+    
+    // Capture button rect synchronously
+    const rect = e.currentTarget.getBoundingClientRect()
+    const spaceBelow = window.innerHeight - rect.bottom
+    const popoverHeight = 200
+    const top = spaceBelow >= popoverHeight + 4
+      ? rect.bottom + 4
+      : rect.top - popoverHeight - 4
+    setPopoverPos({
+      top: Math.max(4, Math.min(top, window.innerHeight - popoverHeight - 4)),
+      left: Math.max(8, Math.min(rect.left, window.innerWidth - 208)),
+    })
+    
+    setLoadingFriendLikes(true)
+    setShowFriendLikes(true)
+    try {
+      const res = await apiFetch(`/api/v1/spots/${spot.id}/friend-likes`, { method: 'GET' })
+      if (res.ok) {
+        const data = await res.json()
+        setFriendLikes(data)
+      }
+    } catch {
+      // ignore
+    } finally {
+      setLoadingFriendLikes(false)
+    }
+  }, [isAuthenticated, friendLikeCount, showFriendLikes, apiFetch, spot.id])
 
   const categoryIcons = {
     Restaurant: '/icons/material-symbols-light--chef-hat-outline.svg',
@@ -70,11 +143,20 @@ export default function SpotCard({ spot, rank, style }) {
       <div className="spot-card-footer">
         <div className="spot-card-footer-top">
           <div className="spot-card-footer-left">
-          <span className="spot-card-rating">{formatRating(spot.averageRating)}</span>
-          {rank != null ? (
+          <span className="spot-card-rating">{formatRating(spot.averageRating)}/5</span>
+          {rank != null && (
             <span className={`rank-badge rank-${rank <= 3 ? rank : 'other'}`}>{rank}</span>
-          ) : (
-            <StatusBadge status={spot.status} />
+          )}
+          {isAuthenticated && friendLikeCount > 0 && (
+            <>
+              <span className="spot-card-footer-divider">·</span>
+              <button
+                className="spot-card-friend-likes-btn"
+                onClick={handleFriendLikesClick}
+              >
+                Liked by {friendLikeCount} {friendLikeCount === 1 ? 'friend' : 'friends'}
+              </button>
+            </>
           )}
           </div>
           <div className="spot-card-actions">
@@ -90,10 +172,52 @@ export default function SpotCard({ spot, rank, style }) {
             </button>
           </div>
         </div>
+        {spot.vibeTags?.length > 0 && (
+          <div className="spot-card-tags">
+            {spot.vibeTags.slice(0, 3).map(vt => (
+              <span key={vt.id} className="spot-tag">
+                {vt.emoji && <span style={{ marginRight: '0.15rem' }}>{vt.emoji}</span>}
+                {vt.name}
+              </span>
+            ))}
+          </div>
+        )}
         {spot.tags?.length > 0 && (
           <div className="spot-card-tags">
             {spot.tags.slice(0, 3).map(t => <span key={t} className="spot-tag">{t}</span>)}
           </div>
+        )}
+        {showFriendLikes && (
+          <PortalPopover
+            ref={popoverRef}
+            style={{ top: popoverPos.top, left: popoverPos.left }}
+            onClick={e => e.stopPropagation()}
+          >
+            {loadingFriendLikes ? (
+              <div className="spot-card-friend-likes-loading">Loading...</div>
+            ) : friendLikes.length === 0 ? (
+              <div className="spot-card-friend-likes-loading">No friends yet</div>
+            ) : (
+              <div className="spot-card-friend-likes-list">
+                {friendLikes.map(friend => (
+                  <div
+                    key={friend.userId}
+                    className="spot-card-friend-like-item"
+                    onClick={() => navigate(`/profile/${friend.userId}`)}
+                  >
+                    <div className="spot-card-friend-like-avatar">
+                      {friend.profilePicture ? (
+                        <img src={friend.profilePicture} alt={friend.name} />
+                      ) : (
+                        <span>{friend.name?.charAt(0)?.toUpperCase() || '?'}</span>
+                      )}
+                    </div>
+                    <span className="spot-card-friend-like-name">{friend.name}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </PortalPopover>
         )}
       </div>
     </article>

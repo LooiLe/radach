@@ -5,6 +5,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.radach.maps.dto.FriendLikeDTO;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -78,6 +80,19 @@ public class SpotService {
         Set<Long> likedSpotIds = authenticatedUserId != null ? interactionRepository.findLikedSpotIdsByUserId(authenticatedUserId) : Set.of();
         Set<Long> savedSpotIds = authenticatedUserId != null ? interactionRepository.findSavedSpotIdsByUserId(authenticatedUserId) : Set.of();
 
+        // Compute friend like counts for batch
+        Set<Long> friendIds = authenticatedUserId != null ? friendshipService.getFirstDegreeConnections(authenticatedUserId) : Set.of();
+        Map<Long, Integer> friendLikeCounts;
+        if (!friendIds.isEmpty()) {
+            friendLikeCounts = interactionRepository.countFriendLikesBySpotIds(spotIds, friendIds).stream()
+                    .collect(Collectors.toMap(
+                            row -> (Long) row[0],
+                            row -> ((Number) row[1]).intValue()
+                    ));
+        } else {
+            friendLikeCounts = Map.of();
+        }
+
         Set<Long> submitterIds = spots.stream().map(Spot::getSubmittedBy).filter(id -> id != null).collect(Collectors.toSet());
         Map<Long, com.radach.maps.model.User> submitters = submitterIds.isEmpty() ? Map.of() : 
                 userRepository.findAllById(submitterIds).stream()
@@ -101,7 +116,8 @@ public class SpotService {
                             submitter != null ? submitter.getId() : null,
                             submitter != null ? submitter.getName() : null,
                             submitter != null && submitter.isExpert(),
-                            vibeTagMap.getOrDefault(spot.getId(), List.of())
+                            vibeTagMap.getOrDefault(spot.getId(), List.of()),
+                            friendLikeCounts.getOrDefault(spot.getId(), 0)
                     );
                 })
                 .toList();
@@ -146,6 +162,14 @@ public class SpotService {
             }
         }
         
+        int friendLikeCount = 0;
+        if (authenticatedUserId != null) {
+            Set<Long> friendIds = friendshipService.getFirstDegreeConnections(authenticatedUserId);
+            if (!friendIds.isEmpty()) {
+                friendLikeCount = (int) interactionRepository.countFriendLikesBySpotId(id, friendIds);
+            }
+        }
+        
         List<VibeTagDTO> vibeTags = loadVibeTags(id);
         com.radach.maps.model.User submitter = spot.getSubmittedBy() != null ? userRepository.findById(spot.getSubmittedBy()).orElse(null) : null;
         return new SpotResponse(
@@ -153,8 +177,22 @@ public class SpotService {
                 submitter != null ? submitter.getId() : null,
                 submitter != null ? submitter.getName() : null,
                 submitter != null && submitter.isExpert(),
-                vibeTags
+                vibeTags,
+                friendLikeCount
         );
+    }
+
+    /** Get the list of friends who liked a spot. */
+    public List<FriendLikeDTO> getFriendLikes(Long spotId, Long userId) {
+        Set<Long> friendIds = friendshipService.getFirstDegreeConnections(userId);
+        if (friendIds.isEmpty()) return List.of();
+        
+        List<Long> friendUserIds = interactionRepository.findFriendUserIdsWhoLikedSpot(spotId, friendIds);
+        if (friendUserIds.isEmpty()) return List.of();
+        
+        return userRepository.findAllById(friendUserIds).stream()
+                .map(u -> new FriendLikeDTO(u.getId(), u.getName(), u.getProfilePicture()))
+                .toList();
     }
 
     @Transactional

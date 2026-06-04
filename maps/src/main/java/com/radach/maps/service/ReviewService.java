@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
@@ -80,7 +81,7 @@ public class ReviewService {
         }
     }
 
-    public Page<ReviewResponse> getReviews(Long spotId, String type, int page, int size) {
+    public Page<ReviewResponse> getReviews(Long spotId, String type, String vibeTag, int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
 
         Page<Review> reviews;
@@ -90,6 +91,22 @@ public class ReviewService {
                     spotId, Status.APPROVED, reviewType, pageable);
         } else {
             reviews = reviewRepository.findBySpotIdAndStatus(spotId, Status.APPROVED, pageable);
+        }
+
+        // Filter by vibe tag keywords if requested
+        if (vibeTag != null && !vibeTag.isBlank()) {
+            List<Pattern> keywords = com.radach.maps.service.tagging.TagKeywords.getPatterns(vibeTag);
+            if (!keywords.isEmpty()) {
+                List<Review> filtered = reviews.getContent().stream()
+                        .filter(r -> {
+                            String body = r.getBody();
+                            if (body == null || body.isBlank()) return false;
+                            String lower = body.toLowerCase();
+                            return keywords.stream().anyMatch(p -> p.matcher(lower).find());
+                        })
+                        .toList();
+                reviews = new org.springframework.data.domain.PageImpl<>(filtered, reviews.getPageable(), filtered.size());
+            }
         }
 
         return enrichReviews(reviews);

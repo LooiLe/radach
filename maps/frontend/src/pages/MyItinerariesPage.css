@@ -473,3 +473,24 @@
   border: 1px solid #dc2626;
   color: #ffffff;
 }
+
+/* My Saved Spots link */
+.my-saved-spots-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 2.5rem;
+  padding: 0.5rem 0.75rem;
+  color: var(--text-secondary, #64748b);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+  border-radius: var(--radius-md, 8px);
+  transition: color 0.15s var(--ease);
+}
+
+.my-saved-spots-link:hover {
+  color: var(--text-primary, #0f172a);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}

@@ -152,12 +152,32 @@ function ZoomControls() {
   )
 }
 
+// Component that tracks map viewport bounds for sidebar filtering
+function MapBoundsTracker({ onBoundsChange }) {
+  const map = useMap()
+  useEffect(() => {
+    const updateBounds = () => {
+      const bounds = map.getBounds()
+      onBoundsChange(bounds)
+    }
+    updateBounds()
+    map.on('moveend', updateBounds)
+    map.on('zoomend', updateBounds)
+    return () => {
+      map.off('moveend', updateBounds)
+      map.off('zoomend', updateBounds)
+    }
+  }, [map, onBoundsChange])
+  return null
+}
+
 export default function SpotsPage() {
   const { apiFetch } = useApi()
   const [spots, setSpots] = useState([])
   const [status, setStatus] = useState('Loading spots...')
   const [searchParams] = useSearchParams()
   const [searchMode, setSearchMode] = useState(() => searchParams.get('mode') || 'place')
+  const [mapBounds, setMapBounds] = useState(null)
 
   // Geo search state
   const [place, setPlace] = useState('')
@@ -427,16 +447,34 @@ export default function SpotsPage() {
     /* eslint-enable react-hooks/set-state-in-effect */
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Compute visible spots (map viewport + category filter)
+  const getVisibleSpots = () => {
+    const viewportFiltered = mapBounds && spots.length > 0
+      ? spots.filter(s => {
+          const lat = s.latitude
+          const lng = s.longitude
+          return lat && lng && mapBounds.contains([lat, lng])
+        })
+      : filteredSpots
+    return viewportFiltered.filter(spot => {
+      const normalized = (spot.type || '').trim().toLowerCase().replace('é', 'e')
+      return selectedCategories[normalized]
+    })
+  }
+
   // Computed status text to avoid setState-in-effect lint warning
   const getStatusText = () => {
+    const visible = getVisibleSpots()
     if (status.endsWith('found.') || status.includes('spot found') || status.includes('spots found')) {
-      let msg = `${filteredSpots.length} spot${filteredSpots.length === 1 ? '' : 's'} found`
+      let msg = `${visible.length} spot${visible.length === 1 ? '' : 's'} found`
       if (spots.length > 0) {
         const globalCount = spots.filter(s => s.isGlobal).length
         if (globalCount > 0) {
-          const filteredDbCount = filteredSpots.filter(s => !s.isGlobal).length
-          const filteredGlobalCount = filteredSpots.filter(s => s.isGlobal).length
-          msg += ` (${filteredDbCount} from Radach, ${filteredGlobalCount} nearby)`
+          const filteredDbCount = visible.filter(s => !s.isGlobal).length
+          const filteredGlobalCount = visible.filter(s => s.isGlobal).length
+          if (filteredGlobalCount > 0 || filteredDbCount > 0) {
+            msg += ` (${filteredDbCount} from Radach, ${filteredGlobalCount} nearby)`
+          }
         }
       }
       msg += '.'
@@ -764,6 +802,7 @@ export default function SpotsPage() {
             attribution='Map tiles by <a href="https://stadiamaps.com/">Stadia Maps</a>, <a href="https://openmaptiles.org/">OpenMapTiles</a>, and <a href="http://openstreetmap.org">OpenStreetMap</a> contributors'
           />
           <MarkerClusterGroup spots={filteredSpots} createIcon={createMarkerIcon} />
+          <MapBoundsTracker onBoundsChange={setMapBounds} />
           {lat && lng && radius && (
             <Circle center={[parseFloat(lat), parseFloat(lng)]} radius={parseFloat(radius) * 1000}
               pathOptions={{ color: 'var(--border-color)', fillColor: 'var(--border-color)', fillOpacity: 0.08, weight: 2 }} />
@@ -800,10 +839,11 @@ export default function SpotsPage() {
 
 
         <div className="spots-list">
-          {filteredSpots.length === 0 && status && !status.includes('Loading') && (
-            <div className="empty-state">No spots found.</div>
-          )}
-          {filteredSpots.map(s => (
+          {(() => {
+            const categoryFiltered = getVisibleSpots()
+            return categoryFiltered.length === 0 && status && !status.includes('Loading') ? (
+              <div className="empty-state">No spots in this area.</div>
+            ) : categoryFiltered.map(s => (
             s.isGlobal ? (
               <article key={s.id} className="spot-card glass" style={{ cursor: 'default' }}>
                 <div className="spot-card-header">
@@ -819,7 +859,8 @@ export default function SpotsPage() {
             ) : (
               <SpotCard key={s.id} spot={s} />
             )
-          ))}
+          ))
+        })()}
         </div>
       </div>
     </div>

@@ -140,9 +140,6 @@ export default function Navbar() {
            <span className="menu-icon"></span> Notifications
            {unreadCount > 0 && <span className="notification-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>}
           </Link>
-        <Link to="/saved" className={`menu-item ${isActive('/saved') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
-          <span className="menu-icon"></span> Saved Spots
-        </Link>
         {isAuthenticated && (
           <Link to={`/user/${userId}`} className={`menu-item ${isActive(`/user/${userId}`) ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
             <span className="menu-icon"></span> My Profile

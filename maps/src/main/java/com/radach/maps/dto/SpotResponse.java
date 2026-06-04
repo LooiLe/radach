@@ -24,25 +24,31 @@ public record SpotResponse(
         Long submitterId,
         String submitterName,
         boolean submitterIsExpert,
-        List<VibeTagDTO> vibeTags
+        List<VibeTagDTO> vibeTags,
+        @com.fasterxml.jackson.annotation.JsonProperty("friendLikeCount") int friendLikeCount
 ) {
     /** Convenience constructor from entity + computed average rating (assumes no interactions). */
     public SpotResponse(Spot spot, Double averageRating) {
-        this(spot, averageRating, false, false, null, null, false, List.of());
+        this(spot, averageRating, false, false, null, null, false, List.of(), 0);
     }
     
     /** Convenience constructor from entity + computed average rating + user interactions. */
     public SpotResponse(Spot spot, Double averageRating, boolean isLiked, boolean isSaved) {
-        this(spot, averageRating, isLiked, isSaved, null, null, false, List.of());
+        this(spot, averageRating, isLiked, isSaved, null, null, false, List.of(), 0);
     }
 
     /** Full constructor with submitter info. */
     public SpotResponse(Spot spot, Double averageRating, boolean isLiked, boolean isSaved, Long submitterId, String submitterName, boolean submitterIsExpert) {
-        this(spot, averageRating, isLiked, isSaved, submitterId, submitterName, submitterIsExpert, List.of());
+        this(spot, averageRating, isLiked, isSaved, submitterId, submitterName, submitterIsExpert, List.of(), 0);
     }
 
     /** Full constructor with all fields including vibe tags. */
     public SpotResponse(Spot spot, Double averageRating, boolean isLiked, boolean isSaved, Long submitterId, String submitterName, boolean submitterIsExpert, List<VibeTagDTO> vibeTags) {
+        this(spot, averageRating, isLiked, isSaved, submitterId, submitterName, submitterIsExpert, vibeTags, 0);
+    }
+
+    /** Full constructor with all fields including vibe tags and friend like count. */
+    public SpotResponse(Spot spot, Double averageRating, boolean isLiked, boolean isSaved, Long submitterId, String submitterName, boolean submitterIsExpert, List<VibeTagDTO> vibeTags, int friendLikeCount) {
         this(
                 spot.getId(),
                 spot.getName(),
@@ -62,7 +68,8 @@ public record SpotResponse(
                 submitterId,
                 submitterName,
                 submitterIsExpert,
-                vibeTags
+                vibeTags,
+                friendLikeCount
         );
     }
 }

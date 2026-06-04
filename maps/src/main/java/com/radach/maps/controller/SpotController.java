@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.radach.maps.dto.FriendLikeDTO;
 import com.radach.maps.dto.SpotRequest;
 import com.radach.maps.dto.SpotResponse;
 import com.radach.maps.service.SpotService;
@@ -99,6 +100,14 @@ public class SpotController {
         Long userId = getUserIdOrNull(auth);
         if (userId == null) throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.UNAUTHORIZED, "Not authenticated");
         return spotService.toggleSave(id, userId);
+    }
+
+    @GetMapping("/{id}/friend-likes")
+    @PreAuthorize("isAuthenticated()")
+    public List<FriendLikeDTO> getFriendLikes(@PathVariable Long id, org.springframework.security.core.Authentication auth) {
+        Long userId = getUserIdOrNull(auth);
+        if (userId == null) throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.UNAUTHORIZED, "Not authenticated");
+        return spotService.getFriendLikes(id, userId);
     }
 
     @PostMapping
