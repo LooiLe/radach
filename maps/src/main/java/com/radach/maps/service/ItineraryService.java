@@ -71,6 +71,12 @@ public class ItineraryService {
         if (request.date() != null && !request.date().isBlank()) {
             itinerary.setDate(LocalDate.parse(request.date()));
         }
+        if (request.endDate() != null && !request.endDate().isBlank()) {
+            itinerary.setEndDate(LocalDate.parse(request.endDate()));
+        }
+        if (request.currency() != null && !request.currency().isBlank()) {
+            itinerary.setCurrency(request.currency());
+        }
         itinerary.setStatus(ItineraryStatus.DRAFT);
         itinerary = itineraryRepository.save(itinerary);
 
@@ -90,6 +96,12 @@ public class ItineraryService {
         itinerary.setDescription(request.description());
         if (request.date() != null && !request.date().isBlank()) {
             itinerary.setDate(LocalDate.parse(request.date()));
+        }
+        if (request.endDate() != null && !request.endDate().isBlank()) {
+            itinerary.setEndDate(LocalDate.parse(request.endDate()));
+        }
+        if (request.currency() != null && !request.currency().isBlank()) {
+            itinerary.setCurrency(request.currency());
         }
         itinerary = itineraryRepository.save(itinerary);
 
@@ -129,6 +141,8 @@ public class ItineraryService {
         if (request.endTime() != null) stop.setEndTime(LocalTime.parse(request.endTime()));
         stop.setDurationMinutes(request.durationMinutes());
         stop.setNotes(request.notes());
+        if (request.dayNumber() != null) stop.setDayNumber(request.dayNumber());
+        stop.setEstimatedCostCents(request.estimatedCostCents());
         stopRepository.save(stop);
 
         return toResponse(itinerary, true);
@@ -187,6 +201,8 @@ public class ItineraryService {
         clone.setTitle("Copy of " + source.getTitle());
         clone.setDescription(source.getDescription());
         clone.setDate(LocalDate.now());
+        clone.setEndDate(source.getEndDate());
+        clone.setCurrency(source.getCurrency());
         clone.setStatus(ItineraryStatus.DRAFT);
         clone.setSource(source.getSource());
         clone.setGenerationPreferences(source.getGenerationPreferences());
@@ -204,6 +220,8 @@ public class ItineraryService {
             newStop.setEndTime(srcStop.getEndTime());
             newStop.setDurationMinutes(srcStop.getDurationMinutes());
             newStop.setNotes(srcStop.getNotes());
+            newStop.setDayNumber(srcStop.getDayNumber());
+            newStop.setEstimatedCostCents(srcStop.getEstimatedCostCents());
             clonedStops.add(newStop);
         }
         stopRepository.saveAll(clonedStops);
@@ -224,6 +242,8 @@ public class ItineraryService {
             if (sr.endTime() != null) stop.setEndTime(LocalTime.parse(sr.endTime()));
             stop.setDurationMinutes(sr.durationMinutes());
             stop.setNotes(sr.notes());
+            if (sr.dayNumber() != null) stop.setDayNumber(sr.dayNumber());
+            stop.setEstimatedCostCents(sr.estimatedCostCents());
             stops.add(stop);
         }
         stopRepository.saveAll(stops);
@@ -267,7 +287,9 @@ public class ItineraryService {
                             stop.getStartTime() != null ? stop.getStartTime().toString() : null,
                             stop.getEndTime() != null ? stop.getEndTime().toString() : null,
                             stop.getDurationMinutes(),
-                            stop.getNotes()
+                            stop.getNotes(),
+                            stop.getDayNumber(),
+                            stop.getEstimatedCostCents()
                     );
                 }).toList();
             }
@@ -281,6 +303,8 @@ public class ItineraryService {
                 itinerary.getTitle(),
                 itinerary.getDescription(),
                 itinerary.getDate(),
+                itinerary.getEndDate(),
+                itinerary.getCurrency(),
                 itinerary.getStatus().name(),
                 itinerary.getSource().name(),
                 stopResponses,

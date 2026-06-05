@@ -106,6 +106,17 @@ public class ItineraryGenerationServiceTest {
         when(stripeService.createOneTimeCheckoutSession(any(Long.class), any(Long.class), any())).thenReturn(mockSession);
     }
 
+    @Autowired
+    private com.fasterxml.jackson.databind.ObjectMapper objectMapper;
+
+    @Test
+    public void testJacksonDeserialization() throws Exception {
+        String json = "{\"preferredCategories\":[\"Cafe\",\"Restaurant\"],\"reviewSource\":\"EXPERT\",\"date\":\"2026-06-01\",\"numberOfStops\":3,\"numberOfDays\":2,\"centerLatitude\":13.75,\"centerLongitude\":100.5,\"radiusKm\":10.0,\"paymentMethod\":\"ONE_TIME\",\"strictCategories\":false,\"cancelUrl\":\"http://localhost\"}";
+        GenerateItineraryRequest request = objectMapper.readValue(json, GenerateItineraryRequest.class);
+        assertThat(request).isNotNull();
+        assertThat(request.numberOfDays()).isEqualTo(2);
+    }
+
     @Test
     public void testInitiateOneTimePaymentFlow() {
         GenerateItineraryRequest request = new GenerateItineraryRequest(

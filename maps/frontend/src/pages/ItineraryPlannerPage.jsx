@@ -110,14 +110,37 @@ export default function ItineraryPlannerPage() {
   const [itTitle, setItTitle] = useState('')
   const [itDesc, setItDesc] = useState('')
   const [itDate, setItDate] = useState(new Date().toISOString().split('T')[0])
-  const [stops, setStops] = useState([]) // Array of stops: { spot, startTime, durationMinutes, notes }
+  const [itEndDate, setItEndDate] = useState(new Date().toISOString().split('T')[0])
+  const [itCurrency, setItCurrency] = useState('USD')
+  const [currentDayTab, setCurrentDayTab] = useState(1)
+  const [stops, setStops] = useState([]) // Array of stops: { spot, startTime, durationMinutes, notes, dayNumber, estimatedCost }
   const [saving, setSaving] = useState(false)
+
+  // Helper to calculate manual itinerary total days
+  const getDaysCount = () => {
+    if (!itDate || !itEndDate) return 1
+    const start = new Date(itDate)
+    const end = new Date(itEndDate)
+    if (isNaN(start) || isNaN(end) || end < start) return 1
+    const diffTime = Math.abs(end - start)
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1
+    return Math.min(diffDays, 7) // capped at 7 days
+  }
+  const totalDays = getDaysCount()
+
+  // Clamp currentDayTab when totalDays shrinks
+  useEffect(() => {
+    if (currentDayTab > totalDays) {
+      setCurrentDayTab(Math.max(1, totalDays))
+    }
+  }, [totalDays, currentDayTab])
 
   // Generation parameters state
   const [selectedCategories, setSelectedCategories] = useState(['restaurant', 'activity'])
   const [reviewSource, setReviewSource] = useState('CONNECTIONS')
   const [genDate, setGenDate] = useState(new Date().toISOString().split('T')[0])
   const [numberOfStops, setNumberOfStops] = useState(4)
+  const [genNumberOfDays, setGenNumberOfDays] = useState(1)
   const [centerLat, setCenterLat] = useState(13.7563) // default Bangkok
   const [centerLng, setCenterLng] = useState(100.5018)
   const [radiusKm, setRadiusKm] = useState(5.0)
@@ -162,49 +185,66 @@ export default function ItineraryPlannerPage() {
     })
   }, [categories])
 
-  // Auto-schedule helper: Recalculate start/end times based on first stop time & durations
+  // Auto-schedule helper: Recalculate start/end times based on first stop time & durations, per day
   useEffect(() => {
     if (stops.length === 0) return
     const updated = [...stops]
-    let currentHour = 9
-    let currentMin = 0
-
-    // Parse the start time of the first stop if set, otherwise default to 09:00
-    if (updated[0].startTime) {
-      const match = updated[0].startTime.split(':')
-      if (match.length >= 2) {
-        const h = parseInt(match[0])
-        const m = parseInt(match[1])
-        if (!isNaN(h) && !isNaN(m)) {
-          currentHour = h
-          currentMin = m
+    
+    // Group stops by day, run scheduling for each day's stops
+    const days = [...new Set(stops.map(s => s.dayNumber || 1))].sort((a, b) => a - b)
+    
+    for (const day of days) {
+      const dayStopsIndices = []
+      for (let i = 0; i < updated.length; i++) {
+        if ((updated[i].dayNumber || 1) === day) {
+          dayStopsIndices.push(i)
         }
       }
-    }
-
-    for (let i = 0; i < updated.length; i++) {
-      const startStr = `${String(currentHour).padStart(2, '0')}:${String(currentMin).padStart(2, '0')}`
-      updated[i].startTime = startStr
-
-      const duration = updated[i].durationMinutes || 60
-      let endMinTotal = currentHour * 60 + currentMin + duration
-      const endHour = Math.floor(endMinTotal / 60) % 24
-      const endMin = endMinTotal % 60
-      updated[i].endTime = `${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}`
-
-      // Add dynamic travel buffer for the next start time
-      let buffer = 15
-      if (i < updated.length - 1) {
-        const curSpot = updated[i].spot
-        const nextSpot = updated[i + 1].spot
-        if (curSpot && nextSpot && curSpot.latitude != null && curSpot.longitude != null && nextSpot.latitude != null && nextSpot.longitude != null) {
-          buffer = estimateTravelTimeMinutes(curSpot.latitude, curSpot.longitude, nextSpot.latitude, nextSpot.longitude)
+      
+      if (dayStopsIndices.length === 0) continue
+      
+      let currentHour = 9
+      let currentMin = 0
+      
+      // If first stop of this day has a start time, use it
+      const firstStopIdx = dayStopsIndices[0]
+      if (updated[firstStopIdx].startTime) {
+        const match = updated[firstStopIdx].startTime.split(':')
+        if (match.length >= 2) {
+          const h = parseInt(match[0])
+          const m = parseInt(match[1])
+          if (!isNaN(h) && !isNaN(m)) {
+            currentHour = h
+            currentMin = m
+          }
         }
       }
+      
+      for (let idx = 0; idx < dayStopsIndices.length; idx++) {
+        const i = dayStopsIndices[idx]
+        const startStr = `${String(currentHour).padStart(2, '0')}:${String(currentMin).padStart(2, '0')}`
+        updated[i].startTime = startStr
 
-      let nextMinTotal = endHour * 60 + endMin + buffer
-      currentHour = Math.floor(nextMinTotal / 60) % 24
-      currentMin = nextMinTotal % 60
+        const duration = updated[i].durationMinutes || 60
+        let endMinTotal = currentHour * 60 + currentMin + duration
+        const endHour = Math.floor(endMinTotal / 60) % 24
+        const endMin = endMinTotal % 60
+        updated[i].endTime = `${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}`
+
+        // Add dynamic travel buffer for the next start time
+        let buffer = 15
+        if (idx < dayStopsIndices.length - 1) {
+          const curSpot = updated[i].spot
+          const nextSpot = updated[dayStopsIndices[idx + 1]].spot
+          if (curSpot && nextSpot && curSpot.latitude != null && curSpot.longitude != null && nextSpot.latitude != null && nextSpot.longitude != null) {
+            buffer = estimateTravelTimeMinutes(curSpot.latitude, curSpot.longitude, nextSpot.latitude, nextSpot.longitude)
+          }
+        }
+
+        let nextMinTotal = endHour * 60 + endMin + buffer
+        currentHour = Math.floor(nextMinTotal / 60) % 24
+        currentMin = nextMinTotal % 60
+      }
     }
 
     // Only update state if values changed to prevent infinite loops
@@ -306,33 +346,40 @@ export default function ItineraryPlannerPage() {
       toast.warning('This spot is already in your itinerary')
       return
     }
+    const dayStops = stops.filter(s => (s.dayNumber || 1) === currentDayTab)
     setStops(prev => [
       ...prev,
       {
         spot,
-        startTime: prev.length === 0 ? '09:00' : '',
+        startTime: dayStops.length === 0 ? '09:00' : '',
         durationMinutes: 60,
-        notes: ''
+        notes: '',
+        dayNumber: currentDayTab,
+        estimatedCost: ''
       }
     ])
   }
 
-  const handleRemoveStop = (index) => {
-    setStops(prev => prev.filter((_, i) => i !== index))
+  const handleRemoveStop = (spotId) => {
+    setStops(prev => prev.filter(s => s.spot.id !== spotId))
   }
 
-  const handleMoveStop = (index, direction) => {
-    const targetIndex = index + direction
-    if (targetIndex < 0 || targetIndex >= stops.length) return
-    const updated = [...stops]
-    const temp = updated[index]
-    updated[index] = updated[targetIndex]
-    updated[targetIndex] = temp
-    setStops(updated)
+  const handleMoveStop = (indexInFiltered, direction) => {
+    const currentDayStops = stops.filter(s => (s.dayNumber || 1) === currentDayTab)
+    const targetIndexInFiltered = indexInFiltered + direction
+    if (targetIndexInFiltered < 0 || targetIndexInFiltered >= currentDayStops.length) return
+    
+    const updatedDayStops = [...currentDayStops]
+    const temp = updatedDayStops[indexInFiltered]
+    updatedDayStops[indexInFiltered] = updatedDayStops[targetIndexInFiltered]
+    updatedDayStops[targetIndexInFiltered] = temp
+    
+    const otherDaysStops = stops.filter(s => (s.dayNumber || 1) !== currentDayTab)
+    setStops([...otherDaysStops, ...updatedDayStops])
   }
 
-  const handleStopChange = (index, key, val) => {
-    setStops(prev => prev.map((s, i) => i === index ? { ...s, [key]: val } : s))
+  const handleStopChange = (spotId, key, val) => {
+    setStops(prev => prev.map(s => s.spot.id === spotId ? { ...s, [key]: val } : s))
   }
 
   // Save manual itinerary
@@ -352,13 +399,17 @@ export default function ItineraryPlannerPage() {
         title: itTitle,
         description: itDesc,
         date: itDate,
+        endDate: itEndDate,
+        currency: itCurrency,
         stops: stops.map((s, idx) => ({
           spotId: s.spot.id,
           stopOrder: idx + 1,
           startTime: s.startTime,
           endTime: s.endTime,
           durationMinutes: parseInt(s.durationMinutes) || 60,
-          notes: s.notes
+          notes: s.notes,
+          dayNumber: s.dayNumber || 1,
+          estimatedCostCents: s.estimatedCost ? Math.round(parseFloat(s.estimatedCost) * 100) : null
         }))
       }
 
@@ -393,6 +444,7 @@ export default function ItineraryPlannerPage() {
       reviewSource,
       date: genDate,
       numberOfStops: parseInt(numberOfStops),
+      numberOfDays: parseInt(genNumberOfDays),
       centerLatitude: centerLat,
       centerLongitude: centerLng,
       radiusKm: parseFloat(radiusKm),
@@ -692,28 +744,97 @@ export default function ItineraryPlannerPage() {
                 className="styled-textarea"
               />
             </div>
-            <div className="form-group">
-              <label>Planned Date</label>
-              <input
-                type="date"
-                value={itDate}
-                onChange={e => setItDate(e.target.value)}
-                className="styled-input"
-              />
+            <div className="form-group-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div className="form-group">
+                <label>Planned Date</label>
+                <input
+                  type="date"
+                  value={itDate}
+                  onChange={e => {
+                    const val = e.target.value
+                    setItDate(val)
+                    if (new Date(itEndDate) < new Date(val)) {
+                      setItEndDate(val)
+                    }
+                  }}
+                  className="styled-input"
+                />
+              </div>
+              <div className="form-group">
+                <label>End Date</label>
+                <input
+                  type="date"
+                  value={itEndDate}
+                  min={itDate}
+                  onChange={e => setItEndDate(e.target.value)}
+                  className="styled-input"
+                />
+              </div>
             </div>
+
+            <div className="form-group">
+              <label>Currency</label>
+              <select
+                value={itCurrency}
+                onChange={e => setItCurrency(e.target.value)}
+                className="styled-input select-currency"
+                style={{ height: '42px', padding: '0 0.75rem' }}
+              >
+                <option value="USD">USD ($)</option>
+                <option value="SGD">SGD (S$)</option>
+                <option value="EUR">EUR (€)</option>
+                <option value="GBP">GBP (£)</option>
+                <option value="AUD">AUD (A$)</option>
+                <option value="JPY">JPY (¥)</option>
+              </select>
+            </div>
+
+            {totalDays > 1 && (
+              <div className="day-tabs-container" style={{ margin: '1rem 0', display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
+                {Array.from({ length: totalDays }, (_, i) => i + 1).map(day => (
+                  <button
+                    key={`day-tab-${day}`}
+                    type="button"
+                    className={`day-tab-btn ${currentDayTab === day ? 'active' : ''}`}
+                    onClick={() => setCurrentDayTab(day)}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      borderRadius: '8px',
+                      border: '1px solid',
+                      borderColor: currentDayTab === day ? '#6366f1' : '#e2e8f0',
+                      backgroundColor: currentDayTab === day ? '#6366f1' : 'transparent',
+                      color: currentDayTab === day ? '#fff' : '#475569',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    Day {day}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {/* Timeline */}
             <div className="timeline-section">
               <h3 className="section-title">Timeline ({stops.length} stop{stops.length !== 1 ? 's' : ''})</h3>
               
-              {stops.length === 0 ? (
+              {stops.length > 0 && (
+                <div className="budget-summary" style={{ margin: '0.75rem 0', padding: '0.75rem', borderRadius: '8px', fontSize: '0.875rem', display: 'flex', justifyContent: 'space-between', background: 'rgba(99, 102, 241, 0.05)', border: '1px solid rgba(99, 102, 241, 0.1)' }}>
+                  <div>Day {currentDayTab} Budget: <strong>{itCurrency} {stops.filter(s => (s.dayNumber || 1) === currentDayTab).reduce((sum, s) => sum + (parseFloat(s.estimatedCost) || 0), 0).toFixed(2)}</strong></div>
+                  <div>Total Budget: <strong>{itCurrency} {stops.reduce((sum, s) => sum + (parseFloat(s.estimatedCost) || 0), 0).toFixed(2)}</strong></div>
+                </div>
+              )}
+
+              {stops.filter(s => (s.dayNumber || 1) === currentDayTab).length === 0 ? (
                 <div className="timeline-empty">
-                  <p>Add spots from your saved list or search below to build your timeline!</p>
+                  <p>Add spots from your saved list or search below to build your timeline for Day {currentDayTab}!</p>
                 </div>
               ) : (
                 <div className="planner-timeline">
-                  {stops.map((stop, idx) => (
-                    <div key={`stop-item-${idx}`} className="timeline-item-card glass">
+                  {stops.filter(s => (s.dayNumber || 1) === currentDayTab).map((stop, idx) => (
+                    <div key={`stop-item-${stop.spot.id}`} className="timeline-item-card glass">
                       <div className="item-order">{idx + 1}</div>
                       <div className="item-content">
                         <div className="item-header">
@@ -726,8 +847,8 @@ export default function ItineraryPlannerPage() {
                             <input
                               type="time"
                               value={stop.startTime}
-                              onChange={e => handleStopChange(idx, 'startTime', e.target.value)}
-                              disabled={idx > 0} // First stop sets the root scheduler
+                              onChange={e => handleStopChange(stop.spot.id, 'startTime', e.target.value)}
+                              disabled={idx > 0} // First stop of the day sets the root scheduler
                               className="time-input"
                             />
                           </div>
@@ -738,7 +859,7 @@ export default function ItineraryPlannerPage() {
                               min="10"
                               step="5"
                               value={stop.durationMinutes}
-                              onChange={e => handleStopChange(idx, 'durationMinutes', parseInt(e.target.value) || 0)}
+                              onChange={e => handleStopChange(stop.spot.id, 'durationMinutes', parseInt(e.target.value) || 0)}
                               className="duration-input"
                             />
                           </div>
@@ -747,20 +868,32 @@ export default function ItineraryPlannerPage() {
                             <span className="end-time-display">{stop.endTime}</span>
                           </div>
                         </div>
-                        <div className="item-notes-row">
+                        <div className="item-notes-row" style={{ display: 'grid', gridTemplateColumns: '1fr 120px', gap: '0.5rem', marginTop: '0.5rem' }}>
                           <input
                             type="text"
                             placeholder="Add notes (e.g. Try the Pad Thai!)"
                             value={stop.notes}
-                            onChange={e => handleStopChange(idx, 'notes', e.target.value)}
+                            onChange={e => handleStopChange(stop.spot.id, 'notes', e.target.value)}
                             className="notes-input"
                           />
+                          <div className="time-field" style={{ margin: 0 }}>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              placeholder="Cost"
+                              value={stop.estimatedCost}
+                              onChange={e => handleStopChange(stop.spot.id, 'estimatedCost', e.target.value)}
+                              className="styled-input"
+                              style={{ height: '36px', padding: '0 0.5rem' }}
+                            />
+                          </div>
                         </div>
                       </div>
                       <div className="item-controls">
                         <button onClick={() => handleMoveStop(idx, -1)} disabled={idx === 0} className="ctrl-btn">▲</button>
-                        <button onClick={() => handleMoveStop(idx, 1)} disabled={idx === stops.length - 1} className="ctrl-btn">▼</button>
-                        <button onClick={() => handleRemoveStop(idx)} className="ctrl-btn delete">✕</button>
+                        <button onClick={() => handleMoveStop(idx, 1)} disabled={idx === stops.filter(s => (s.dayNumber || 1) === currentDayTab).length - 1} className="ctrl-btn">▼</button>
+                        <button onClick={() => handleRemoveStop(stop.spot.id)} className="ctrl-btn delete">✕</button>
                       </div>
                     </div>
                   ))}
@@ -934,6 +1067,18 @@ export default function ItineraryPlannerPage() {
                   value={genDate}
                   onChange={e => setGenDate(e.target.value)}
                   className="styled-input"
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Number of Days: {genNumberOfDays}</label>
+                <input
+                  type="range"
+                  min="1"
+                  max="7"
+                  value={genNumberOfDays}
+                  onChange={e => setGenNumberOfDays(parseInt(e.target.value))}
+                  className="styled-range"
                 />
               </div>
 

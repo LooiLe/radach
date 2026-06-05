@@ -186,7 +186,37 @@ export default function ItineraryDetailPage() {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [date, setDate] = useState('')
-  const [stops, setStops] = useState([]) // array of: { spot, startTime, durationMinutes, notes }
+  const [endDate, setEndDate] = useState('')
+  const [currency, setCurrency] = useState('USD')
+  const [currentDayTab, setCurrentDayTab] = useState(1)
+  const [stops, setStops] = useState([]) // array of: { spot, startTime, durationMinutes, notes, dayNumber, estimatedCost }
+
+  // Helper to calculate total days
+  const getDaysCount = () => {
+    if (!itinerary || !itinerary.date) return 1
+    const end = itinerary.endDate || endDate || date || itinerary.date
+    const start = date || itinerary.date
+    const startD = new Date(start)
+    const endD = new Date(end)
+    if (isNaN(startD) || isNaN(endD) || endD < startD) return 1
+    const diffTime = Math.abs(endD - startD)
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1
+    return Math.min(diffDays, 7) // capped at 7 days
+  }
+  const totalDays = getDaysCount()
+  const maxStopDay = stops.reduce((max, stop) => {
+    const dayNumber = Number(stop.dayNumber)
+    return Number.isFinite(dayNumber) && dayNumber > 0 ? Math.max(max, dayNumber) : max
+  }, 1)
+  const visibleDayCount = Math.max(totalDays, maxStopDay)
+  const dayTabCount = Number.isFinite(visibleDayCount) && visibleDayCount > 0 ? visibleDayCount : 1
+
+  // Clamp currentDayTab when the visible day range shrinks
+  useEffect(() => {
+    if (currentDayTab > dayTabCount) {
+      setCurrentDayTab(dayTabCount)
+    }
+  }, [dayTabCount, currentDayTab])
 
   // Spot selector for additions
   const [showAddForm, setShowAddForm] = useState(false)
@@ -204,18 +234,19 @@ export default function ItineraryDetailPage() {
   const [regenerating, setRegenerating] = useState(false)
   const [swappingStopId, setSwappingStopId] = useState(null)
 
-  // Fetch OSRM travel durations & distances between consecutive stops
+  // Fetch OSRM travel durations & distances between consecutive stops of the current day
   useEffect(() => {
-    if (stops.length <= 1) {
+    const currentDayStops = stops.filter(s => (s.dayNumber || 1) === currentDayTab)
+    if (currentDayStops.length <= 1) {
       setTravelLegs([])
       return
     }
 
     async function fetchAllLegs() {
       const legs = []
-      for (let i = 0; i < stops.length - 1; i++) {
-        const curSpot = stops[i].spot
-        const nextSpot = stops[i + 1].spot
+      for (let i = 0; i < currentDayStops.length - 1; i++) {
+        const curSpot = currentDayStops[i].spot
+        const nextSpot = currentDayStops[i + 1].spot
         if (!curSpot || !nextSpot || curSpot.latitude == null || curSpot.longitude == null || nextSpot.latitude == null || nextSpot.longitude == null) {
           legs.push(null)
           continue
@@ -232,17 +263,17 @@ export default function ItineraryDetailPage() {
         let distanceKm = dist.toFixed(1)
 
         try {
-          const profile = dist < 1.0 ? 'foot' : 'driving'
-          const url = `https://router.project-osrm.org/route/v1/${profile}/${lng1},${lat1};${lng2},${lat2}?overview=false`
-          const res = await fetch(url)
-          const data = await res.json()
-          if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
-            const route = data.routes[0]
-            durationMinutes = Math.round(route.duration / 60)
-            distanceKm = (route.distance / 1000).toFixed(1)
-          }
+           const profile = dist < 1.0 ? 'foot' : 'driving'
+           const url = `https://router.project-osrm.org/route/v1/${profile}/${lng1},${lat1};${lng2},${lat2}?overview=false`
+           const res = await fetch(url)
+           const data = await res.json()
+           if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+             const route = data.routes[0]
+             durationMinutes = Math.round(route.duration / 60)
+             distanceKm = (route.distance / 1000).toFixed(1)
+           }
         } catch (e) {
-          console.error("OSRM fetch failed, falling back to approximation", e)
+           console.error("OSRM fetch failed, falling back to approximation", e)
         }
 
         legs.push({ durationMinutes, distanceKm, mode })
@@ -251,7 +282,7 @@ export default function ItineraryDetailPage() {
     }
 
     fetchAllLegs()
-  }, [stops])
+  }, [stops, currentDayTab])
 
   useEffect(() => {
     loadItinerary()
@@ -262,44 +293,62 @@ export default function ItineraryDetailPage() {
   useEffect(() => {
     if (!isEditing || stops.length === 0) return
     const updated = [...stops]
-    let currentHour = 9
-    let currentMin = 0
-
-    if (updated[0].startTime) {
-      const match = updated[0].startTime.split(':')
-      if (match.length >= 2) {
-        const h = parseInt(match[0])
-        const m = parseInt(match[1])
-        if (!isNaN(h) && !isNaN(m)) {
-          currentHour = h
-          currentMin = m
+    
+    // Group stops by day, run scheduling for each day's stops
+    const days = [...new Set(stops.map(s => s.dayNumber || 1))].sort((a, b) => a - b)
+    
+    for (const day of days) {
+      const dayStopsIndices = []
+      for (let i = 0; i < updated.length; i++) {
+        if ((updated[i].dayNumber || 1) === day) {
+          dayStopsIndices.push(i)
         }
       }
-    }
-
-    for (let i = 0; i < updated.length; i++) {
-      const startStr = `${String(currentHour).padStart(2, '0')}:${String(currentMin).padStart(2, '0')}`
-      updated[i].startTime = startStr
-
-      const duration = updated[i].durationMinutes || 60
-      let endMinTotal = currentHour * 60 + currentMin + duration
-      const endHour = Math.floor(endMinTotal / 60) % 24
-      const endMin = endMinTotal % 60
-      updated[i].endTime = `${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}`
-
-      // Add dynamic travel buffer for the next start time
-      let buffer = 15
-      if (i < updated.length - 1) {
-        const curSpot = updated[i].spot
-        const nextSpot = updated[i + 1].spot
-        if (curSpot && nextSpot && curSpot.latitude != null && curSpot.longitude != null && nextSpot.latitude != null && nextSpot.longitude != null) {
-          buffer = estimateTravelTimeMinutes(curSpot.latitude, curSpot.longitude, nextSpot.latitude, nextSpot.longitude)
+      
+      if (dayStopsIndices.length === 0) continue
+      
+      let currentHour = 9
+      let currentMin = 0
+      
+      // If first stop of this day has a start time, use it
+      const firstStopIdx = dayStopsIndices[0]
+      if (updated[firstStopIdx].startTime) {
+        const match = updated[firstStopIdx].startTime.split(':')
+        if (match.length >= 2) {
+          const h = parseInt(match[0])
+          const m = parseInt(match[1])
+          if (!isNaN(h) && !isNaN(m)) {
+            currentHour = h
+            currentMin = m
+          }
         }
       }
+      
+      for (let idx = 0; idx < dayStopsIndices.length; idx++) {
+        const i = dayStopsIndices[idx]
+        const startStr = `${String(currentHour).padStart(2, '0')}:${String(currentMin).padStart(2, '0')}`
+        updated[i].startTime = startStr
 
-      let nextMinTotal = endHour * 60 + endMin + buffer
-      currentHour = Math.floor(nextMinTotal / 60) % 24
-      currentMin = nextMinTotal % 60
+        const duration = updated[i].durationMinutes || 60
+        let endMinTotal = currentHour * 60 + currentMin + duration
+        const endHour = Math.floor(endMinTotal / 60) % 24
+        const endMin = endMinTotal % 60
+        updated[i].endTime = `${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}`
+
+        // Add dynamic travel buffer for the next start time
+        let buffer = 15
+        if (idx < dayStopsIndices.length - 1) {
+          const curSpot = updated[i].spot
+          const nextSpot = updated[dayStopsIndices[idx + 1]].spot
+          if (curSpot && nextSpot && curSpot.latitude != null && curSpot.longitude != null && nextSpot.latitude != null && nextSpot.longitude != null) {
+            buffer = estimateTravelTimeMinutes(curSpot.latitude, curSpot.longitude, nextSpot.latitude, nextSpot.longitude)
+          }
+        }
+
+        let nextMinTotal = endHour * 60 + endMin + buffer
+        currentHour = Math.floor(nextMinTotal / 60) % 24
+        currentMin = nextMinTotal % 60
+      }
     }
 
     let changed = false
@@ -324,7 +373,12 @@ export default function ItineraryDetailPage() {
         setTitle(data.title)
         setDescription(data.description || '')
         setDate(data.date || '')
-        setStops((data.stops || []).map(normalizeStop))
+        setEndDate(data.endDate || data.date || '')
+        setCurrency(data.currency || 'USD')
+        setStops((data.stops || []).map(normalizeStop).map(s => ({
+          ...s,
+          estimatedCost: s.estimatedCostCents != null ? (s.estimatedCostCents / 100).toString() : ''
+        })))
       } else {
         toast.error('Itinerary not found or access denied')
         navigate('/itineraries')
@@ -374,34 +428,41 @@ export default function ItineraryDetailPage() {
       toast.warning('This spot is already in the itinerary')
       return
     }
+    const dayStops = stops.filter(s => (s.dayNumber || 1) === currentDayTab)
     setStops(prev => [
       ...prev,
       {
         spot,
-        startTime: prev.length === 0 ? '09:00' : '',
+        startTime: dayStops.length === 0 ? '09:00' : '',
         durationMinutes: 60,
-        notes: ''
+        notes: '',
+        dayNumber: currentDayTab,
+        estimatedCost: ''
       }
     ])
     setShowAddForm(false)
   }
 
-  const handleRemoveStop = (index) => {
-    setStops(prev => prev.filter((_, i) => i !== index))
+  const handleRemoveStop = (spotId) => {
+    setStops(prev => prev.filter(s => s.spot.id !== spotId))
   }
 
-  const handleMoveStop = (index, direction) => {
-    const targetIndex = index + direction
-    if (targetIndex < 0 || targetIndex >= stops.length) return
-    const updated = [...stops]
-    const temp = updated[index]
-    updated[index] = updated[targetIndex]
-    updated[targetIndex] = temp
-    setStops(updated)
+  const handleMoveStop = (indexInFiltered, direction) => {
+    const currentDayStops = stops.filter(s => (s.dayNumber || 1) === currentDayTab)
+    const targetIndexInFiltered = indexInFiltered + direction
+    if (targetIndexInFiltered < 0 || targetIndexInFiltered >= currentDayStops.length) return
+    
+    const updatedDayStops = [...currentDayStops]
+    const temp = updatedDayStops[indexInFiltered]
+    updatedDayStops[indexInFiltered] = updatedDayStops[targetIndexInFiltered]
+    updatedDayStops[targetIndexInFiltered] = temp
+    
+    const otherDaysStops = stops.filter(s => (s.dayNumber || 1) !== currentDayTab)
+    setStops([...otherDaysStops, ...updatedDayStops])
   }
 
-  const handleStopChange = (index, key, val) => {
-    setStops(prev => prev.map((s, i) => i === index ? { ...s, [key]: val } : s))
+  const handleStopChange = (spotId, key, val) => {
+    setStops(prev => prev.map(s => s.spot.id === spotId ? { ...s, [key]: val } : s))
   }
 
   async function handleSaveChanges() {
@@ -415,13 +476,17 @@ export default function ItineraryDetailPage() {
         title: title.trim(),
         description,
         date: date || null,
+        endDate: endDate || date || null,
+        currency: currency || 'USD',
         stops: stops.map((s, idx) => ({
           spotId: s.spot.id,
           stopOrder: idx + 1,
           startTime: s.startTime,
           endTime: s.endTime,
           durationMinutes: parseInt(s.durationMinutes) || 60,
-          notes: s.notes
+          notes: s.notes,
+          dayNumber: s.dayNumber || 1,
+          estimatedCostCents: s.estimatedCost ? Math.round(parseFloat(s.estimatedCost) * 100) : null
         }))
       }
 
@@ -433,9 +498,11 @@ export default function ItineraryDetailPage() {
 
       if (res.ok) {
         const updatedData = await res.json()
-        updatedData.stops = (updatedData.stops || []).map(normalizeStop)
         setItinerary(updatedData)
-        setStops(updatedData.stops)
+        setStops((updatedData.stops || []).map(normalizeStop).map(s => ({
+          ...s,
+          estimatedCost: s.estimatedCostCents != null ? (s.estimatedCostCents / 100).toString() : ''
+        })))
         setIsEditing(false)
       } else {
         const err = await res.json().catch(() => ({}))
@@ -699,12 +766,51 @@ export default function ItineraryDetailPage() {
                 placeholder="Itinerary Title"
                 className="edit-title-input"
               />
-              <input
-                type="date"
-                value={date}
-                onChange={e => setDate(e.target.value)}
-                className="edit-date-input"
-              />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                <div>
+                  <label style={{ fontSize: '0.75rem', color: '#64748b' }}>Start Date</label>
+                  <input
+                    type="date"
+                    value={date}
+                    onChange={e => {
+                      const val = e.target.value
+                      setDate(val)
+                      if (new Date(endDate) < new Date(val)) {
+                        setEndDate(val)
+                      }
+                    }}
+                    className="edit-date-input"
+                    style={{ margin: 0, width: '100%' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.75rem', color: '#64748b' }}>End Date</label>
+                  <input
+                    type="date"
+                    value={endDate}
+                    min={date}
+                    onChange={e => setEndDate(e.target.value)}
+                    className="edit-date-input"
+                    style={{ margin: 0, width: '100%' }}
+                  />
+                </div>
+              </div>
+              <div style={{ marginBottom: '0.5rem' }}>
+                <label style={{ fontSize: '0.75rem', color: '#64748b' }}>Currency</label>
+                <select
+                  value={currency}
+                  onChange={e => setCurrency(e.target.value)}
+                  className="edit-date-input"
+                  style={{ width: '100%', padding: '0.25rem', height: '36px' }}
+                >
+                  <option value="USD">USD ($)</option>
+                  <option value="SGD">SGD (S$)</option>
+                  <option value="EUR">EUR (€)</option>
+                  <option value="GBP">GBP (£)</option>
+                  <option value="AUD">AUD (A$)</option>
+                  <option value="JPY">JPY (¥)</option>
+                </select>
+              </div>
               <textarea
                 value={description}
                 onChange={e => setDescription(e.target.value)}
@@ -715,7 +821,11 @@ export default function ItineraryDetailPage() {
           ) : (
             <div className="display-fields">
               <h2>{itinerary.title}</h2>
-              {itinerary.date && <div className="detail-date">📅 {itinerary.date}</div>}
+              {itinerary.date && (
+                <div className="detail-date">
+                  📅 {itinerary.date} {itinerary.endDate && itinerary.endDate !== itinerary.date ? ` to ${itinerary.endDate}` : ''}
+                </div>
+              )}
               {itinerary.description && <p className="detail-desc">{itinerary.description}</p>}
             </div>
           )}
@@ -771,14 +881,35 @@ export default function ItineraryDetailPage() {
         <div className="detail-timeline-section">
           <h3>Route Timeline</h3>
 
-          {stops.length === 0 ? (
+          <div className="day-tabs-container" aria-label="Itinerary days">
+            {Array.from({ length: dayTabCount }, (_, i) => i + 1).map(day => (
+              <button
+                key={`day-tab-${day}`}
+                type="button"
+                className={`day-tab-btn ${currentDayTab === day ? 'active' : ''}`}
+                aria-current={currentDayTab === day ? 'page' : undefined}
+                onClick={() => setCurrentDayTab(day)}
+              >
+                Day {day}
+              </button>
+            ))}
+          </div>
+
+          {stops.length > 0 && (
+            <div className="budget-summary">
+              <div>Day {currentDayTab} Budget: <strong>{currency} {stops.filter(s => (s.dayNumber || 1) === currentDayTab).reduce((sum, s) => sum + (parseFloat(s.estimatedCost) || 0), 0).toFixed(2)}</strong></div>
+              <div>Total Budget: <strong>{currency} {stops.reduce((sum, s) => sum + (parseFloat(s.estimatedCost) || 0), 0).toFixed(2)}</strong></div>
+            </div>
+          )}
+
+          {stops.filter(s => (s.dayNumber || 1) === currentDayTab).length === 0 ? (
             <div className="empty-timeline-message">
-              No stops in this itinerary yet.
+              No stops for Day {currentDayTab} yet.
             </div>
           ) : (
             <div className="detail-timeline-list">
-              {stops.map((stop, idx) => (
-                <Fragment key={`stop-group-${idx}`}>
+              {stops.filter(s => (s.dayNumber || 1) === currentDayTab).map((stop, idx) => (
+                <Fragment key={`stop-group-${stop.spot.id}`}>
                   <div className="detail-stop-card glass">
                     <div className="stop-badge">#{idx + 1}</div>
 
@@ -799,8 +930,8 @@ export default function ItineraryDetailPage() {
                             <input
                               type="time"
                               value={stop.startTime}
-                              onChange={e => handleStopChange(idx, 'startTime', e.target.value)}
-                              disabled={idx > 0} // automatic scheduling handles subsequent stops
+                              onChange={e => handleStopChange(stop.spot.id, 'startTime', e.target.value)}
+                              disabled={idx > 0} // automatic scheduling handles subsequent stops of the day
                               className="mini-input"
                             />
                           </div>
@@ -811,8 +942,21 @@ export default function ItineraryDetailPage() {
                               min="10"
                               step="5"
                               value={stop.durationMinutes}
-                              onChange={e => handleStopChange(idx, 'durationMinutes', parseInt(e.target.value) || 0)}
+                              onChange={e => handleStopChange(stop.spot.id, 'durationMinutes', parseInt(e.target.value) || 0)}
                               className="mini-input"
+                            />
+                          </div>
+                          <div className="edit-row">
+                            <label>Cost ({currency})</label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              placeholder="0.00"
+                              value={stop.estimatedCost || ''}
+                              onChange={e => handleStopChange(stop.spot.id, 'estimatedCost', e.target.value)}
+                              className="mini-input"
+                              style={{ width: '80px' }}
                             />
                           </div>
                           <div className="edit-row notes-row">
@@ -820,7 +964,7 @@ export default function ItineraryDetailPage() {
                               type="text"
                               placeholder="Add notes for this stop..."
                               value={stop.notes || ''}
-                              onChange={e => handleStopChange(idx, 'notes', e.target.value)}
+                              onChange={e => handleStopChange(stop.spot.id, 'notes', e.target.value)}
                               className="mini-notes-input"
                             />
                           </div>
@@ -828,6 +972,11 @@ export default function ItineraryDetailPage() {
                       ) : (
                         <>
                           {stop.notes && <div className="stop-notes">📝 <em>"{stop.notes}"</em></div>}
+                          {stop.estimatedCost && (
+                            <div className="stop-cost" style={{ fontSize: '0.825rem', color: '#475569', marginTop: '0.25rem' }}>
+                              💰 Est. Cost: <strong>{currency} {parseFloat(stop.estimatedCost).toFixed(2)}</strong>
+                            </div>
+                          )}
                           <div className="stop-navigation-link">
                             <Link to={`/spot/${stop.spot.id}`} className="btn-spot-link">
                               View Spot
@@ -852,13 +1001,13 @@ export default function ItineraryDetailPage() {
                     {isEditing && (
                       <div className="stop-edit-controls">
                         <button onClick={() => handleMoveStop(idx, -1)} disabled={idx === 0} className="edit-arrow-btn">▲</button>
-                        <button onClick={() => handleMoveStop(idx, 1)} disabled={idx === stops.length - 1} className="edit-arrow-btn">▼</button>
-                        <button onClick={() => handleRemoveStop(idx)} className="edit-remove-btn">✕</button>
+                        <button onClick={() => handleMoveStop(idx, 1)} disabled={idx === stops.filter(s => (s.dayNumber || 1) === currentDayTab).length - 1} className="edit-arrow-btn">▼</button>
+                        <button onClick={() => handleRemoveStop(stop.spot.id)} className="edit-remove-btn">✕</button>
                       </div>
                     )}
                   </div>
 
-                  {idx < stops.length - 1 && travelLegs[idx] && (
+                  {idx < stops.filter(s => (s.dayNumber || 1) === currentDayTab).length - 1 && travelLegs[idx] && (
                     <div className="timeline-travel-connector">
                       <div className="connector-line"></div>
                       <div className="travel-pill">

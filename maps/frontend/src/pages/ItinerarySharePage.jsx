@@ -164,23 +164,52 @@ export default function ItinerarySharePage() {
   const [cloning, setCloning] = useState(false)
   const [cloneSuccess, setCloneSuccess] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
+  const [currentDayTab, setCurrentDayTab] = useState(1)
   const [travelLegs, setTravelLegs] = useState([])
   const mapInstanceRef = useRef(null)
   const setMapRef = useCallback((mapInstance) => { mapInstanceRef.current = mapInstance }, [])
 
+  // Helper to calculate total days
+  const getDaysCount = () => {
+    if (!itinerary || !itinerary.date) return 1
+    const end = itinerary.endDate || itinerary.date
+    const start = itinerary.date
+    const startD = new Date(start)
+    const endD = new Date(end)
+    if (isNaN(startD) || isNaN(endD) || endD < startD) return 1
+    const diffTime = Math.abs(endD - startD)
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1
+    return Math.min(diffDays, 7) // capped at 7 days
+  }
+  const totalDays = getDaysCount()
+  const maxStopDay = (itinerary?.stops || []).reduce((max, stop) => {
+    const dayNumber = Number(stop.dayNumber)
+    return Number.isFinite(dayNumber) && dayNumber > 0 ? Math.max(max, dayNumber) : max
+  }, 1)
+  const visibleDayCount = Math.max(totalDays, maxStopDay)
+  const dayTabCount = Number.isFinite(visibleDayCount) && visibleDayCount > 0 ? visibleDayCount : 1
+
+  // Clamp currentDayTab when the visible day range shrinks
+  useEffect(() => {
+    if (currentDayTab > dayTabCount) {
+      setCurrentDayTab(dayTabCount)
+    }
+  }, [dayTabCount, currentDayTab])
+
   // Fetch OSRM segments for public share page
   useEffect(() => {
     const stops = itinerary?.stops || []
-    if (stops.length <= 1) {
+    const currentDayStops = stops.filter(s => (s.dayNumber || 1) === currentDayTab)
+    if (currentDayStops.length <= 1) {
       setTravelLegs([])
       return
     }
 
     async function fetchAllLegs() {
       const legs = []
-      for (let i = 0; i < stops.length - 1; i++) {
-        const curStop = stops[i]
-        const nextStop = stops[i + 1]
+      for (let i = 0; i < currentDayStops.length - 1; i++) {
+        const curStop = currentDayStops[i]
+        const nextStop = currentDayStops[i + 1]
         
         const lat1 = curStop.spotLatitude
         const lng1 = curStop.spotLongitude
@@ -217,7 +246,7 @@ export default function ItinerarySharePage() {
     }
 
     fetchAllLegs()
-  }, [itinerary])
+  }, [itinerary, currentDayTab])
 
   useEffect(() => {
     loadSharedItinerary()
@@ -256,13 +285,17 @@ export default function ItinerarySharePage() {
         title: `Copy of ${itinerary.title}`,
         description: itinerary.description || '',
         date: itinerary.date || null,
+        endDate: itinerary.endDate || null,
+        currency: itinerary.currency || 'USD',
         stops: itinerary.stops.map((s, idx) => ({
           spotId: s.spotId,
           stopOrder: idx + 1,
           startTime: s.startTime,
           endTime: s.endTime,
           durationMinutes: s.durationMinutes || 60,
-          notes: s.notes
+          notes: s.notes,
+          dayNumber: s.dayNumber || 1,
+          estimatedCostCents: s.estimatedCostCents
         }))
       }
 
@@ -449,7 +482,11 @@ export default function ItinerarySharePage() {
 
           <div className="display-fields">
             <h2>{itinerary.title}</h2>
-            {itinerary.date && <div className="detail-date">📅 {itinerary.date}</div>}
+            {itinerary.date && (
+              <div className="detail-date">
+                📅 {itinerary.date} {itinerary.endDate && itinerary.endDate !== itinerary.date ? ` to ${itinerary.endDate}` : ''}
+              </div>
+            )}
             {itinerary.description && <p className="detail-desc">{itinerary.description}</p>}
           </div>
 
@@ -478,14 +515,35 @@ export default function ItinerarySharePage() {
         <div className="detail-timeline-section">
           <h3>Route Timeline</h3>
 
-          {(!itinerary.stops || itinerary.stops.length === 0) ? (
+          <div className="day-tabs-container" aria-label="Itinerary days">
+            {Array.from({ length: dayTabCount }, (_, i) => i + 1).map(day => (
+              <button
+                key={`day-tab-${day}`}
+                type="button"
+                className={`day-tab-btn ${currentDayTab === day ? 'active' : ''}`}
+                aria-current={currentDayTab === day ? 'page' : undefined}
+                onClick={() => setCurrentDayTab(day)}
+              >
+                Day {day}
+              </button>
+            ))}
+          </div>
+
+          {itinerary.stops && itinerary.stops.length > 0 && (
+            <div className="budget-summary" style={{ margin: '0.75rem 0', padding: '0.75rem', borderRadius: '8px', fontSize: '0.875rem', display: 'flex', justifyContent: 'space-between', background: 'rgba(99, 102, 241, 0.05)', border: '1px solid rgba(99, 102, 241, 0.1)' }}>
+              <div>Day {currentDayTab} Budget: <strong>{itinerary.currency || 'USD'} {itinerary.stops.filter(s => (s.dayNumber || 1) === currentDayTab).reduce((sum, s) => sum + (s.estimatedCostCents ? s.estimatedCostCents / 100 : 0), 0).toFixed(2)}</strong></div>
+              <div>Total Budget: <strong>{itinerary.currency || 'USD'} {itinerary.stops.reduce((sum, s) => sum + (s.estimatedCostCents ? s.estimatedCostCents / 100 : 0), 0).toFixed(2)}</strong></div>
+            </div>
+          )}
+
+          {(!itinerary.stops || itinerary.stops.filter(s => (s.dayNumber || 1) === currentDayTab).length === 0) ? (
             <div className="empty-timeline-message">
-              No stops in this itinerary.
+              No stops for Day {currentDayTab} in this itinerary.
             </div>
           ) : (
             <div className="detail-timeline-list">
-              {itinerary.stops.map((stop, idx) => (
-                <Fragment key={`stop-group-${idx}`}>
+              {itinerary.stops.filter(s => (s.dayNumber || 1) === currentDayTab).map((stop, idx) => (
+                <Fragment key={`stop-group-${stop.spotId}`}>
                   <div className="detail-stop-card glass">
                     <div className="stop-badge">#{idx + 1}</div>
 
@@ -500,6 +558,11 @@ export default function ItinerarySharePage() {
                       </div>
 
                       {stop.notes && <div className="stop-notes">📝 <em>"{stop.notes}"</em></div>}
+                      {stop.estimatedCostCents != null && (
+                        <div className="stop-cost" style={{ fontSize: '0.825rem', color: '#475569', marginTop: '0.25rem' }}>
+                          💰 Est. Cost: <strong>{itinerary.currency || 'USD'} {(stop.estimatedCostCents / 100).toFixed(2)}</strong>
+                        </div>
+                      )}
                       
                       <div className="stop-navigation-link">
                         <Link to={`/spot/${stop.spotId}`} className="btn-spot-link">
@@ -509,7 +572,7 @@ export default function ItinerarySharePage() {
                     </div>
                   </div>
 
-                  {idx < itinerary.stops.length - 1 && travelLegs[idx] && (
+                  {idx < itinerary.stops.filter(s => (s.dayNumber || 1) === currentDayTab).length - 1 && travelLegs[idx] && (
                     <div className="timeline-travel-connector">
                       <div className="connector-line"></div>
                       <div className="travel-pill">

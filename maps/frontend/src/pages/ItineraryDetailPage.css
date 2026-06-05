@@ -182,6 +182,90 @@
   margin-bottom: 0.25rem;
 }
 
+.day-tabs-container {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 64px;
+  margin: 0.35rem 0 0.5rem;
+  padding: 0.65rem 0.15rem 0.85rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  background: #ffffff;
+}
+
+.day-tab-btn {
+  min-width: 76px;
+  height: 44px;
+  min-height: 44px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0 0.8rem;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #cbd5e1;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.day-tab-btn:hover {
+  border-color: rgba(139, 92, 246, 0.65);
+  background: rgba(139, 92, 246, 0.12);
+  color: #ffffff;
+}
+
+.day-tab-btn.active {
+  border-color: #4f46e5;
+  background: #4f46e5;
+  color: #ffffff;
+  box-shadow: 0 6px 14px rgba(79, 70, 229, 0.22);
+}
+
+.day-tab-label,
+.day-tab-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.day-tab-number {
+  min-width: 1.25em;
+  font-variant-numeric: tabular-nums;
+}
+
+.budget-summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0.5rem 0 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid rgba(99, 102, 241, 0.16);
+  border-radius: 8px;
+  background: rgba(99, 102, 241, 0.06);
+  color: #cbd5e1;
+  font-size: 0.875rem;
+  line-height: 1.35;
+}
+
+.budget-summary strong {
+  color: #ffffff;
+  font-weight: 800;
+}
+
 .empty-timeline-message {
   text-align: center;
   padding: 3rem;
@@ -515,6 +599,7 @@
 .detail-stop-card .stop-type,
 .detail-stop-card .stop-notes,
 .empty-timeline-message,
+.budget-summary,
 .stop-edit-inputs label,
 .btn-cancel,
 .btn-add-stop-trigger {
@@ -574,6 +659,38 @@
   background: #3730a3;
   border-color: #3730a3;
   color: #ffffff;
+}
+
+.day-tabs-container {
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.day-tab-btn {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  color: #475569;
+}
+
+.day-tab-btn:hover {
+  background: #eef2ff;
+  border-color: #818cf8;
+  color: #3730a3;
+}
+
+.day-tab-btn.active {
+  background: #3730a3;
+  border-color: #3730a3;
+  color: #ffffff;
+  box-shadow: 0 6px 14px rgba(55, 48, 163, 0.22);
+}
+
+.budget-summary {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.budget-summary strong {
+  color: #0f172a;
 }
 
 .btn-delete {
@@ -746,6 +863,25 @@
     height: 60vh;
     border-left: none;
     border-top: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+  }
+
+  .day-tabs-container {
+    margin-top: 0.75rem;
+    min-height: 58px;
+    padding-bottom: 0.45rem;
+  }
+
+  .day-tab-btn {
+    min-width: 68px;
+    height: 40px;
+    min-height: 40px;
+    padding: 0 0.7rem;
+    font-size: 0.8rem;
+  }
+
+  .budget-summary {
+    flex-direction: column;
+    gap: 0.35rem;
   }
 }
 
@@ -1141,6 +1277,21 @@
     color: #000000 !important;
     font-size: 1.1rem !important;
     margin-bottom: 1rem !important;
+  }
+
+  .day-tabs-container {
+    display: none !important;
+  }
+
+  .budget-summary {
+    background: #f8fafc !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #334155 !important;
+    box-shadow: none !important;
+  }
+
+  .budget-summary strong {
+    color: #000000 !important;
   }
 
   .detail-stop-card {

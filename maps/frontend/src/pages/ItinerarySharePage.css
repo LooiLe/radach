@@ -117,6 +117,59 @@
   margin-top: 0.25rem;
 }
 
+.day-tabs-container {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 64px;
+  margin: 0.35rem 0 0.5rem;
+  padding: 0.65rem 0.15rem 0.85rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+  background: #ffffff;
+}
+
+.day-tab-btn {
+  min-width: 76px;
+  height: 44px;
+  min-height: 44px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.8rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #475569;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.day-tab-btn:hover {
+  background: #eef2ff;
+  border-color: #818cf8;
+  color: #3730a3;
+}
+
+.day-tab-btn.active {
+  background: #3730a3;
+  border-color: #3730a3;
+  color: #ffffff;
+  box-shadow: 0 6px 14px rgba(55, 48, 163, 0.22);
+}
+
 .detail-map-container {
   position: relative;
 }
@@ -171,6 +224,19 @@
 @media (max-width: 960px) {
   .itinerary-share-page {
     flex-direction: column;
+  }
+
+  .day-tabs-container {
+    min-height: 58px;
+    padding-bottom: 0.45rem;
+  }
+
+  .day-tab-btn {
+    min-width: 68px;
+    height: 40px;
+    min-height: 40px;
+    padding: 0 0.7rem;
+    font-size: 0.8rem;
   }
 }
 

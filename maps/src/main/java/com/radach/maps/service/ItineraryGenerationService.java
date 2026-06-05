@@ -246,6 +246,8 @@ public class ItineraryGenerationService {
             double lat = request.centerLatitude() != null ? request.centerLatitude() : 0;
             double lng = request.centerLongitude() != null ? request.centerLongitude() : 0;
             String reviewSource = request.reviewSource() != null ? request.reviewSource() : "EXPERT";
+            
+            int totalDays = request.resolvedNumberOfDays();
             List<Spot> candidates = findGenerationCandidates(userId, request, numberOfStops);
 
             if (candidates.isEmpty()) {
@@ -255,54 +257,74 @@ public class ItineraryGenerationService {
                 return;
             }
 
-            // 3. Select and order stops with category-aware time slots.
-            List<ScheduledSpot> scheduled = scheduleByCategoryRules(candidates, lat, lng, numberOfStops);
-
-            // 5. Create the itinerary
+            // Create the itinerary
             Itinerary itinerary = new Itinerary();
             itinerary.setUserId(userId);
             itinerary.setTitle("Generated Itinerary — " +
                     (request.date() != null ? request.date() : LocalDate.now().toString()));
             itinerary.setDescription("Auto-generated based on " +
                     (reviewSource.equalsIgnoreCase("CONNECTIONS") ? "friends' reviews" : "expert reviews"));
+            
+            LocalDate startDate;
             if (request.date() != null && !request.date().isBlank()) {
-                itinerary.setDate(LocalDate.parse(request.date()));
+                startDate = LocalDate.parse(request.date());
             } else {
-                itinerary.setDate(LocalDate.now());
+                startDate = LocalDate.now();
+            }
+            itinerary.setDate(startDate);
+            if (totalDays > 1) {
+                itinerary.setEndDate(startDate.plusDays(totalDays - 1));
+            } else {
+                itinerary.setEndDate(startDate);
             }
             itinerary.setStatus(ItineraryStatus.DRAFT);
             itinerary.setSource(ItinerarySource.GENERATED);
             itinerary.setGenerationPreferences(gen.getPreferences());
             itinerary = itineraryRepository.save(itinerary);
 
-            // 6. Assign rule-based time slots and create stops
             List<ItineraryStop> stops = new ArrayList<>();
+            List<Spot> remainingCandidates = new ArrayList<>(candidates);
+            int globalStopOrder = 1;
 
-            for (int i = 0; i < scheduled.size(); i++) {
-                ScheduledSpot scheduledSpot = scheduled.get(i);
-                Spot spot = scheduledSpot.spot();
-                int duration = getDefaultDuration(spot.getType());
-                LocalTime startTime = scheduledSpot.startTime();
+            for (int day = 1; day <= totalDays; day++) {
+                if (remainingCandidates.size() < numberOfStops) {
+                    remainingCandidates.addAll(candidates);
+                }
+                
+                List<ScheduledSpot> scheduled = scheduleByCategoryRules(remainingCandidates, lat, lng, numberOfStops);
+                
+                // Remove scheduled spots from remaining candidates to avoid duplicates across days
+                for (ScheduledSpot ss : scheduled) {
+                    remainingCandidates.remove(ss.spot());
+                }
 
-                ItineraryStop stop = new ItineraryStop();
-                stop.setItineraryId(itinerary.getId());
-                stop.setSpotId(spot.getId());
-                stop.setStopOrder(i + 1);
-                stop.setStartTime(startTime);
-                stop.setEndTime(startTime.plusMinutes(duration));
-                stop.setDurationMinutes(duration);
-                stops.add(stop);
+                for (int i = 0; i < scheduled.size(); i++) {
+                    ScheduledSpot scheduledSpot = scheduled.get(i);
+                    Spot spot = scheduledSpot.spot();
+                    int duration = getDefaultDuration(spot.getType());
+                    LocalTime startTime = scheduledSpot.startTime();
+
+                    ItineraryStop stop = new ItineraryStop();
+                    stop.setItineraryId(itinerary.getId());
+                    stop.setSpotId(spot.getId());
+                    stop.setStopOrder(globalStopOrder++);
+                    stop.setStartTime(startTime);
+                    stop.setEndTime(startTime.plusMinutes(duration));
+                    stop.setDurationMinutes(duration);
+                    stop.setDayNumber(day);
+                    stops.add(stop);
+                }
             }
 
             stopRepository.saveAll(stops);
 
-            // 7. Mark generation as completed
+            // Mark generation as completed
             gen.setItineraryId(itinerary.getId());
             gen.setStatus(GenerationStatus.COMPLETED);
             gen.setCompletedAt(Instant.now());
             generationRepository.save(gen);
 
-            log.info("Generated itinerary {} with {} stops for user {}", itinerary.getId(), stops.size(), userId);
+            log.info("Generated itinerary {} with {} stops over {} days for user {}", itinerary.getId(), stops.size(), totalDays, userId);
 
         } catch (Exception e) {
             log.error("Failed to generate itinerary for generation {}", gen.getId(), e);
@@ -659,6 +681,7 @@ public class ItineraryGenerationService {
 
         // Re-run generation with shuffled candidates for variety
         int numberOfStops = request.numberOfStops() != null ? Math.min(request.numberOfStops(), MAX_STOPS) : 5;
+        int totalDays = request.resolvedNumberOfDays();
 
         double lat = request.centerLatitude() != null ? request.centerLatitude() : 0;
         double lng = request.centerLongitude() != null ? request.centerLongitude() : 0;
@@ -671,23 +694,38 @@ public class ItineraryGenerationService {
         // Shuffle to produce different results
         Collections.shuffle(candidates);
 
-        List<ScheduledSpot> scheduled = scheduleByCategoryRules(candidates, lat, lng, numberOfStops);
-
         List<ItineraryStop> newStops = new ArrayList<>();
-        for (int i = 0; i < scheduled.size(); i++) {
-            ScheduledSpot scheduledSpot = scheduled.get(i);
-            Spot spot = scheduledSpot.spot();
-            int duration = getDefaultDuration(spot.getType());
-            LocalTime startTime = scheduledSpot.startTime();
+        List<Spot> remainingCandidates = new ArrayList<>(candidates);
+        int globalStopOrder = 1;
 
-            ItineraryStop stop = new ItineraryStop();
-            stop.setItineraryId(itineraryId);
-            stop.setSpotId(spot.getId());
-            stop.setStopOrder(i + 1);
-            stop.setStartTime(startTime);
-            stop.setEndTime(startTime.plusMinutes(duration));
-            stop.setDurationMinutes(duration);
-            newStops.add(stop);
+        for (int day = 1; day <= totalDays; day++) {
+            if (remainingCandidates.size() < numberOfStops) {
+                remainingCandidates.addAll(candidates);
+            }
+            
+            List<ScheduledSpot> scheduled = scheduleByCategoryRules(remainingCandidates, lat, lng, numberOfStops);
+            
+            // Remove scheduled spots from remaining candidates to avoid duplicates across days
+            for (ScheduledSpot ss : scheduled) {
+                remainingCandidates.remove(ss.spot());
+            }
+
+            for (int i = 0; i < scheduled.size(); i++) {
+                ScheduledSpot scheduledSpot = scheduled.get(i);
+                Spot spot = scheduledSpot.spot();
+                int duration = getDefaultDuration(spot.getType());
+                LocalTime startTime = scheduledSpot.startTime();
+
+                ItineraryStop stop = new ItineraryStop();
+                stop.setItineraryId(itineraryId);
+                stop.setSpotId(spot.getId());
+                stop.setStopOrder(globalStopOrder++);
+                stop.setStartTime(startTime);
+                stop.setEndTime(startTime.plusMinutes(duration));
+                stop.setDurationMinutes(duration);
+                stop.setDayNumber(day);
+                newStops.add(stop);
+            }
         }
         stopRepository.saveAll(newStops);
 

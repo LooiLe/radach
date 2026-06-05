@@ -16,5 +16,7 @@ public record StopResponse(
         String startTime,
         String endTime,
         Integer durationMinutes,
-        String notes
+        String notes,
+        int dayNumber,
+        Integer estimatedCostCents
 ) {}
