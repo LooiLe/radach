@@ -1,7 +1,10 @@
 ﻿import json
 import os
 import argparse
+import re
 import requests
+import sys
+import time
 import urllib.parse
 
 # Overpass API URL
@@ -12,56 +15,149 @@ DEFAULT_BBOX = (7.7, 98.15, 8.25, 98.5)
 DEFAULT_CITY = "Phuket"
 DEFAULT_COUNTRY = "Thailand"
 
-def build_query(bbox):
+def escape_overpass_string(value):
+    return str(value).replace("\\", "\\\\").replace('"', '\\"')
+
+def build_query(bbox, area_name=None, area_iso=None):
     south, west, north, east = bbox
     bbox_text = f"{south},{west},{north},{east}"
+    area_prefix = ""
+    area_filter = ""
+    if area_iso:
+        escaped_area_iso = escape_overpass_string(area_iso)
+        area_prefix = (
+            f'area["ISO3166-1"="{escaped_area_iso}"]["boundary"="administrative"]["admin_level"="2"]->.searchArea;'
+        )
+        area_filter = "(area.searchArea)"
+    elif area_name:
+        escaped_area_name = escape_overpass_string(area_name)
+        area_prefix = (
+            f'area["name"="{escaped_area_name}"]["boundary"="administrative"]["admin_level"="2"]->.searchArea;'
+        )
+        area_filter = "(area.searchArea)"
     return f"""
 [out:json][timeout:180];
+{area_prefix}
 (
   // Beach
-  nwr["natural"="beach"]({bbox_text});
+  nwr["natural"="beach"]{area_filter}({bbox_text});
   
   // Viewpoint
-  nwr["tourism"="viewpoint"]({bbox_text});
+  nwr["tourism"="viewpoint"]{area_filter}({bbox_text});
   
   // Market
-  nwr["amenity"="marketplace"]({bbox_text});
-  nwr["shop"="market"]({bbox_text});
+  nwr["amenity"="marketplace"]{area_filter}({bbox_text});
+  nwr["shop"="market"]{area_filter}({bbox_text});
   
   // Cafe
-  nwr["amenity"="cafe"]({bbox_text});
+  nwr["amenity"="cafe"]{area_filter}({bbox_text});
   
   // Restaurant
-  nwr["amenity"="restaurant"]({bbox_text});
-  nwr["amenity"="food_court"]({bbox_text});
+  nwr["amenity"="restaurant"]{area_filter}({bbox_text});
+  nwr["amenity"="food_court"]{area_filter}({bbox_text});
   
   // Bar
-  nwr["amenity"="bar"]({bbox_text});
-  nwr["amenity"="pub"]({bbox_text});
-  nwr["amenity"="nightclub"]({bbox_text});
+  nwr["amenity"="bar"]{area_filter}({bbox_text});
+  nwr["amenity"="pub"]{area_filter}({bbox_text});
+  nwr["amenity"="nightclub"]{area_filter}({bbox_text});
   
   // Hotel
-  nwr["tourism"="hotel"]({bbox_text});
-  nwr["tourism"="resort"]({bbox_text});
-  nwr["tourism"="guest_house"]({bbox_text});
-  nwr["tourism"="hostel"]({bbox_text});
+  nwr["tourism"="hotel"]{area_filter}({bbox_text});
+  nwr["tourism"="resort"]{area_filter}({bbox_text});
+  nwr["tourism"="guest_house"]{area_filter}({bbox_text});
+  nwr["tourism"="hostel"]{area_filter}({bbox_text});
   
   // Activities / Attractions
-  nwr["tourism"="theme_park"]({bbox_text});
-  nwr["tourism"="zoo"]({bbox_text});
-  nwr["tourism"="aquarium"]({bbox_text});
-  nwr["tourism"="museum"]({bbox_text});
-  nwr["tourism"="gallery"]({bbox_text});
-  nwr["tourism"="attraction"]({bbox_text});
-  nwr["leisure"="water_park"]({bbox_text});
-  nwr["leisure"="park"]({bbox_text});
+  nwr["tourism"="theme_park"]{area_filter}({bbox_text});
+  nwr["tourism"="zoo"]{area_filter}({bbox_text});
+  nwr["tourism"="aquarium"]{area_filter}({bbox_text});
+  nwr["tourism"="museum"]{area_filter}({bbox_text});
+  nwr["tourism"="gallery"]{area_filter}({bbox_text});
+  nwr["tourism"="attraction"]{area_filter}({bbox_text});
+  nwr["leisure"="water_park"]{area_filter}({bbox_text});
+  nwr["leisure"="park"]{area_filter}({bbox_text});
   
   // Trailhead / Trail
-  nwr["tourism"="trailhead"]({bbox_text});
-  nwr["highway"="trailhead"]({bbox_text});
+  nwr["tourism"="trailhead"]{area_filter}({bbox_text});
+  nwr["highway"="trailhead"]{area_filter}({bbox_text});
 );
 out center;
 """
+
+def spot_key(name, lat, lon):
+    return (name.strip().lower(), round(float(lat), 4), round(float(lon), 4))
+
+def load_existing_spot_keys(migration_dir, exclude_path=None):
+    if not migration_dir:
+        return set()
+
+    existing_keys = set()
+    excluded_abs_path = os.path.abspath(exclude_path) if exclude_path else None
+    if not os.path.isdir(migration_dir):
+        print(f"Existing migration directory not found: {migration_dir}")
+        return existing_keys
+
+    row_pattern = re.compile(
+        r"\('((?:''|[^'])*)',\s*'[^']*',\s*(?:'(?:(?:''|[^'])*)'|NULL),\s*"
+        r"(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)",
+        re.MULTILINE,
+    )
+
+    for filename in sorted(os.listdir(migration_dir)):
+        if not filename.endswith(".sql"):
+            continue
+        path = os.path.join(migration_dir, filename)
+        if excluded_abs_path and os.path.abspath(path) == excluded_abs_path:
+            continue
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                contents = f.read()
+        except UnicodeDecodeError:
+            with open(path, "r", encoding="latin-1") as f:
+                contents = f.read()
+
+        for match in row_pattern.finditer(contents):
+            name = match.group(1).replace("''", "'")
+            existing_keys.add(spot_key(name, match.group(2), match.group(3)))
+
+    print(f"Loaded {len(existing_keys)} existing spot keys from migrations.")
+    return existing_keys
+
+def tile_bbox(bbox, tile_degrees):
+    if not tile_degrees or tile_degrees <= 0:
+        return [bbox]
+
+    south, west, north, east = bbox
+    tiles = []
+    tile_south = south
+    while tile_south < north:
+        tile_north = min(tile_south + tile_degrees, north)
+        tile_west = west
+        while tile_west < east:
+            tile_east = min(tile_west + tile_degrees, east)
+            tiles.append((tile_south, tile_west, tile_north, tile_east))
+            tile_west = tile_east
+        tile_south = tile_north
+    return tiles
+
+def fetch_bbox_tiles(bbox, tile_degrees, delay_seconds, area_name=None, area_iso=None):
+    tiles = tile_bbox(bbox, tile_degrees)
+    all_elements = []
+    failed_tiles = []
+    print(f"Fetching {len(tiles)} bbox tile(s).")
+    for index, tile in enumerate(tiles, start=1):
+        print(f"Fetching tile {index}/{len(tiles)}: {tile}")
+        elements = fetch_osm_data(build_query(tile, area_name, area_iso))
+        if elements is None:
+            failed_tiles.append(tile)
+            continue
+        all_elements.extend(elements)
+        if delay_seconds and index < len(tiles):
+            time.sleep(delay_seconds)
+    print(f"Fetched {len(all_elements)} raw elements across all tiles.")
+    if failed_tiles:
+        print(f"Failed to fetch {len(failed_tiles)} tile(s): {failed_tiles}")
+    return all_elements, failed_tiles
 
 # Curated high-quality category fallback images from Unsplash
 CATEGORY_IMAGES = {
@@ -162,22 +258,25 @@ CATEGORY_IMAGES = {
     ]
 }
 
-def fetch_osm_data(query):
+def fetch_osm_data(query, retries=4, retry_delay=15):
     print("Fetching data from Overpass API (this can take up to a minute)...")
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Referer': 'https://github.com/LooiLe/radach'
     }
-    try:
-        response = requests.post(OVERPASS_URL, data={'data': query}, headers=headers, timeout=200)
-        response.raise_for_status()
-        data = response.json()
-        elements = data.get('elements', [])
-        print(f"Successfully fetched {len(elements)} raw elements from OSM.")
-        return elements
-    except Exception as e:
-        print(f"Error fetching data: {e}")
-        return []
+    for attempt in range(1, retries + 1):
+        try:
+            response = requests.post(OVERPASS_URL, data={'data': query}, headers=headers, timeout=200)
+            response.raise_for_status()
+            data = response.json()
+            elements = data.get('elements', [])
+            print(f"Successfully fetched {len(elements)} raw elements from OSM.")
+            return elements
+        except Exception as e:
+            print(f"Error fetching data on attempt {attempt}/{retries}: {e}")
+            if attempt < retries:
+                time.sleep(retry_delay * attempt)
+    return None
 
 def map_osm_category(tags):
     # Determine the category based on OSM tags
@@ -256,9 +355,11 @@ def clean_website(tags):
 def get_photos_for_spot(spot_name, category):
     return []
 
-def process_elements(elements, city=DEFAULT_CITY, country=DEFAULT_COUNTRY, max_spots=None):
+def process_elements(elements, city=DEFAULT_CITY, country=DEFAULT_COUNTRY, max_spots=None, existing_keys=None):
     spots = []
     seen_keys = set() # (name.lower(), round(lat, 4), round(lon, 4)) to avoid exact duplicates
+    existing_keys = existing_keys or set()
+    skipped_existing = 0
     
     total_elements = len(elements)
     print("Processing and generating photos for elements...")
@@ -288,8 +389,11 @@ def process_elements(elements, city=DEFAULT_CITY, country=DEFAULT_COUNTRY, max_s
         photos = get_photos_for_spot(name, category)
         
         # Deduplication key (name + coords rounded to 4 decimals ~ 11m)
-        dedup_key = (name.lower(), round(lat, 4), round(lon, 4))
+        dedup_key = spot_key(name, lat, lon)
         if dedup_key in seen_keys:
+            continue
+        if dedup_key in existing_keys:
+            skipped_existing += 1
             continue
         seen_keys.add(dedup_key)
         
@@ -306,6 +410,9 @@ def process_elements(elements, city=DEFAULT_CITY, country=DEFAULT_COUNTRY, max_s
         if max_spots and len(spots) >= max_spots:
             break
         
+    if skipped_existing:
+        print(f"Skipped {skipped_existing} spots that already exist in previous migrations.")
+
     return spots
 
 def escape_sql_string(s):
@@ -329,7 +436,7 @@ def generate_migration_file(spots, output_path, city=DEFAULT_CITY):
     for i in range(0, len(spots), batch_size):
         batch = spots[i:i+batch_size]
         
-        insert_header = "INSERT INTO spots (name, type, address, latitude, longitude, tags, status, rank_score, photos, website_url, created_at) VALUES"
+        insert_header = "INSERT INTO spots (name, type, address, latitude, longitude, tags, status, rank_score, photos, website_url, created_at)"
         value_rows = []
         
         for spot in batch:
@@ -355,7 +462,19 @@ def generate_migration_file(spots, output_path, city=DEFAULT_CITY):
             row = f"({name_esc}, {type_esc}, {addr_esc}, {lat}, {lon}, {tags_esc}, {status_esc}, {rank_score}, {photos_esc}, {web_esc}, NOW())"
             value_rows.append(row)
             
-        statement = insert_header + "\n" + ",\n".join(value_rows) + ";"
+        statement = (
+            insert_header
+            + "\nSELECT v.name, v.type, v.address, v.latitude, v.longitude, v.tags, v.status, v.rank_score, v.photos, v.website_url, v.created_at\n"
+            + "FROM (VALUES\n"
+            + ",\n".join(value_rows)
+            + "\n) AS v(name, type, address, latitude, longitude, tags, status, rank_score, photos, website_url, created_at)\n"
+            + "WHERE NOT EXISTS (\n"
+            + "    SELECT 1 FROM spots s\n"
+            + "    WHERE lower(s.name) = lower(v.name)\n"
+            + "      AND round(s.latitude::numeric, 4) = round(v.latitude::numeric, 4)\n"
+            + "      AND round(s.longitude::numeric, 4) = round(v.longitude::numeric, 4)\n"
+            + ");"
+        )
         lines.append(statement)
         lines.append("")
         
@@ -380,18 +499,29 @@ def main():
     parser.add_argument("--bbox", type=parse_bbox, default=DEFAULT_BBOX, help="south,west,north,east")
     parser.add_argument("--output", default="src/main/resources/db/migration/V41__import_phuket_spots.sql")
     parser.add_argument("--max-spots", type=int, default=None)
+    parser.add_argument("--tile-degrees", type=float, default=0, help="Split bbox into tiles of this size in degrees.")
+    parser.add_argument("--tile-delay", type=float, default=1.0, help="Seconds to wait between tiled Overpass requests.")
+    parser.add_argument("--area-name", default=None, help="Optional admin_level=2 Overpass area name to filter results to a country.")
+    parser.add_argument("--area-iso", default=None, help="Optional ISO3166-1 country code to filter results to a country.")
+    parser.add_argument(
+        "--exclude-existing-migrations",
+        default="src/main/resources/db/migration",
+        help="Directory of existing SQL migrations to avoid re-scraping already imported spots. Use an empty string to disable.",
+    )
     args = parser.parse_args()
+    migration_path = os.path.abspath(args.output)
 
-    query = build_query(args.bbox)
-    elements = fetch_osm_data(query)
+    existing_keys = load_existing_spot_keys(args.exclude_existing_migrations, migration_path)
+    elements, failed_tiles = fetch_bbox_tiles(args.bbox, args.tile_degrees, args.tile_delay, args.area_name, args.area_iso)
+    if failed_tiles:
+        print("Some tiles could not be fetched after retries; no migration was written.")
+        sys.exit(1)
     if not elements:
         print("No elements fetched. Exiting.")
         return
         
-    spots = process_elements(elements, args.city, args.country, args.max_spots)
+    spots = process_elements(elements, args.city, args.country, args.max_spots, existing_keys)
     print(f"Processed and cleaned down to {len(spots)} unique spots.")
-    
-    migration_path = os.path.abspath(args.output)
     
     generate_migration_file(spots, migration_path, args.city)
 

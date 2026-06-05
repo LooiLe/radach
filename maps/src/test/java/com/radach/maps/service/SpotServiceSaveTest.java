@@ -51,7 +51,7 @@ public class SpotServiceSaveTest {
         assertThat(savedSpots.get(0).isSaved()).isTrue();
 
         // 5. Verify in findSpots (which is what /spots calls)
-        List<SpotResponse> allSpots = spotService.findSpots(null, null, null, "popularity", user.getId());
+        List<SpotResponse> allSpots = spotService.findSpots(40.0, -73.0, 1.0, "popularity", user.getId());
         SpotResponse foundSpot = allSpots.stream().filter(s -> s.id().equals(spot.id())).findFirst().orElseThrow();
         assertThat(foundSpot.isSaved()).isTrue();
     }

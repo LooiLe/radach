@@ -5,10 +5,16 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.springframework.data.domain.PageRequest;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.radach.maps.dto.MapSpotResponse;
 import com.radach.maps.dto.SpotRequest;
+import com.radach.maps.dto.SpotClusterResponse;
+import com.radach.maps.dto.SpotMapResponse;
 import com.radach.maps.dto.SpotResponse;
 import com.radach.maps.dto.VibeTagDTO;
 import com.radach.maps.exception.ResourceNotFoundException;
@@ -23,6 +29,11 @@ import com.radach.maps.repository.VibeTagDefinitionRepository;
 
 @Service
 public class SpotService {
+    private static final int DEFAULT_SPOT_LIMIT = 500;
+    private static final int MAX_SPOT_LIMIT = 1000;
+    private static final int MAP_SPOT_LIMIT = 5000;
+    private static final int MAP_CLUSTER_LIMIT = 2500;
+    private static final int MAP_CLUSTER_UNTIL_ZOOM = 12;
 
     private final SpotRepository spotRepository;
     private final ReviewRepository reviewRepository;
@@ -33,8 +44,9 @@ public class SpotService {
     private final com.radach.maps.repository.UserRepository userRepository;
     private final SpotVibeTagRepository spotVibeRepo;
     private final VibeTagDefinitionRepository vibeDefRepo;
+    private final NamedParameterJdbcTemplate jdbcTemplate;
 
-    public SpotService(SpotRepository spotRepository, ReviewRepository reviewRepository, FriendshipService friendshipService, com.radach.maps.repository.SpotEventRepository spotEventRepository, com.radach.maps.repository.UserSpotInteractionRepository interactionRepository, com.radach.maps.repository.UserRepository userRepository, SpotVibeTagRepository spotVibeRepo, VibeTagDefinitionRepository vibeDefRepo) {
+    public SpotService(SpotRepository spotRepository, ReviewRepository reviewRepository, FriendshipService friendshipService, com.radach.maps.repository.SpotEventRepository spotEventRepository, com.radach.maps.repository.UserSpotInteractionRepository interactionRepository, com.radach.maps.repository.UserRepository userRepository, SpotVibeTagRepository spotVibeRepo, VibeTagDefinitionRepository vibeDefRepo, NamedParameterJdbcTemplate jdbcTemplate) {
         this.spotRepository = spotRepository;
         this.reviewRepository = reviewRepository;
         this.friendshipService = friendshipService;
@@ -43,6 +55,7 @@ public class SpotService {
         this.userRepository = userRepository;
         this.spotVibeRepo = spotVibeRepo;
         this.vibeDefRepo = vibeDefRepo;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     /** Load vibe tags for a spot and convert to DTOs. */
@@ -136,7 +149,7 @@ public class SpotService {
                 })
                 .toList();
     }
-    public List<SpotResponse> findSpots(Double lat, Double lng, Double radiusKm, String sortBy, Long authenticatedUserId) {
+    public List<SpotResponse> findSpots(Double lat, Double lng, Double radiusKm, String sortBy, Integer limit, Long authenticatedUserId) {
         boolean geoSearch = lat != null || lng != null || radiusKm != null;
         if (geoSearch && (lat == null || lng == null || radiusKm == null)) {
             throw new IllegalArgumentException("lat, lng, and radiusKm are required for geo search");
@@ -146,19 +159,189 @@ public class SpotService {
         }
 
         boolean sortPopularity = "popularity".equalsIgnoreCase(sortBy);
+        int effectiveLimit = normalizeSpotLimit(limit);
 
         List<Spot> spots;
         if (geoSearch) {
             spots = sortPopularity 
                     ? spotRepository.findWithinRadiusOrderByRankScoreDesc(lat, lng, radiusKm)
                     : spotRepository.findWithinRadius(lat, lng, radiusKm);
+            if (spots.size() > effectiveLimit) {
+                spots = spots.subList(0, effectiveLimit);
+            }
         } else {
             spots = sortPopularity
-                    ? spotRepository.findAllByStatusOrderByRankScoreDesc(SpotStatus.ACTIVE)
-                    : spotRepository.findAllByStatus(SpotStatus.ACTIVE);
+                    ? spotRepository.findByStatusOrderByRankScoreDesc(SpotStatus.ACTIVE, PageRequest.of(0, effectiveLimit))
+                    : spotRepository.findByStatus(SpotStatus.ACTIVE, PageRequest.of(0, effectiveLimit));
         }
 
         return withRatingsAndInteractions(spots, authenticatedUserId);
+    }
+
+    public SpotMapResponse findMapSpots(Double swLat, Double swLng, Double neLat, Double neLng, Integer zoom) {
+        validateMapBounds(swLat, swLng, neLat, neLng);
+        int effectiveZoom = zoom == null ? 6 : Math.max(0, Math.min(22, zoom));
+        MapSqlParameterSource params = mapBoundsParams(swLat, swLng, neLat, neLng);
+        long total = countMapSpots(params);
+
+        if (effectiveZoom <= MAP_CLUSTER_UNTIL_ZOOM || total > MAP_SPOT_LIMIT) {
+            MapBucketResponses buckets = findMapBuckets(params, swLat, swLng, neLat, neLng, effectiveZoom);
+            return SpotMapResponse.clusters(total, buckets.spots(), buckets.clusters());
+        }
+
+        params.addValue("limit", MAP_SPOT_LIMIT);
+        List<MapSpotResponse> spots = jdbcTemplate.query("""
+                SELECT id, name, type, latitude, longitude, rank_score
+                FROM spots
+                WHERE status = 'ACTIVE'
+                  AND latitude BETWEEN :swLat AND :neLat
+                  AND longitude BETWEEN :swLng AND :neLng
+                ORDER BY rank_score DESC, id DESC
+                LIMIT :limit
+                """, params, (rs, rowNum) -> new MapSpotResponse(
+                rs.getLong("id"),
+                rs.getString("name"),
+                rs.getString("type"),
+                rs.getDouble("latitude"),
+                rs.getDouble("longitude"),
+                rs.getInt("rank_score")
+        ));
+
+        return SpotMapResponse.spots(total, total > MAP_SPOT_LIMIT, spots);
+    }
+
+    private void validateMapBounds(Double swLat, Double swLng, Double neLat, Double neLng) {
+        if (swLat == null || swLng == null || neLat == null || neLng == null) {
+            throw new IllegalArgumentException("swLat, swLng, neLat, and neLng are required");
+        }
+        if (swLat < -90 || neLat > 90 || swLng < -180 || neLng > 180 || swLat >= neLat || swLng >= neLng) {
+            throw new IllegalArgumentException("Invalid map bounds");
+        }
+    }
+
+    private MapSqlParameterSource mapBoundsParams(Double swLat, Double swLng, Double neLat, Double neLng) {
+        return new MapSqlParameterSource()
+                .addValue("swLat", swLat)
+                .addValue("swLng", swLng)
+                .addValue("neLat", neLat)
+                .addValue("neLng", neLng);
+    }
+
+    private long countMapSpots(MapSqlParameterSource params) {
+        Long total = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM spots
+                WHERE status = 'ACTIVE'
+                  AND latitude BETWEEN :swLat AND :neLat
+                  AND longitude BETWEEN :swLng AND :neLng
+                """, params, Long.class);
+        return total == null ? 0 : total;
+    }
+
+    private MapBucketResponses findMapBuckets(MapSqlParameterSource params, double swLat, double swLng, double neLat, double neLng, int zoom) {
+        double latStep = clusterStep(neLat - swLat, zoom);
+        double lngStep = clusterStep(neLng - swLng, zoom);
+        params.addValue("latStep", latStep);
+        params.addValue("lngStep", lngStep);
+        params.addValue("limit", MAP_CLUSTER_LIMIT);
+
+        List<MapBucketResponse> buckets = jdbcTemplate.query("""
+                WITH bucketed AS (
+                    SELECT
+                        id,
+                        name,
+                        floor((latitude - :swLat) / :latStep) AS lat_bucket,
+                        floor((longitude - :swLng) / :lngStep) AS lng_bucket,
+                        latitude,
+                        longitude,
+                        type,
+                        rank_score
+                    FROM spots
+                    WHERE status = 'ACTIVE'
+                      AND latitude BETWEEN :swLat AND :neLat
+                      AND longitude BETWEEN :swLng AND :neLng
+                )
+                SELECT
+                    AVG(latitude) AS latitude,
+                    AVG(longitude) AS longitude,
+                    COUNT(*) AS spot_count,
+                    (array_agg(id ORDER BY rank_score DESC, id DESC))[1] AS spot_id,
+                    (array_agg(name ORDER BY rank_score DESC, id DESC))[1] AS name,
+                    (array_agg(type ORDER BY rank_score DESC, id DESC))[1] AS type,
+                    (array_agg(rank_score ORDER BY rank_score DESC, id DESC))[1] AS rank_score
+                FROM bucketed
+                GROUP BY lat_bucket, lng_bucket
+                ORDER BY spot_count DESC
+                LIMIT :limit
+                """, params, (rs, rowNum) -> new MapBucketResponse(
+                rs.getDouble("latitude"),
+                rs.getDouble("longitude"),
+                rs.getLong("spot_count"),
+                rs.getLong("spot_id"),
+                rs.getString("name"),
+                rs.getString("type"),
+                rs.getInt("rank_score")
+        ));
+
+        List<MapSpotResponse> spots = buckets.stream()
+                .filter(bucket -> bucket.count() == 1)
+                .map(bucket -> new MapSpotResponse(
+                        bucket.spotId(),
+                        bucket.name(),
+                        bucket.type(),
+                        bucket.latitude(),
+                        bucket.longitude(),
+                        bucket.rankScore()
+                ))
+                .toList();
+
+        List<SpotClusterResponse> clusters = buckets.stream()
+                .filter(bucket -> bucket.count() > 1)
+                .map(bucket -> new SpotClusterResponse(
+                        bucket.latitude(),
+                        bucket.longitude(),
+                        bucket.count(),
+                        bucket.type()
+                ))
+                .toList();
+
+        return new MapBucketResponses(spots, clusters);
+    }
+
+    private double clusterStep(double span, int zoom) {
+        double cellsAcrossViewport = Math.max(8, Math.min(64, Math.pow(2, Math.max(0, zoom - 4))));
+        return Math.max(span / cellsAcrossViewport, 0.0001);
+    }
+
+    private record MapBucketResponse(
+            Double latitude,
+            Double longitude,
+            long count,
+            Long spotId,
+            String name,
+            String type,
+            int rankScore
+    ) {
+    }
+
+    private record MapBucketResponses(
+            List<MapSpotResponse> spots,
+            List<SpotClusterResponse> clusters
+    ) {
+    }
+
+    public List<SpotResponse> findSpots(Double lat, Double lng, Double radiusKm, String sortBy, Long authenticatedUserId) {
+        return findSpots(lat, lng, radiusKm, sortBy, null, authenticatedUserId);
+    }
+
+    private int normalizeSpotLimit(Integer limit) {
+        if (limit == null) {
+            return DEFAULT_SPOT_LIMIT;
+        }
+        if (limit <= 0) {
+            throw new IllegalArgumentException("limit must be greater than 0");
+        }
+        return Math.min(limit, MAX_SPOT_LIMIT);
     }
 
     public SpotResponse findById(Long id, Long authenticatedUserId) {
@@ -290,14 +473,20 @@ public class SpotService {
     }
 
     public List<SpotResponse> getTrending(Long authenticatedUserId, Double lat, Double lng, Double radiusKm, String type) {
+        return getTrending(authenticatedUserId, lat, lng, radiusKm, type, null);
+    }
+
+    public List<SpotResponse> getTrending(Long authenticatedUserId, Double lat, Double lng, Double radiusKm, String type, Integer limit) {
         boolean geoSearch = lat != null && lng != null && radiusKm != null;
         java.time.Instant since = java.time.Instant.now().minus(java.time.Duration.ofDays(7));
+        int effectiveLimit = normalizeSpotLimit(limit);
 
         if ("expert".equalsIgnoreCase(type)) {
             // Expert Reviews trending (accessible to everyone)
             List<Spot> spots = geoSearch
                     ? spotRepository.findExpertTrendingWithinRadius(lat, lng, radiusKm, since)
                     : spotRepository.findExpertTrending(since);
+            spots = limitSpots(spots, effectiveLimit);
             return withRatingsAndInteractions(spots, authenticatedUserId);
         } else {
             // Personalized trending based on friends
@@ -305,7 +494,8 @@ public class SpotService {
                 // Unauthenticated personalized ranking = global fallback
                 List<Spot> spots = geoSearch
                         ? spotRepository.findWithinRadiusOrderByRankScoreDesc(lat, lng, radiusKm)
-                        : spotRepository.findAllByStatusOrderByRankScoreDesc(SpotStatus.ACTIVE);
+                        : spotRepository.findByStatusOrderByRankScoreDesc(SpotStatus.ACTIVE, PageRequest.of(0, effectiveLimit));
+                spots = limitSpots(spots, effectiveLimit);
                 return withRatingsAndInteractions(spots, null);
             }
 
@@ -316,7 +506,8 @@ public class SpotService {
                 // Fallback to global if they have no friends
                 List<Spot> spots = geoSearch
                         ? spotRepository.findWithinRadiusOrderByRankScoreDesc(lat, lng, radiusKm)
-                        : spotRepository.findAllByStatusOrderByRankScoreDesc(SpotStatus.ACTIVE);
+                        : spotRepository.findByStatusOrderByRankScoreDesc(SpotStatus.ACTIVE, PageRequest.of(0, effectiveLimit));
+                spots = limitSpots(spots, effectiveLimit);
                 return withRatingsAndInteractions(spots, authenticatedUserId);
             }
 
@@ -328,8 +519,13 @@ public class SpotService {
                     ? spotRepository.findPersonalizedTrendingWithinRadius(lat, lng, radiusKm, safeFirstDegree, safeSecondDegree, since)
                     : spotRepository.findPersonalizedTrending(safeFirstDegree, safeSecondDegree, since);
 
+            spots = limitSpots(spots, effectiveLimit);
             return withRatingsAndInteractions(spots, authenticatedUserId);
         }
+    }
+
+    private List<Spot> limitSpots(List<Spot> spots, int limit) {
+        return spots.size() > limit ? spots.subList(0, limit) : spots;
     }
 
     private List<SpotResponse> sortTrending(List<SpotResponse> responses) {

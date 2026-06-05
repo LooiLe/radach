@@ -3,6 +3,7 @@ package com.radach.maps.repository;
 import java.time.Instant;
 import java.util.List;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -133,6 +134,10 @@ public interface SpotRepository extends JpaRepository<Spot, Long> {
     List<Spot> findAllByStatusOrderByRankScoreDesc(com.radach.maps.model.SpotStatus status);
 
     List<Spot> findAllByStatus(com.radach.maps.model.SpotStatus status);
+
+    List<Spot> findByStatusOrderByRankScoreDesc(com.radach.maps.model.SpotStatus status, Pageable pageable);
+
+    List<Spot> findByStatus(com.radach.maps.model.SpotStatus status, Pageable pageable);
 
     List<Spot> findByStatusOrderByCreatedAtAsc(com.radach.maps.model.SpotStatus status);
 
