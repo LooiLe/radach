@@ -29,6 +29,7 @@ import ItineraryPlannerPage from './pages/ItineraryPlannerPage'
 import ItineraryDetailPage from './pages/ItineraryDetailPage'
 import ItinerarySharePage from './pages/ItinerarySharePage'
 import PaymentSuccessPage from './pages/PaymentSuccessPage'
+import ARViewPage from './pages/ARViewPage'
 
 export default function App() {
   return (
@@ -62,6 +63,8 @@ export default function App() {
          <Route path="/itineraries/:id" element={<ProtectedRoute><ItineraryDetailPage /></ProtectedRoute>} />
          <Route path="/itineraries/share/:shareToken" element={<ItinerarySharePage />} />
          <Route path="/payment/success" element={<ProtectedRoute><PaymentSuccessPage /></ProtectedRoute>} />
+         <Route path="/ar/:itineraryId" element={<ProtectedRoute><ARViewPage /></ProtectedRoute>} />
+         <Route path="/ar/spot/:spotId" element={<ProtectedRoute><ARViewPage /></ProtectedRoute>} />
       </Routes>
       <FloatingAddButton />
      </BrowserDialogProvider>

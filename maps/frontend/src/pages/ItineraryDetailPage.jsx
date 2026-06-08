@@ -871,6 +871,11 @@ export default function ItineraryDetailPage() {
                       </button>
                     </div>
                   )}
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <Link to={`/ar/${id}`} className="btn-edit" style={{ flex: 1, background: 'rgba(139, 92, 246, 0.12)', borderColor: 'rgba(139, 92, 246, 0.25)', color: '#7c3aed', textDecoration: 'none', textAlign: 'center' }}>
+                      🔮 AR Explorer
+                    </Link>
+                  </div>
                 </div>
               )}
             </div>

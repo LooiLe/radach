@@ -7,6 +7,10 @@ export default defineConfig({
   server: {
     host: true,
     port: 5173,
+    allowedHosts: [
+      '.trycloudflare.com',
+      'tried-banner-summaries-reviewing.trycloudflare.com',
+    ],
     proxy: {
       '/api': {
         target: 'http://localhost:8080',

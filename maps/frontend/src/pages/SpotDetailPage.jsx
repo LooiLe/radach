@@ -447,12 +447,15 @@ export default function SpotDetailPage() {
               </div>
             )}
 
-            <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+            <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem', flexWrap: 'wrap' }}>
               <button className="btn btn-primary" onClick={() => { trackEvent('view'); navigate(`/spots?mode=nearby&lat=${spot.latitude}&lng=${spot.longitude}&radiusKm=0.1`) }}>
                 View on map
               </button>
               <button className="btn btn-ghost" style={{ border: '1px solid var(--border-color)' }} onClick={() => navigate(`/directions/${spot.id}`)}>
                 Directions
+              </button>
+              <button className="btn btn-ghost" style={{ border: '1px solid rgba(139, 92, 246, 0.3)', color: '#7c3aed' }} onClick={() => navigate(`/ar/spot/${spot.id}`)}>
+                🔮 Explore in AR
               </button>
             </div>
           </>
