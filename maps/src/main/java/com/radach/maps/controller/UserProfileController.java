@@ -72,6 +72,7 @@ public class UserProfileController {
         profile.put("specializations", user.getSpecializations());
         profile.put("portfolioUrl", user.getPortfolioUrl());
         profile.put("profilePicture", user.getProfilePicture());
+        profile.put("role", user.getRole().name());
 
         if (auth != null && auth.isAuthenticated() && !auth.getName().equals("anonymousUser")) {
             Long currentUserId = authenticatedUserService.getUserId(auth);

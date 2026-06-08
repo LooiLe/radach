@@ -43,8 +43,8 @@ export default function FeedPage() {
       const res = await apiFetch(`/api/v1/feed?filter=${filter}&limit=50`)
       if (res.ok) {
         const data = await res.json()
-        // Filter out the current user's own items from the feed
-        setFeed(data.filter(item => String(item.userId) !== String(userId)))
+        // Filter out the current user's own items and VIEW items (viewed spots are private)
+        setFeed(data.filter(item => String(item.userId) !== String(userId) && item.activityType !== 'VIEW'))
       }
     } catch { /* ignore */ }
     setLoading(false)
@@ -395,6 +395,7 @@ export default function FeedPage() {
                         {String(userId) === String(item.userId) ? 'You' : item.userName}
                       </Link>
                       {item.isExpert && <span className="badge badge-active" style={{ marginLeft: '0.5rem', fontSize: '0.7rem' }}>Expert</span>}
+                      {item.isAdmin && <span className="badge badge-role" style={{ marginLeft: '0.5rem', fontSize: '0.7rem' }}>Admin</span>}
                     </span>
                     <span className="feed-item-action">
                       {item.activityType === 'POST' ? 'created a post' : (item.activityType === 'REVIEW' ? 'left a review' : item.description)}

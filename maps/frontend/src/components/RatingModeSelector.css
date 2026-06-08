@@ -1,0 +1,26 @@
+.rating-mode-selector {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.rating-mode-btn {
+  padding: 0.3rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.rating-mode-btn:hover {
+  opacity: 0.85;
+}
+
+.rating-mode-btn.active {
+  background: var(--border);
+  color: var(--text-primary);
+  border-color: var(--text-muted);
+}

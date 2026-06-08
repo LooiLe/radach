@@ -35,6 +35,7 @@ export default function SpotDetailPage() {
   const [reportModalOpen, setReportModalOpen] = useState(false)
   const [reportTarget, setReportTarget] = useState({ type: '', id: null })
   const [confirmDialog, setConfirmDialog] = useState(null)
+  const [friendIds, setFriendIds] = useState(new Set())
   const [showDetailFriendLikes, setShowDetailFriendLikes] = useState(false)
   const [detailFriendLikes, setDetailFriendLikes] = useState([])
   const [loadingDetailFriendLikes, setLoadingDetailFriendLikes] = useState(false)
@@ -111,6 +112,23 @@ export default function SpotDetailPage() {
       if (res.ok) setTrailPaths(await res.json())
     } catch { /* ignore */ }
   }, [apiFetch, id])
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+    apiFetch('/api/v1/friends')
+      .then(res => res.ok ? res.json() : [])
+      .then(data => {
+        const ids = new Set()
+        if (Array.isArray(data)) {
+          data.forEach(f => {
+            if (f.friendId) ids.add(String(f.friendId))
+            if (f.userId) ids.add(String(f.userId))
+          })
+        }
+        setFriendIds(ids)
+      })
+      .catch(() => {})
+  }, [isAuthenticated, apiFetch])
 
   useEffect(() => { loadSpot(); loadReviews(); loadEvents(); loadTrailPaths(); }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -210,18 +228,18 @@ export default function SpotDetailPage() {
   };
 
   const submitReview = async () => {
-    if (!reviewBody.trim()) { setReviewMsg({ type: 'error', text: 'Please write a review.' }); return }
     if (!rating || rating === 0) { setReviewMsg({ type: 'error', text: 'Please select a rating.' }); return }
     setReviewMsg({ type: '', text: '' }); setSaving(true)
     try {
+      const body = reviewBody.trim() || null
       const res = await apiFetch(`/api/v1/spots/${id}/reviews`, {
-        method: 'POST', body: JSON.stringify({ body: reviewBody.trim(), rating })
+        method: 'POST', body: JSON.stringify({ body, rating })
       })
       const data = await res.json()
       if (res.ok) {
         const msg = data.status === 'APPROVED'
-          ? '✓ Review submitted and published! (Expert reviewer)'
-          : '✓ Review submitted! Pending admin moderation.';
+          ? '✓ Rating submitted!'
+          : '✓ Rating submitted! Pending admin moderation.';
         setReviewMsg({ type: 'success', text: msg })
         setReviewBody(''); setRating(0); loadReviews(); loadSpot()
       } else { setReviewMsg({ type: 'error', text: data.error || 'Failed.' }) }
@@ -242,12 +260,11 @@ export default function SpotDetailPage() {
   }
 
   const saveEditReview = async () => {
-    if (!editingBody.trim()) { setReviewMsg({ type: 'error', text: 'Please write a review.' }); return }
     if (!editingRating || editingRating === 0) { setReviewMsg({ type: 'error', text: 'Please select a rating.' }); return }
     setReviewMsg({ type: '', text: '' }); setSaving(true)
     try {
       const res = await apiFetch(`/api/v1/spots/${id}/reviews/${editingReviewId}`, {
-        method: 'PUT', body: JSON.stringify({ body: editingBody.trim(), rating: editingRating })
+        method: 'PUT', body: JSON.stringify({ body: editingBody.trim() || null, rating: editingRating })
       })
       if (res.ok) {
         setReviewMsg({ type: 'success', text: '✓ Review updated!' })
@@ -443,13 +460,26 @@ export default function SpotDetailPage() {
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
-                <h1 className="detail-name">{spot.name}</h1>
+                <h1 className="detail-name" style={{ margin: 0 }}>{spot.name}</h1>
                 <div className="detail-meta">
                   <span>{spot.type}</span>
                   <span>{spot.address}</span>
                   <span>{spot.latitude}, {spot.longitude}</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
                   <StatusBadge status={spot.status} />
-                  <span className="detail-rating">{formatRating(spot.averageRating)}</span>
+                  <span className="detail-rating" title="Friends rating" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
+                    <img src="/icons/la--user-friends.svg" alt="Friends" style={{ width: '1em', height: '1em' }} />
+                    {spot.friendsRating > 0 ? spot.friendsRating.toFixed(1) : '-'}
+                  </span>
+                  <span className="detail-rating" title="Global rating" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
+                    <img src="/icons/solar--global-broken.svg" alt="Global" style={{ width: '1em', height: '1em' }} />
+                    {spot.globalRating > 0 ? spot.globalRating.toFixed(1) : '-'}
+                  </span>
+                  <span className="detail-rating" title="Expert rating" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
+                    <img src="/icons/mdi--user-tick-outline.svg" alt="Expert" style={{ width: '1em', height: '1em' }} />
+                    {spot.expertRating > 0 ? spot.expertRating.toFixed(1) : '-'}
+                  </span>
                   {isAuthenticated && (spot.friendLikeCount > 0 || detailFriendLikes.length > 0) && (
                     <>
                       <span style={{ color: 'var(--text-muted)' }}>·</span>
@@ -519,51 +549,6 @@ export default function SpotDetailPage() {
                   </div>
                 )}
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.5rem', marginLeft: '1rem' }}>
-                <div className="spot-card-actions">
-                  <button className={`action-btn ${(spot.isLiked || spot.liked) ? 'active' : ''}`} onClick={async () => {
-                    if (!isAuthenticated) return navigate('/login')
-                    const newLiked = !(spot.isLiked || spot.liked)
-                    setSpot({ ...spot, isLiked: newLiked, liked: newLiked })
-                    try {
-                      await apiFetch(`/api/v1/spots/${spot.id}/like`, { method: 'POST' })
-                      // Re-fetch friend likes
-                      const res = await apiFetch(`/api/v1/spots/${spot.id}/friend-likes`, { method: 'GET' })
-                      if (res.ok) {
-                        const data = await res.json()
-                        setDetailFriendLikes(data)
-                        setSpot(prev => ({ ...prev, friendLikeCount: data.length }))
-                      }
-                    }
-                    catch { setSpot({ ...spot, isLiked: !newLiked, liked: !newLiked }) }
-                  }} aria-label="Like spot">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill={(spot.isLiked || spot.liked) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
-                    </svg>
-                  </button>
-                  <button className={`action-btn ${(spot.isSaved || spot.saved) ? 'active' : ''}`} onClick={async () => {
-                    if (!isAuthenticated) return navigate('/login')
-                    const newSaved = !(spot.isSaved || spot.saved)
-                    setSpot({ ...spot, isSaved: newSaved, saved: newSaved })
-                    try {
-                      const res = await apiFetch(`/api/v1/spots/${spot.id}/save`, { method: 'POST' })
-                      const data = await res.json()
-                      console.log('SAVE RESPONSE:', data)
-                    }
-                    catch { setSpot({ ...spot, isSaved: !newSaved, saved: !newSaved }) }
-                  }} aria-label="Save spot">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill={(spot.isSaved || spot.saved) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"></path>
-                    </svg>
-                  </button>
-                  <button className="action-btn report-btn" onClick={() => handleReportClick('SPOT', spot.id)} aria-label="Report spot" title="Report spot" style={{ color: 'var(--text-secondary)' }}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
-                      <line x1="4" y1="22" x2="4" y2="15"></line>
-                    </svg>
-                  </button>
-                </div>
-              </div>
             </div>
 
             {spot.photos?.length > 0 && (
@@ -577,13 +562,56 @@ export default function SpotDetailPage() {
               </div>
             )}
 
-            <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-              <button className="btn btn-primary" onClick={() => { trackEvent('view'); navigate(`/spots?mode=nearby&lat=${spot.latitude}&lng=${spot.longitude}&radiusKm=0.1`) }}>
-                View on map
-              </button>
-              <button className="btn btn-ghost" style={{ border: '1px solid var(--border-color)' }} onClick={() => navigate(`/directions/${spot.id}`)}>
-                Directions
-              </button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem' }}>
+              <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                <button className="btn btn-primary" onClick={() => { trackEvent('view'); navigate(`/spots?mode=nearby&lat=${spot.latitude}&lng=${spot.longitude}&radiusKm=0.1`) }}>
+                  View on map
+                </button>
+                <button className="btn btn-ghost" style={{ border: '1px solid var(--border-color)' }} onClick={() => navigate(`/directions/${spot.id}`)}>
+                  Directions
+                </button>
+              </div>
+              <div className="spot-card-actions">
+                <button className={`action-btn ${(spot.isLiked || spot.liked) ? 'active' : ''}`} onClick={async () => {
+                  if (!isAuthenticated) return navigate('/login')
+                  const newLiked = !(spot.isLiked || spot.liked)
+                  setSpot({ ...spot, isLiked: newLiked, liked: newLiked })
+                  try {
+                    await apiFetch(`/api/v1/spots/${spot.id}/like`, { method: 'POST' })
+                    const res = await apiFetch(`/api/v1/spots/${spot.id}/friend-likes`, { method: 'GET' })
+                    if (res.ok) {
+                      const data = await res.json()
+                      setDetailFriendLikes(data)
+                      setSpot(prev => ({ ...prev, friendLikeCount: data.length }))
+                    }
+                  }
+                  catch { setSpot({ ...spot, isLiked: !newLiked, liked: !newLiked }) }
+                }} aria-label="Like spot">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill={(spot.isLiked || spot.liked) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                  </svg>
+                </button>
+                <button className={`action-btn ${(spot.isSaved || spot.saved) ? 'active' : ''}`} onClick={async () => {
+                  if (!isAuthenticated) return navigate('/login')
+                  const newSaved = !(spot.isSaved || spot.saved)
+                  setSpot({ ...spot, isSaved: newSaved, saved: newSaved })
+                  try {
+                    const res = await apiFetch(`/api/v1/spots/${spot.id}/save`, { method: 'POST' })
+                    const data = await res.json()
+                  }
+                  catch { setSpot({ ...spot, isSaved: !newSaved, saved: !newSaved }) }
+                }} aria-label="Save spot">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill={(spot.isSaved || spot.saved) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"></path>
+                  </svg>
+                </button>
+                <button className="action-btn report-btn" onClick={() => handleReportClick('SPOT', spot.id)} aria-label="Report spot" title="Report spot" style={{ color: 'var(--text-secondary)' }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
+                    <line x1="4" y1="22" x2="4" y2="15"></line>
+                  </svg>
+                </button>
+              </div>
             </div>
           </>
         )}
@@ -660,7 +688,7 @@ export default function SpotDetailPage() {
 
       <div className="review-form glass">
         <textarea className="textarea" value={reviewBody} onChange={e => setReviewBody(e.target.value)}
-          placeholder="Write your review..." maxLength={2000} />
+          placeholder="Write a review." maxLength={2000} />
         <div className="rating-row">
           <label className="label" style={{ marginBottom: 0 }}>Rating:</label>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -686,63 +714,68 @@ export default function SpotDetailPage() {
         </div>
       </div>
 
-      {spot.vibeTags?.length > 0 && (
-        <div className="glass" style={{ padding: '0.7rem 1rem', marginBottom: '1.5rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)' }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
-            {spot.vibeTags.map(vt => {
-              const isActive = activeVibeFilters.includes(vt.name)
-              return (
+      <div className="reviews-list">
+        <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '0.75rem 1rem', marginBottom: '1rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
+            <button
+              className={`btn ${reviewFilter === 'friends' ? 'btn-primary' : 'btn-ghost'}`}
+              onClick={() => setReviewFilter('friends')}
+            >Friends</button>
+            <button
+              className={`btn ${reviewFilter === 'all' ? 'btn-primary' : 'btn-ghost'}`}
+              onClick={() => setReviewFilter('all')}
+            >Global</button>
+            <button
+              className={`btn ${reviewFilter === 'expert' ? 'btn-primary' : 'btn-ghost'}`}
+              onClick={() => setReviewFilter('expert')}
+            >Experts</button>
+          </div>
+          {spot.vibeTags?.length > 0 && (
+            <>
+              <div style={{ borderTop: '1px solid var(--border)', margin: '0.75rem 0' }} />
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', alignItems: 'center' }}>
+                <span
+                  onClick={() => {
+                    setActiveVibeFilters([])
+                    loadReviews()
+                  }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem', background: activeVibeFilters.length === 0 ? '#9ca3af' : 'white', color: activeVibeFilters.length === 0 ? 'white' : '#1a1a2e', borderRadius: '999px', fontSize: '0.8rem', padding: '0.25rem 0.7rem', fontWeight: 500, lineHeight: 1.4, cursor: 'pointer', transition: 'all 0.15s', opacity: 0.85, border: '1px solid #e5e7eb' }}
+                  onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+                  onMouseLeave={e => e.currentTarget.style.opacity = '0.85'}
+                >All</span>
+                {spot.vibeTags.map(vt => {
+                  const isActive = activeVibeFilters.includes(vt.name)
+                  return (
                 <span key={vt.id} onClick={() => {
                   const next = isActive
                     ? activeVibeFilters.filter(n => n !== vt.name)
                     : [...activeVibeFilters, vt.name]
                   setActiveVibeFilters(next)
-                  loadReviews(next.length === 1 && !isActive ? vt.name : undefined)
+                  loadReviews(next.length > 0 ? next.join(',') : undefined)
                 }} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem', background: isActive ? '#9ca3af' : 'white', color: isActive ? 'white' : '#1a1a2e', borderRadius: '999px', fontSize: '0.8rem', padding: '0.25rem 0.7rem', fontWeight: 500, lineHeight: 1.4, cursor: 'pointer', transition: 'all 0.15s', opacity: 0.85, border: '1px solid #e5e7eb' }} onMouseEnter={e => e.currentTarget.style.opacity = '1'} onMouseLeave={e => e.currentTarget.style.opacity = '0.85'}>
-                  {vt.emoji && <span>{vt.emoji}</span>}
-                  {vt.name}
-                </span>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      <div className="reviews-list">
-        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
-          <button
-            className={`btn ${reviewFilter === 'all' ? 'btn-primary' : 'btn-ghost'}`}
-            onClick={() => setReviewFilter('all')}
-          >All Reviews</button>
-          <button
-            className={`btn ${reviewFilter === 'expert' ? 'btn-primary' : 'btn-ghost'}`}
-            onClick={() => setReviewFilter('expert')}
-          >Experts</button>
-          <button
-            className={`btn ${reviewFilter === 'user' ? 'btn-primary' : 'btn-ghost'}`}
-            onClick={() => setReviewFilter('user')}
-          >Users</button>
+                      {vt.emoji && <span>{vt.emoji}</span>}
+                      {vt.name}
+                    </span>
+                  )
+                })}
+              </div>
+            </>
+          )}
         </div>
         {(() => {
           let filteredReviews = reviews;
 
-          if (reviewFilter === 'expert') {
+          if (reviewFilter === 'friends') {
+            filteredReviews = filteredReviews.filter(r => friendIds.has(String(r.authorId)));
+          } else if (reviewFilter === 'expert') {
             filteredReviews = filteredReviews.filter(r => r.authorIsExpert);
-          } else if (reviewFilter === 'user') {
-            filteredReviews = filteredReviews.filter(r => !r.authorIsExpert);
           }
 
           if (filteredReviews.length === 0) {
-            return <div className="empty-state">No reviews yet. Be the first!</div>;
+            return <div className="empty-state">No reviews yet.</div>;
           }
           return filteredReviews.map(r => (
             <div key={r.id} className="review-card glass">
-              <div className="review-card-header">
-                <span className={`badge ${r.authorIsExpert ? 'badge-active' : 'badge-pending'}`}>
-                  {r.authorIsExpert ? 'Expert' : 'User'}
-                </span>
-                <span className="review-rating">{r.rating.toFixed(1)}/5</span>
-              </div>
               {editingReviewId === r.id ? (
                 <div className="review-form glass" style={{ marginTop: '0.5rem', marginBottom: '0.5rem', padding: '0.75rem' }}>
                   <textarea className="textarea" value={editingBody} onChange={e => setEditingBody(e.target.value)}
@@ -764,7 +797,10 @@ export default function SpotDetailPage() {
                 </div>
               ) : (
                 <>
-                  <p className="review-text">{r.body}</p>
+                  <div className="review-text-row">
+                    <p className="review-text">{r.body}</p>
+                    <span className="review-rating">{r.rating.toFixed(1)}/5</span>
+                  </div>
                   <div className="review-author" style={{ marginTop: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <Link to={`/user/${r.authorId}`} className="author-profile-link" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--primary)', fontWeight: '600', textDecoration: 'none', background: 'var(--bg-glass)', padding: '0.2rem 0.6rem', borderRadius: 'var(--radius-sm)', transition: 'background 0.2s' }}>
                       {r.authorProfilePicture ? (
@@ -774,6 +810,8 @@ export default function SpotDetailPage() {
                       )}
                       {r.authorName || `User #${r.authorId}`}
                     </Link>
+                    {r.authorIsAdmin && <span className="badge badge-role" style={{ fontSize: '0.65rem', padding: '0.1rem 0.35rem' }}>Admin</span>}
+                    {r.authorIsExpert && <span className="badge badge-active" style={{ fontSize: '0.65rem', padding: '0.1rem 0.35rem' }}>Expert</span>}
                     <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>· {new Date(r.createdAt).toLocaleDateString()}</span>
                     {(String(r.authorId) === String(userId)) && (
                       <span style={{ display: 'inline-flex', gap: '0.25rem', marginLeft: '0.5rem' }}>

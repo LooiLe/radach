@@ -67,15 +67,56 @@ public class SpotService {
     }
 
     private List<SpotResponse> withRatingsAndInteractions(List<Spot> spots, Long authenticatedUserId) {
+        return withRatingsAndInteractions(spots, authenticatedUserId, "global");
+    }
+
+    private List<SpotResponse> withRatingsAndInteractions(List<Spot> spots, Long authenticatedUserId, String ratingMode) {
         if (spots.isEmpty()) return List.of();
 
         List<Long> spotIds = spots.stream().map(Spot::getId).toList();
-        Map<Long, Double> ratings = reviewRepository.findAverageRatingsBySpotIds(spotIds)
+        String activeMode = (ratingMode != null) ? ratingMode.toLowerCase() : "global";
+
+        // Compute all 3 rating types in batch
+        Map<Long, Double> globalRatings = reviewRepository.findAverageRatingsBySpotIds(spotIds)
                 .stream()
                 .collect(Collectors.toMap(
                         row -> (Long) row[0],
                         row -> (Double) row[1]
                 ));
+
+        Map<Long, Double> expertRatings = reviewRepository.findAverageExpertRatingsBySpotIds(spotIds)
+                .stream()
+                .collect(Collectors.toMap(
+                        row -> (Long) row[0],
+                        row -> (Double) row[1]
+                ));
+
+        Map<Long, Double> friendsRatings;
+        if (authenticatedUserId != null) {
+            Set<Long> friendIds = friendshipService.getFirstDegreeConnections(authenticatedUserId);
+            if (!friendIds.isEmpty()) {
+                friendsRatings = reviewRepository.findAverageFriendsRatingsBySpotIds(spotIds, friendIds)
+                        .stream()
+                        .collect(Collectors.toMap(
+                                row -> (Long) row[0],
+                                row -> (Double) row[1]
+                        ));
+            } else {
+                friendsRatings = Map.of();
+            }
+        } else {
+            friendsRatings = Map.of();
+        }
+
+        // Select which rating to display based on mode
+        Map<Long, Double> displayRatings;
+        if ("expert".equals(activeMode)) {
+            displayRatings = expertRatings;
+        } else if ("friends".equals(activeMode) && authenticatedUserId != null) {
+            displayRatings = friendsRatings;
+        } else {
+            displayRatings = globalRatings;
+        }
 
         Set<Long> likedSpotIds = authenticatedUserId != null ? interactionRepository.findLikedSpotIdsByUserId(authenticatedUserId) : Set.of();
         Set<Long> savedSpotIds = authenticatedUserId != null ? interactionRepository.findSavedSpotIdsByUserId(authenticatedUserId) : Set.of();
@@ -105,24 +146,33 @@ public class SpotService {
                         id -> loadVibeTags(id)
                 ));
 
-        return spots.stream()
+                return spots.stream()
                 .map(spot -> {
                     com.radach.maps.model.User submitter = spot.getSubmittedBy() != null ? submitters.get(spot.getSubmittedBy()) : null;
+                    Long spotId = spot.getId();
                     return new SpotResponse(
                             spot, 
-                            ratings.getOrDefault(spot.getId(), 0.0),
-                            likedSpotIds.contains(spot.getId()),
-                            savedSpotIds.contains(spot.getId()),
+                            displayRatings.getOrDefault(spotId, 0.0),
+                            globalRatings.getOrDefault(spotId, 0.0),
+                            expertRatings.getOrDefault(spotId, 0.0),
+                            friendsRatings.getOrDefault(spotId, 0.0),
+                            likedSpotIds.contains(spotId),
+                            savedSpotIds.contains(spotId),
                             submitter != null ? submitter.getId() : null,
                             submitter != null ? submitter.getName() : null,
                             submitter != null && submitter.isExpert(),
-                            vibeTagMap.getOrDefault(spot.getId(), List.of()),
-                            friendLikeCounts.getOrDefault(spot.getId(), 0)
+                            vibeTagMap.getOrDefault(spotId, List.of()),
+                            friendLikeCounts.getOrDefault(spotId, 0),
+                            activeMode
                     );
                 })
                 .toList();
     }
     public List<SpotResponse> findSpots(Double lat, Double lng, Double radiusKm, String sortBy, Long authenticatedUserId) {
+        return findSpots(lat, lng, radiusKm, sortBy, authenticatedUserId, "global");
+    }
+
+    public List<SpotResponse> findSpots(Double lat, Double lng, Double radiusKm, String sortBy, Long authenticatedUserId, String ratingMode) {
         boolean geoSearch = lat != null || lng != null || radiusKm != null;
         if (geoSearch && (lat == null || lng == null || radiusKm == null)) {
             throw new IllegalArgumentException("lat, lng, and radiusKm are required for geo search");
@@ -144,13 +194,46 @@ public class SpotService {
                     : spotRepository.findAllByStatus(SpotStatus.ACTIVE);
         }
 
-        return withRatingsAndInteractions(spots, authenticatedUserId);
+        return withRatingsAndInteractions(spots, authenticatedUserId, ratingMode);
     }
 
     public SpotResponse findById(Long id, Long authenticatedUserId) {
+        return findById(id, authenticatedUserId, "global");
+    }
+
+    public SpotResponse findById(Long id, Long authenticatedUserId, String ratingMode) {
         Spot spot = spotRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Spot not found"));
-        Double avg = reviewRepository.findAverageRatingBySpotId(spot.getId());
+        Double globalAvg = reviewRepository.findAverageRatingBySpotId(spot.getId());
+        Double expertAvg = 0.0;
+        Double friendsAvg = 0.0;
+        
+        // Compute expert rating
+        var expertResult = reviewRepository.findAverageExpertRatingsBySpotIds(List.of(id));
+        if (!expertResult.isEmpty()) {
+            expertAvg = (Double) expertResult.get(0)[1];
+        }
+        
+        // Compute friends rating
+        if (authenticatedUserId != null) {
+            Set<Long> friendIds = friendshipService.getFirstDegreeConnections(authenticatedUserId);
+            if (!friendIds.isEmpty()) {
+                var friendsResult = reviewRepository.findAverageFriendsRatingsBySpotIds(List.of(id), friendIds);
+                if (!friendsResult.isEmpty()) {
+                    friendsAvg = (Double) friendsResult.get(0)[1];
+                }
+            }
+        }
+        
+        String activeMode = (ratingMode != null) ? ratingMode.toLowerCase() : "global";
+        Double displayRating;
+        if ("expert".equals(activeMode)) {
+            displayRating = expertAvg;
+        } else if ("friends".equals(activeMode) && authenticatedUserId != null) {
+            displayRating = friendsAvg;
+        } else {
+            displayRating = globalAvg;
+        }
         
         boolean isLiked = false;
         boolean isSaved = false;
@@ -173,12 +256,13 @@ public class SpotService {
         List<VibeTagDTO> vibeTags = loadVibeTags(id);
         com.radach.maps.model.User submitter = spot.getSubmittedBy() != null ? userRepository.findById(spot.getSubmittedBy()).orElse(null) : null;
         return new SpotResponse(
-                spot, avg, isLiked, isSaved, 
+                spot, displayRating, globalAvg, expertAvg, friendsAvg, isLiked, isSaved, 
                 submitter != null ? submitter.getId() : null,
                 submitter != null ? submitter.getName() : null,
                 submitter != null && submitter.isExpert(),
                 vibeTags,
-                friendLikeCount
+                friendLikeCount,
+                activeMode
         );
     }
 
@@ -363,6 +447,10 @@ public class SpotService {
     }
 
     public List<SpotResponse> search(String q, Long authenticatedUserId) {
+        return search(q, authenticatedUserId, "global");
+    }
+
+    public List<SpotResponse> search(String q, Long authenticatedUserId, String ratingMode) {
         if (q == null || q.isBlank()) {
             throw new IllegalArgumentException("Search query is required");
         }
@@ -373,9 +461,9 @@ public class SpotService {
             if (vibeName.isEmpty()) {
                 throw new IllegalArgumentException("Vibe tag name is required after 'vibe:'");
             }
-            return withRatingsAndInteractions(spotRepository.findByVibeTagName(vibeName), authenticatedUserId);
+            return withRatingsAndInteractions(spotRepository.findByVibeTagName(vibeName), authenticatedUserId, ratingMode);
         }
-        return withRatingsAndInteractions(spotRepository.searchByNameOrTag(trimmed), authenticatedUserId);
+        return withRatingsAndInteractions(spotRepository.searchByNameOrTag(trimmed), authenticatedUserId, ratingMode);
     }
     
     @Transactional
@@ -405,10 +493,14 @@ public class SpotService {
     }
 
     public List<SpotResponse> getSavedSpots(Long userId) {
+        return getSavedSpots(userId, "global");
+    }
+
+    public List<SpotResponse> getSavedSpots(Long userId, String ratingMode) {
         Set<Long> savedIds = interactionRepository.findSavedSpotIdsByUserId(userId);
         if (savedIds.isEmpty()) return List.of();
         
         List<Spot> spots = spotRepository.findAllById(savedIds);
-        return withRatingsAndInteractions(spots, userId);
+        return withRatingsAndInteractions(spots, userId, ratingMode);
     }
 }

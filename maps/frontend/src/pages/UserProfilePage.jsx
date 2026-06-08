@@ -298,6 +298,7 @@ const navigate = useNavigate()
           <h1>
             {isOwnProfile ? 'You' : user?.name}
             {user?.isExpert && <span className="badge badge-active" style={{ marginLeft: '0.75rem', fontSize: '0.8rem', verticalAlign: 'middle' }}>Expert</span>}
+            {(user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN') && <span className="badge badge-role" style={{ marginLeft: '0.5rem', fontSize: '0.8rem', verticalAlign: 'middle' }}>Admin</span>}
           </h1>
           <p>{user?.email}</p>
           {isOwnProfile && (
@@ -543,7 +544,7 @@ const navigate = useNavigate()
           <div className="empty-state">No activity yet.</div>
         ) : (
           (() => {
-            let filteredFeed = personalFeed
+            let filteredFeed = personalFeed.filter(item => item.activityType !== 'VIEW')
             if (feedTab === 'posts') {
               filteredFeed = filteredFeed.filter(item => item.activityType === 'POST')
             } else if (feedTab === 'reviews') {

@@ -53,9 +53,10 @@ public class SpotController {
             @RequestParam(required = false) Double lng,
             @RequestParam(required = false) Double radiusKm,
             @RequestParam(required = false, defaultValue = "popularity") String sortBy,
+            @RequestParam(required = false, defaultValue = "global") String mode,
             org.springframework.security.core.Authentication auth
     ) {
-        return spotService.findSpots(lat, lng, radiusKm, sortBy, getUserIdOrNull(auth));
+        return spotService.findSpots(lat, lng, radiusKm, sortBy, getUserIdOrNull(auth), mode);
     }
 
     @GetMapping("/trending")
@@ -69,21 +70,29 @@ public class SpotController {
     }
 
     @GetMapping("/search")
-    public List<SpotResponse> searchSpots(@RequestParam String q, org.springframework.security.core.Authentication auth) {
-        return spotService.search(q, getUserIdOrNull(auth));
+    public List<SpotResponse> searchSpots(
+            @RequestParam String q,
+            @RequestParam(required = false, defaultValue = "global") String mode,
+            org.springframework.security.core.Authentication auth) {
+        return spotService.search(q, getUserIdOrNull(auth), mode);
     }
 
     @GetMapping("/{id}")
-    public SpotResponse getSpot(@PathVariable Long id, org.springframework.security.core.Authentication auth) {
-        return spotService.findById(id, getUserIdOrNull(auth));
+    public SpotResponse getSpot(
+            @PathVariable Long id,
+            @RequestParam(required = false, defaultValue = "global") String mode,
+            org.springframework.security.core.Authentication auth) {
+        return spotService.findById(id, getUserIdOrNull(auth), mode);
     }
 
     @GetMapping("/saved")
     @PreAuthorize("isAuthenticated()")
-    public List<SpotResponse> getSavedSpots(org.springframework.security.core.Authentication auth) {
+    public List<SpotResponse> getSavedSpots(
+            @RequestParam(required = false, defaultValue = "global") String mode,
+            org.springframework.security.core.Authentication auth) {
         Long userId = getUserIdOrNull(auth);
         if (userId == null) throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.UNAUTHORIZED, "Not authenticated");
-        return spotService.getSavedSpots(userId);
+        return spotService.getSavedSpots(userId, mode);
     }
 
     @PostMapping("/{id}/like")

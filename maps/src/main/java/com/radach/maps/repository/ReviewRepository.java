@@ -35,6 +35,25 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
     @Query("SELECT r.spotId, AVG(r.rating) FROM Review r WHERE r.status = 'APPROVED' AND r.spotId IN :spotIds GROUP BY r.spotId")
     List<Object[]> findAverageRatingsBySpotIds(@Param("spotIds") List<Long> spotIds);
 
+    /** Batch-fetch average expert ratings for a list of spot IDs. */
+    @Query(value = """
+            SELECT r.spot_id, AVG(r.rating) FROM reviews r 
+            JOIN users u ON u.id = r.author_id 
+            WHERE r.status = 'APPROVED' AND r.spot_id IN :spotIds AND u.is_expert = true 
+            GROUP BY r.spot_id
+            """, nativeQuery = true)
+    List<Object[]> findAverageExpertRatingsBySpotIds(@Param("spotIds") List<Long> spotIds);
+
+    /** Batch-fetch average friends ratings for a list of spot IDs. */
+    @Query(value = """
+            SELECT r.spot_id, AVG(r.rating) FROM reviews r 
+            WHERE r.status = 'APPROVED' AND r.spot_id IN :spotIds AND r.author_id IN :friendIds 
+            GROUP BY r.spot_id
+            """, nativeQuery = true)
+    List<Object[]> findAverageFriendsRatingsBySpotIds(
+            @Param("spotIds") List<Long> spotIds,
+            @Param("friendIds") java.util.Collection<Long> friendIds);
+
     /** Batch-fetch approved review counts per author — eliminates N+1 in review listings. */
     @Query("SELECT r.authorId, COUNT(r) FROM Review r WHERE r.status = 'APPROVED' AND r.authorId IN :authorIds GROUP BY r.authorId")
     List<Object[]> countApprovedByAuthorIds(@Param("authorIds") List<Long> authorIds);

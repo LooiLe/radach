@@ -5,6 +5,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { useApi } from '../hooks/useApi'
 import SpotCard from '../components/SpotCard'
+import RatingModeSelector from '../components/RatingModeSelector'
 import './SpotsPage.css'
 
 let dynamicIconMap = {
@@ -189,6 +190,9 @@ export default function SpotsPage() {
   const [bounds, setBounds] = useState([])
   const geocodeTimer = useRef(null)
 
+  // Rating mode state
+  const [ratingMode, setRatingMode] = useState(() => searchParams.get('mode') || 'global')
+
   // Category filter state
   const [categoriesList, setCategoriesList] = useState([])
   const [selectedCategories, setSelectedCategories] = useState({ all: true })
@@ -250,6 +254,8 @@ export default function SpotsPage() {
   const loadSpots = useCallback(async (filters) => {
     setStatus('Loading spots...')
     const params = new URLSearchParams()
+    const currentMode = filters?.mode !== undefined ? filters.mode : ratingMode
+    params.set('mode', currentMode)
 
     const modeToUse = filters?.mode || searchMode
     const currentSortBy = filters?.sortBy || sortBy
@@ -814,8 +820,17 @@ export default function SpotsPage() {
       </div>
 
       <div className="spots-sidebar">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem', marginBottom: '1rem' }}>
-          <p className="spots-status" style={{ margin: 0 }}>{getStatusText()}</p>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '0.75rem', alignItems: 'center', marginTop: '1.5rem', marginBottom: '0.5rem' }}>
+          <RatingModeSelector mode={ratingMode} onChange={(m) => {
+            setRatingMode(m)
+            loadSpots({
+              lat: lat || undefined,
+              lng: lng || undefined,
+              radiusKm: radius || undefined,
+              mode: m,
+              sortBy
+            })
+          }} />
           <select className="input select" style={{ width: 'auto', padding: '0.4rem 2.5rem 0.4rem 1rem' }}
             value={sortBy}
             onChange={e => {
@@ -829,12 +844,11 @@ export default function SpotsPage() {
               })
             }}
           >
-            <option value="popularity"> Trending (Global)</option>
-            <option value="trending_friends"> Trending (Friends)</option>
-            <option value="trending_experts"> Trending (Experts)</option>
+            <option value="popularity"> Trending</option>
             <option value="distance" disabled={!(lat && lng && radius)}> Distance</option>
           </select>
         </div>
+        <p className="spots-status" style={{ textAlign: 'center', marginBottom: '1rem' }}>{getStatusText()}</p>
 
 
 

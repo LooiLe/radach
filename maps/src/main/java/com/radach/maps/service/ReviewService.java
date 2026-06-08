@@ -57,11 +57,12 @@ public class ReviewService {
         review.setSpotId(spotId);
         review.setAuthorId(authorId);
         review.setReviewType(reviewType);
-        review.setBody(request.body().trim());
+        review.setBody(request.body() != null ? request.body().trim() : "");
         review.setRating(request.rating().doubleValue());
 
-        // Expert reviews are auto-approved, user reviews go to moderation
-        if (author.isExpert()) {
+        // Expert and Admin reviews are auto-approved; regular user reviews go to moderation
+        boolean autoApprove = author.isExpert() || author.getRole() == com.radach.maps.model.Role.ADMIN || author.getRole() == com.radach.maps.model.Role.SUPER_ADMIN;
+        if (autoApprove) {
             review.setStatus(Status.APPROVED);
             Review saved = reviewRepository.save(review);
             // Flush and trigger vibe analysis immediately
@@ -69,15 +70,16 @@ public class ReviewService {
             try {
                 vibeService.analyzeSpot(spotId);
             } catch (Exception e) {
-                log.error("Vibe analysis failed for expert review on spot {}", spotId, e);
+                log.error("Vibe analysis failed for review on spot {}", spotId, e);
             }
+            boolean authorIsAdmin = author.getRole() == com.radach.maps.model.Role.ADMIN || author.getRole() == com.radach.maps.model.Role.SUPER_ADMIN;
             long approvedCount = reviewRepository.countByAuthorIdAndStatus(authorId, Status.APPROVED);
-            return new ReviewResponse(saved, author.getName(), author.getEmail(), approvedCount, true, author.getProfilePicture());
+            return new ReviewResponse(saved, author.getName(), author.getEmail(), approvedCount, true, authorIsAdmin, author.getProfilePicture());
         } else {
             review.setStatus(Status.PENDING);
             Review saved = reviewRepository.save(review);
             long approvedCount = reviewRepository.countByAuthorIdAndStatus(authorId, Status.APPROVED);
-            return new ReviewResponse(saved, author.getName(), author.getEmail(), approvedCount, false, author.getProfilePicture());
+            return new ReviewResponse(saved, author.getName(), author.getEmail(), approvedCount, false, false, author.getProfilePicture());
         }
     }
 
@@ -93,16 +95,24 @@ public class ReviewService {
             reviews = reviewRepository.findBySpotIdAndStatus(spotId, Status.APPROVED, pageable);
         }
 
-        // Filter by vibe tag keywords if requested
+        // Filter by vibe tag keywords if requested (supports comma-separated multiple tags)
         if (vibeTag != null && !vibeTag.isBlank()) {
-            List<Pattern> keywords = com.radach.maps.service.tagging.TagKeywords.getPatterns(vibeTag);
-            if (!keywords.isEmpty()) {
+            // Collect all keyword patterns from all selected vibe tags
+            List<Pattern> allKeywords = new java.util.ArrayList<>();
+            String[] tags = vibeTag.split(",");
+            for (String tag : tags) {
+                String trimmed = tag.trim();
+                if (!trimmed.isEmpty()) {
+                    allKeywords.addAll(com.radach.maps.service.tagging.TagKeywords.getPatterns(trimmed));
+                }
+            }
+            if (!allKeywords.isEmpty()) {
                 List<Review> filtered = reviews.getContent().stream()
                         .filter(r -> {
                             String body = r.getBody();
                             if (body == null || body.isBlank()) return false;
                             String lower = body.toLowerCase();
-                            return keywords.stream().anyMatch(p -> p.matcher(lower).find());
+                            return allKeywords.stream().anyMatch(p -> p.matcher(lower).find());
                         })
                         .toList();
                 reviews = new org.springframework.data.domain.PageImpl<>(filtered, reviews.getPageable(), filtered.size());
@@ -174,9 +184,10 @@ public class ReviewService {
         String authorName = author != null ? author.getName() : "Deleted User";
         String authorEmail = author != null ? author.getEmail() : "";
         boolean isExpert = author != null && author.isExpert();
+        boolean isAdmin = author != null && (author.getRole() == com.radach.maps.model.Role.ADMIN || author.getRole() == com.radach.maps.model.Role.SUPER_ADMIN);
         String profilePicture = author != null ? author.getProfilePicture() : null;
         long approvedCount = reviewRepository.countByAuthorIdAndStatus(saved.getAuthorId(), Status.APPROVED);
-        return new ReviewResponse(saved, authorName, authorEmail, approvedCount, isExpert, profilePicture);
+        return new ReviewResponse(saved, authorName, authorEmail, approvedCount, isExpert, isAdmin, profilePicture);
     }
 
     /** Edit an existing review. */
@@ -187,7 +198,7 @@ public class ReviewService {
         if (!review.getAuthorId().equals(requesterId)) {
             throw new org.springframework.security.access.AccessDeniedException("You can only edit your own reviews");
         }
-        review.setBody(request.body().trim());
+        review.setBody(request.body() != null ? request.body().trim() : "");
         review.setRating(request.rating().doubleValue());
         Review saved = reviewRepository.save(review);
 
@@ -198,8 +209,9 @@ public class ReviewService {
 
         User author = userRepository.findById(saved.getAuthorId())
                 .orElseThrow(() -> new ResourceNotFoundException("Author not found"));
+        boolean isAdmin = author.getRole() == com.radach.maps.model.Role.ADMIN || author.getRole() == com.radach.maps.model.Role.SUPER_ADMIN;
         long approvedCount = reviewRepository.countByAuthorIdAndStatus(saved.getAuthorId(), Status.APPROVED);
-        return new ReviewResponse(saved, author.getName(), author.getEmail(), approvedCount, author.isExpert(), author.getProfilePicture());
+        return new ReviewResponse(saved, author.getName(), author.getEmail(), approvedCount, author.isExpert(), isAdmin, author.getProfilePicture());
     }
 
     /** Delete a review. */
@@ -239,7 +251,7 @@ public class ReviewService {
      * Batch-enrich a page of reviews with author info and approved counts — 2 queries instead of 2N.
      */
     private Page<ReviewResponse> enrichReviews(Page<Review> reviews) {
-        if (reviews.isEmpty()) return reviews.map(r -> new ReviewResponse(r, "Unknown", "", 0, false, null));
+        if (reviews.isEmpty()) return reviews.map(r -> new ReviewResponse(r, "Unknown", "", 0, false, false, null));
 
         Set<Long> authorIds = reviews.stream().map(Review::getAuthorId).collect(Collectors.toSet());
 
@@ -259,8 +271,9 @@ public class ReviewService {
             String email = author != null ? author.getEmail() : "";
             long count = approvedCounts.getOrDefault(r.getAuthorId(), 0L);
             boolean isExpert = author != null && author.isExpert();
+            boolean isAdmin = author != null && (author.getRole() == com.radach.maps.model.Role.ADMIN || author.getRole() == com.radach.maps.model.Role.SUPER_ADMIN);
             String profilePic = author != null ? author.getProfilePicture() : null;
-            return new ReviewResponse(r, name, email, count, isExpert, profilePic);
+            return new ReviewResponse(r, name, email, count, isExpert, isAdmin, profilePic);
         });
     }
 
@@ -286,8 +299,9 @@ public class ReviewService {
             String email = author != null ? author.getEmail() : "";
             long count = approvedCounts.getOrDefault(r.getAuthorId(), 0L);
             boolean isExpert = author != null && author.isExpert();
+            boolean isAdmin = author != null && (author.getRole() == com.radach.maps.model.Role.ADMIN || author.getRole() == com.radach.maps.model.Role.SUPER_ADMIN);
             String profilePic = author != null ? author.getProfilePicture() : null;
-            return new ReviewResponse(r, name, email, count, isExpert, profilePic);
+            return new ReviewResponse(r, name, email, count, isExpert, isAdmin, profilePic);
         }).toList();
     }
 }

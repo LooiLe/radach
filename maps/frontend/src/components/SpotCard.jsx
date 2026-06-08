@@ -143,7 +143,7 @@ export default function SpotCard({ spot, rank, style }) {
       <div className="spot-card-footer">
         <div className="spot-card-footer-top">
           <div className="spot-card-footer-left">
-          <span className="spot-card-rating">{formatRating(spot.averageRating)}/5</span>
+          <span className="spot-card-rating">{formatRating(spot.averageRating)}</span>
           {rank != null && (
             <span className={`rank-badge rank-${rank <= 3 ? rank : 'other'}`}>{rank}</span>
           )}
