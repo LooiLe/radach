@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
-import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from 'react-leaflet'
+import { memo, useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { MapContainer, TileLayer, Circle, useMap, useMapEvents } from 'react-leaflet'
 import { useSearchParams } from 'react-router-dom'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -35,37 +35,79 @@ function createMarkerIcon(type) {
   })
 }
 
+function createClusterIcon(count, type) {
+  const normalized = (type || '').toString().trim().toLowerCase().replace('Ã©', 'e')
+  const compactCount = count > 999 ? `${Math.round(count / 100) / 10}k` : count
+  void normalized
+  const density = count >= 10000 ? 'high' : count >= 1000 ? 'medium' : 'low'
+  const size = density === 'high' ? 64 : density === 'medium' ? 56 : 50
+  return new L.DivIcon({
+    html: `<div class="server-map-cluster density-${density}"><span>${compactCount}</span></div>`,
+    className: 'server-leaflet-cluster',
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    popupAnchor: [0, -size / 2],
+  })
+}
+
 import 'leaflet.markercluster/dist/MarkerCluster.css'
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css'
 import 'leaflet.markercluster'
 
 // MarkerClusterGroup component
-function MarkerClusterGroup({ spots, createIcon }) {
+function MarkerClusterGroup({ spots, clusters, mode, createIcon }) {
   const map = useMap()
-  const clusterGroupRef = useRef(null)
+  const spotClusterGroupRef = useRef(null)
+  const serverClusterLayerRef = useRef(null)
 
   useEffect(() => {
-    if (!clusterGroupRef.current) {
-      clusterGroupRef.current = L.markerClusterGroup({
+    if (!spotClusterGroupRef.current) {
+      spotClusterGroupRef.current = L.markerClusterGroup({
         showCoverageOnHover: false,
         zoomToBoundsOnClick: true,
         maxClusterRadius: 50,
       })
     }
+    if (!serverClusterLayerRef.current) {
+      serverClusterLayerRef.current = L.layerGroup()
+    }
 
-    const clusterGroup = clusterGroupRef.current
-    map.addLayer(clusterGroup)
+    const spotClusterGroup = spotClusterGroupRef.current
+    const serverClusterLayer = serverClusterLayerRef.current
+    map.addLayer(spotClusterGroup)
+    map.addLayer(serverClusterLayer)
 
     return () => {
-      map.removeLayer(clusterGroup)
+      map.removeLayer(spotClusterGroup)
+      map.removeLayer(serverClusterLayer)
     }
   }, [map])
 
   useEffect(() => {
-    const clusterGroup = clusterGroupRef.current
-    if (!clusterGroup) return
+    const spotClusterGroup = spotClusterGroupRef.current
+    const serverClusterLayer = serverClusterLayerRef.current
+    if (!spotClusterGroup || !serverClusterLayer) return
 
-    clusterGroup.clearLayers()
+    spotClusterGroup.clearLayers()
+    serverClusterLayer.clearLayers()
+
+    if (mode === 'clusters') {
+      clusters.forEach(c => {
+        const marker = L.marker([c.latitude, c.longitude], {
+          icon: createClusterIcon(c.count, c.type)
+        })
+
+        const popupHtml = document.createElement('div')
+        popupHtml.innerHTML = `
+          <div class="cluster-popup">
+            <strong>${c.count.toLocaleString()} places around here</strong>
+            <span>Zoom in to reveal individual spots.</span>
+          </div>
+        `
+        marker.bindPopup(popupHtml)
+        serverClusterLayer.addLayer(marker)
+      })
+    }
 
     spots.forEach(s => {
       const marker = L.marker([s.latitude, s.longitude], {
@@ -80,9 +122,22 @@ function MarkerClusterGroup({ spots, createIcon }) {
         ${!s.isGlobal ? `<a href="/spot/${s.id}">View details →</a>` : ''}
       `
       marker.bindPopup(popupHtml)
-      clusterGroup.addLayer(marker)
+      spotClusterGroup.addLayer(marker)
     })
-  }, [spots, createIcon])
+  }, [spots, clusters, mode, createIcon])
+
+  return null
+}
+
+function MapViewportLoader({ onViewportChange }) {
+  const map = useMapEvents({
+    moveend: () => onViewportChange(map),
+    zoomend: () => onViewportChange(map),
+  })
+
+  useEffect(() => {
+    onViewportChange(map)
+  }, [map, onViewportChange])
 
   return null
 }
@@ -172,9 +227,46 @@ function MapBoundsTracker({ onBoundsChange }) {
   return null
 }
 
+const SpotResultsList = memo(function SpotResultsList({ filteredSpots, status }) {
+  return (
+    <div className="spots-list">
+      {filteredSpots.length === 0 && status && !status.includes('Loading') && (
+        <div className="empty-state">No spots found.</div>
+      )}
+      {filteredSpots.slice(0, 100).map(s => (
+        s.isGlobal ? (
+          <article key={s.id} className="spot-card glass" style={{ cursor: 'default' }}>
+            <div className="spot-card-header">
+              <div className="spot-card-title">
+                <img src="/icons/stash--pin-location-light.svg" alt={`${s.type} icon`} className="spot-card-type-icon" />
+                <div>
+                  <h3 className="spot-card-name">{s.name} <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 400 }}>Global</span></h3>
+                  <p className="spot-card-meta">{s.type} - {s.address}</p>
+                </div>
+              </div>
+            </div>
+          </article>
+        ) : (
+          <SpotCard key={s.id} spot={s} />
+        )
+      ))}
+      {filteredSpots.length > 100 && (
+        <div className="spots-limit-info" style={{ padding: '1rem', textAlign: 'center', fontSize: '0.85rem', color: 'var(--text-secondary)', borderTop: '1px dashed var(--border)' }}>
+          Showing top 100 of {filteredSpots.length} spots. Use filters or search to find specific spots.
+        </div>
+      )}
+    </div>
+  )
+})
+
 export default function SpotsPage() {
   const { apiFetch } = useApi()
   const [spots, setSpots] = useState([])
+  const [mapSpots, setMapSpots] = useState([])
+  const [clusters, setClusters] = useState([])
+  const [mapMode, setMapMode] = useState('spots')
+  const [mapTotal, setMapTotal] = useState(0)
+  const [mapLimited, setMapLimited] = useState(false)
   const [status, setStatus] = useState('Loading spots...')
   const [searchParams] = useSearchParams()
   const [searchMode, setSearchMode] = useState(() => searchParams.get('mode') || 'place')
@@ -189,6 +281,9 @@ export default function SpotsPage() {
   const [suggestions, setSuggestions] = useState([])
   const [bounds, setBounds] = useState([])
   const geocodeTimer = useRef(null)
+  const suggestionsAbort = useRef(null)
+  const suggestionsRequestId = useRef(0)
+  const viewportRequestId = useRef(0)
 
   // Rating mode state
   const [ratingMode, setRatingMode] = useState(() => searchParams.get('mode') || 'global')
@@ -229,6 +324,13 @@ export default function SpotsPage() {
     fetchCatList()
   }, [apiFetch])
 
+  useEffect(() => {
+    return () => {
+      clearTimeout(geocodeTimer.current)
+      suggestionsAbort.current?.abort()
+    }
+  }, [])
+
   const toggleCategory = (categoryId) => {
     if (categoryId === 'all') {
       const allSelected = Object.keys(selectedCategories).filter(k => k !== 'all').every(k => selectedCategories[k] === true)
@@ -246,13 +348,77 @@ export default function SpotsPage() {
     }
   }
 
-  const filteredSpots = spots.filter(spot => {
+  const filteredSpots = useMemo(() => spots.filter(spot => {
     const normalized = (spot.type || '').trim().toLowerCase().replace('é', 'e')
     return selectedCategories[normalized]
-  })
+  }), [spots, selectedCategories])
+
+  const filteredMapSpots = useMemo(() => mapSpots.filter(spot => {
+    const normalized = (spot.type || '').trim().toLowerCase().replace('Ã©', 'e')
+    return selectedCategories[normalized]
+  }), [mapSpots, selectedCategories])
+
+  const filteredClusters = useMemo(() => clusters.filter(cluster => {
+    const normalized = (cluster.type || '').trim().toLowerCase().replace('Ã©', 'e')
+    return selectedCategories[normalized]
+  }), [clusters, selectedCategories])
+
+  const displayClusters = clusters.length ? clusters : filteredClusters
+
+  const filteredSpotCounts = useMemo(() => ({
+    db: filteredSpots.filter(s => !s.isGlobal).length,
+    global: filteredSpots.filter(s => s.isGlobal).length,
+  }), [filteredSpots])
+
+  const loadMapViewport = useCallback(async (map) => {
+    if (!map || place || lat || lng) return
+    const requestId = ++viewportRequestId.current
+    const bounds = map.getBounds()
+    const params = new URLSearchParams({
+      swLat: bounds.getSouth().toFixed(6),
+      swLng: bounds.getWest().toFixed(6),
+      neLat: bounds.getNorth().toFixed(6),
+      neLng: bounds.getEast().toFixed(6),
+      zoom: String(Math.round(map.getZoom())),
+    })
+
+    setStatus('Loading map spots...')
+    try {
+      const res = await apiFetch(`/api/v1/spots/map?${params.toString()}`)
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Could not load map spots.')
+      if (requestId !== viewportRequestId.current) return
+
+      const nextSpots = (data.spots || []).map(s => ({
+        ...s,
+        address: '',
+        averageRating: 0,
+        status: 'ACTIVE',
+        tags: [],
+      }))
+      setMapMode(data.mode || 'spots')
+      setMapTotal(data.total || 0)
+      setMapLimited(!!data.limited)
+      setMapSpots(nextSpots)
+      setClusters(data.clusters || [])
+
+      const visibleCount = data.mode === 'clusters' ? ((data.clusters || []).length + nextSpots.length) : nextSpots.length
+      setStatus(data.mode === 'clusters'
+        ? `${(data.total || 0).toLocaleString()} spots nearby. Zoom in to explore.`
+        : `Showing ${visibleCount.toLocaleString()} of ${(data.total || 0).toLocaleString()} spots in view${data.limited ? ' at this zoom' : ''}.`
+      )
+    } catch (e) {
+      if (requestId === viewportRequestId.current) setStatus(e.message)
+    }
+  }, [apiFetch, place, lat, lng])
 
   const loadSpots = useCallback(async (filters) => {
+    const sidebarOnly = !!filters?.sidebarOnly
     setStatus('Loading spots...')
+    if (!sidebarOnly) {
+      setClusters([])
+      setMapMode('spots')
+    }
     const params = new URLSearchParams()
     const currentMode = filters?.mode !== undefined ? filters.mode : ratingMode
     params.set('mode', currentMode)
@@ -305,6 +471,9 @@ export default function SpotsPage() {
       } else if (currentSortBy === 'trending_friends' || currentSortBy === 'trending_experts') {
         path = '/api/v1/spots/trending'
         params.set('type', currentSortBy === 'trending_friends' ? 'personalized' : 'expert')
+      }
+      if (!currentSearch) {
+        params.set('limit', '500')
       }
       const queryString = params.toString()
       const finalPath = queryString ? `${path}?${queryString}` : path
@@ -360,6 +529,9 @@ export default function SpotsPage() {
 
       const allSpots = [...dbSpots, ...globalSpots]
       setSpots(allSpots)
+      if (!sidebarOnly) {
+        setMapSpots(allSpots)
+      }
       const dbCount = dbSpots.length
       const globalCount = globalSpots.length
       let statusMsg = `${allSpots.length} spot${allSpots.length === 1 ? '' : 's'} found`
@@ -426,8 +598,11 @@ export default function SpotsPage() {
     setLng('')
     setRadius('')
     setSuggestions([])
-    setStatus('Loading spots...')
-    loadSpots({ lat: '', lng: '', radiusKm: '', search: '' })
+    setBounds([])
+    setMapSpots([])
+    setClusters([])
+    setStatus('Loading map spots...')
+    loadSpots({ lat: '', lng: '', radiusKm: '', search: '', sortBy, mode: searchMode, sidebarOnly: true })
   }
 
   useEffect(() => {
@@ -446,9 +621,9 @@ export default function SpotsPage() {
       // Place search by coordinates from URL
       loadSpots({ lat: pLat, lng: pLng, sortBy: pSort, mode: pMode })
     } else {
-      // Default search - load popular spots
-      loadSpots({ sortBy: pSort, mode: pMode })
-      loadSpots({ sortBy: pSort, mode: pMode })
+      setSortBy(pSort)
+      setSearchMode(pMode)
+      loadSpots({ sortBy: pSort, mode: pMode, sidebarOnly: true })
     }
     /* eslint-enable react-hooks/set-state-in-effect */
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -470,6 +645,9 @@ export default function SpotsPage() {
 
   // Computed status text to avoid setState-in-effect lint warning
   const getStatusText = () => {
+    if (status.includes('spots in view') && mapTotal > 0) {
+      return mapLimited ? `${status} Zoom in for more detail.` : status
+    }
     const visible = getVisibleSpots()
     if (status.endsWith('found.') || status.includes('spot found') || status.includes('spots found')) {
       let msg = `${visible.length} spot${visible.length === 1 ? '' : 's'} found`
@@ -493,28 +671,37 @@ export default function SpotsPage() {
   const handlePlaceInput = (q) => {
     setPlace(q)
     clearTimeout(geocodeTimer.current)
+    suggestionsAbort.current?.abort()
+    const requestId = ++suggestionsRequestId.current
     if (q.length < 2) {
       setSuggestions([]);
       return
     }
     geocodeTimer.current = setTimeout(async () => {
+      const controller = new AbortController()
+      suggestionsAbort.current = controller
       try {
         let combinedSuggestions = []
 
         // 1. Fetch from local backend spots
         try {
-          const res = await apiFetch(`/api/v1/spots/search?q=${encodeURIComponent(q)}&limit=5`)
+          const res = await apiFetch(`/api/v1/spots/search?q=${encodeURIComponent(q)}&limit=5`, {
+            signal: controller.signal,
+          })
           const data = await res.json()
           if (res.ok && data?.length > 0) {
             combinedSuggestions = [...data]
           }
-        } catch (e) { console.error('Backend search error:', e) }
+        } catch (e) {
+          if (e.name !== 'AbortError') console.error('Backend search error:', e)
+        }
 
         // 2. Only fetch from Nominatim in 'nearby' mode (place mode = database only)
         if (searchMode === 'nearby') {
           try {
             const nomRes = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=3`, {
-              headers: { 'Accept-Language': 'en' }
+              headers: { 'Accept-Language': 'en' },
+              signal: controller.signal,
             })
             const nomData = await nomRes.json()
             if (nomData?.length > 0) {
@@ -530,15 +717,20 @@ export default function SpotsPage() {
               const uniqueFormatted = formatted.filter(f => !existingNames.has(f.name?.toLowerCase()))
               combinedSuggestions = [...combinedSuggestions, ...uniqueFormatted]
             }
-          } catch (e) { console.error('Nominatim search error:', e) }
+          } catch (e) {
+            if (e.name !== 'AbortError') console.error('Nominatim search error:', e)
+          }
         }
 
-        setSuggestions(combinedSuggestions)
+        if (requestId === suggestionsRequestId.current && !controller.signal.aborted) {
+          setSuggestions(combinedSuggestions)
+        }
       } catch (error) {
+        if (error.name === 'AbortError') return
         console.error('Error fetching suggestions:', error)
-        setSuggestions([])
+        if (requestId === suggestionsRequestId.current) setSuggestions([])
       }
-    }, 400)
+    }, 250)
   }
 
   const selectSuggestion = (spot) => {
@@ -547,8 +739,9 @@ export default function SpotsPage() {
     setLng(spot.longitude)
     setSuggestions([])
     if (spot.isCityDestination) {
-      setRadius('50')
-      loadSpots({ lat: spot.latitude, lng: spot.longitude, radiusKm: '50', sortBy })
+      const effectiveRadius = radius || '50'
+      setRadius(effectiveRadius)
+      loadSpots({ lat: spot.latitude, lng: spot.longitude, radiusKm: effectiveRadius, sortBy })
     } else if (searchMode === 'nearby' && radius) {
       // In nearby mode with radius set, do a nearby search around the selected location
       loadSpots({ lat: spot.latitude, lng: spot.longitude, radiusKm: radius, sortBy, mode: 'nearby' })
@@ -560,12 +753,18 @@ export default function SpotsPage() {
         .then(res => res.json())
         .then(data => {
           setSpots([data])
+          setMapSpots([data])
+          setClusters([])
+          setMapMode('spots')
           setStatus('1 spot found.')
           setBounds([[data.latitude, data.longitude]])
         })
         .catch(err => {
           console.error(err)
           setSpots([spot])
+          setMapSpots([spot])
+          setClusters([])
+          setMapMode('spots')
           setStatus('1 spot found.')
           setBounds([[spot.latitude, spot.longitude]])
         })
@@ -807,7 +1006,13 @@ export default function SpotsPage() {
             url={`https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png?api_key=${import.meta.env.VITE_STADIA_API_KEY}`}
             attribution='Map tiles by <a href="https://stadiamaps.com/">Stadia Maps</a>, <a href="https://openmaptiles.org/">OpenMapTiles</a>, and <a href="http://openstreetmap.org">OpenStreetMap</a> contributors'
           />
-          <MarkerClusterGroup spots={filteredSpots} createIcon={createMarkerIcon} />
+          <MapViewportLoader onViewportChange={loadMapViewport} />
+          <MarkerClusterGroup
+            spots={filteredMapSpots}
+            clusters={displayClusters}
+            mode={mapMode}
+            createIcon={createMarkerIcon}
+          />
           <MapBoundsTracker onBoundsChange={setMapBounds} />
           {lat && lng && radius && (
             <Circle center={[parseFloat(lat), parseFloat(lng)]} radius={parseFloat(radius) * 1000}

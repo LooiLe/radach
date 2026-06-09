@@ -106,6 +106,15 @@ public class UserProfileController {
         return ResponseEntity.ok(feedService.getFeed(requesterId, "user", Math.min(limit, 100), id));
     }
 
+    @GetMapping("/me/profile")
+    public ResponseEntity<Map<String, Object>> getMyProfile(Authentication authentication) {
+        Long userId = authenticatedUserService.getUserId(authentication);
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        return ResponseEntity.ok(toProfileMap(user));
+    }
+
     @PutMapping("/me/profile")
     public ResponseEntity<Map<String, Object>> updateMyProfile(
             @Valid @RequestBody ExpertProfileUpdateRequest request,
@@ -134,6 +143,10 @@ public class UserProfileController {
         }
         userRepository.save(user);
 
+        return ResponseEntity.ok(toProfileMap(user));
+    }
+
+    private Map<String, Object> toProfileMap(User user) {
         Map<String, Object> profile = new HashMap<>();
         profile.put("id", user.getId());
         profile.put("name", user.getName());
@@ -148,7 +161,7 @@ public class UserProfileController {
         profile.put("portfolioUrl", user.getPortfolioUrl());
         profile.put("profilePicture", user.getProfilePicture());
 
-        return ResponseEntity.ok(profile);
+        return profile;
     }
 
     public record DeleteAccountRequest(

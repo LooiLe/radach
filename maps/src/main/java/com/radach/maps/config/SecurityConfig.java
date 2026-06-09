@@ -78,6 +78,7 @@ public class SecurityConfig {
                 .requestMatchers("/actuator/**").hasAnyRole("ADMIN", "SUPER_ADMIN")
                 // Public read-only API
                 .requestMatchers(HttpMethod.GET, "/api/v1/spots", "/api/v1/spots/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/itineraries/share/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/tags", "/api/v1/tags/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/categories", "/api/v1/categories/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/events/my-submissions").authenticated()

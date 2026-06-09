@@ -2,11 +2,13 @@ import { useState, useEffect } from 'react'
 import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { useApi } from '../hooks/useApi'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../components/ToastProvider'
 import './FeedPage.css'
 
 export default function FeedPage() {
   const { apiFetch } = useApi()
   const { userId, userName } = useAuth()
+  const { toast } = useToast()
   const [feed, setFeed] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchParams, setSearchParams] = useSearchParams()
@@ -80,7 +82,7 @@ export default function FeedPage() {
         const data = await res.json()
         setMediaUrls([...mediaUrls, data.url])
       }
-    } catch { alert('Upload failed') }
+    } catch { toast.error('Upload failed') }
     setUploading(false)
   }
 
@@ -187,7 +189,7 @@ export default function FeedPage() {
         setAttachedSpot(null)
         setAttachedEvent(null)
       }
-    } catch { alert('Failed to create post') }
+    } catch { toast.error('Failed to create post') }
   }
 
   const toggleLike = async (postId) => {

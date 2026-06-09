@@ -14,7 +14,9 @@ import com.radach.maps.model.SpotVibeTag;
 
 public interface SpotVibeTagRepository extends JpaRepository<SpotVibeTag, Long> {
     List<SpotVibeTag> findBySpotId(Long spotId);
-
+    
+    List<SpotVibeTag> findBySpotIdIn(java.util.Collection<Long> spotIds);
+    
     @Modifying
     @Transactional
     @Query("DELETE FROM SpotVibeTag svt WHERE svt.spotId = :spotId")

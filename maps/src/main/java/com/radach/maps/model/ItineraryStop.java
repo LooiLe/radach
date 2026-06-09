@@ -38,6 +38,12 @@ public class ItineraryStop {
     @Column(columnDefinition = "text")
     private String notes;
 
+    @Column(name = "day_number", nullable = false)
+    private int dayNumber = 1;
+
+    @Column(name = "estimated_cost_cents")
+    private Integer estimatedCostCents;
+
     // --- Getters & Setters ---
 
     public Long getId() { return id; }
@@ -62,4 +68,10 @@ public class ItineraryStop {
 
     public String getNotes() { return notes; }
     public void setNotes(String notes) { this.notes = notes; }
+
+    public int getDayNumber() { return dayNumber; }
+    public void setDayNumber(int dayNumber) { this.dayNumber = dayNumber; }
+
+    public Integer getEstimatedCostCents() { return estimatedCostCents; }
+    public void setEstimatedCostCents(Integer estimatedCostCents) { this.estimatedCostCents = estimatedCostCents; }
 }

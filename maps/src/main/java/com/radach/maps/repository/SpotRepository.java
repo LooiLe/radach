@@ -3,6 +3,7 @@ package com.radach.maps.repository;
 import java.time.Instant;
 import java.util.List;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -78,6 +79,18 @@ public interface SpotRepository extends JpaRepository<Spot, Long> {
             """, nativeQuery = true)
     List<Spot> searchByNameOrTag(@Param("q") String q);
 
+    @Query(value = """
+            SELECT * FROM spots
+            WHERE (search_vector @@ plainto_tsquery('english', :q)
+               OR lower(name) LIKE lower(concat('%', :q, '%')))
+              AND status = 'ACTIVE'
+            ORDER BY
+                ts_rank(search_vector, plainto_tsquery('english', :q)) DESC,
+                rank_score DESC
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<Spot> searchByNameOrTag(@Param("q") String q, @Param("limit") int limit);
+
     /** Find spots that have a specific tag (via the spot_tags join table). */
     @Query(value = """
             SELECT s.* FROM spots s
@@ -106,11 +119,25 @@ public interface SpotRepository extends JpaRepository<Spot, Long> {
             """, nativeQuery = true)
     List<Spot> findByVibeTagName(@Param("vibeName") String vibeName);
 
+    @Query(value = """
+            SELECT DISTINCT s.* FROM spots s
+            JOIN spot_vibe_tags svt ON svt.spot_id = s.id
+            JOIN vibe_tag_definitions vtd ON vtd.id = svt.vibe_tag_id
+            WHERE LOWER(vtd.name) = LOWER(:vibeName) AND s.status = 'ACTIVE'
+            ORDER BY svt.confidence DESC, s.rank_score DESC
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<Spot> findByVibeTagName(@Param("vibeName") String vibeName, @Param("limit") int limit);
+
     List<Spot> findTop20ByStatusOrderByRankScoreDesc(com.radach.maps.model.SpotStatus status);
 
     List<Spot> findAllByStatusOrderByRankScoreDesc(com.radach.maps.model.SpotStatus status);
 
     List<Spot> findAllByStatus(com.radach.maps.model.SpotStatus status);
+
+    List<Spot> findByStatusOrderByRankScoreDesc(com.radach.maps.model.SpotStatus status, Pageable pageable);
+
+    List<Spot> findByStatus(com.radach.maps.model.SpotStatus status, Pageable pageable);
 
     List<Spot> findByStatusOrderByCreatedAtAsc(com.radach.maps.model.SpotStatus status);
 

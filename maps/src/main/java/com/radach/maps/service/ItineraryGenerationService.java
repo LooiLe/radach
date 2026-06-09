@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.radach.maps.dto.GenerateItineraryRequest;
 import com.radach.maps.dto.GenerationResponse;
+import com.radach.maps.dto.ItineraryResponse;
 import com.radach.maps.model.*;
 import com.radach.maps.repository.*;
 import com.stripe.model.checkout.Session;
@@ -70,7 +71,6 @@ public class ItineraryGenerationService {
             new TimeSlot(LocalTime.of(20, 30), SlotKind.EVENING)
     );
     private static final int DEFAULT_DURATION_FALLBACK = 45;
-    private static final int TRAVEL_BUFFER_MINUTES = 15;
     private static final LocalTime DEFAULT_START_TIME = LocalTime.of(9, 0);
     private static final LocalTime HOTEL_CHECKIN_TIME = LocalTime.of(21, 30);
     private static final int MAX_STOPS = 10;
@@ -243,39 +243,12 @@ public class ItineraryGenerationService {
     void generateItinerary(ItineraryGeneration gen, GenerateItineraryRequest request,
                                    Long userId, int numberOfStops) {
         try {
-            // 1. Fetch candidate spots based on review source
-            List<Spot> candidates;
-            Instant since = Instant.now().minus(Duration.ofDays(7));
             double lat = request.centerLatitude() != null ? request.centerLatitude() : 0;
             double lng = request.centerLongitude() != null ? request.centerLongitude() : 0;
-            double radius = request.radiusKm() != null ? request.radiusKm() : 10;
-
             String reviewSource = request.reviewSource() != null ? request.reviewSource() : "EXPERT";
-
-            if (reviewSource.equalsIgnoreCase("CONNECTIONS")) {
-                Set<Long> firstDegree = friendshipService.getFirstDegreeConnections(userId);
-                Set<Long> secondDegree = friendshipService.getSecondDegreeConnections(userId);
-
-                // Avoid empty IN clause — add sentinel value
-                if (firstDegree.isEmpty()) firstDegree = Set.of(-1L);
-                if (secondDegree.isEmpty()) secondDegree = Set.of(-1L);
-
-                candidates = spotRepository.findPersonalizedTrendingWithinRadius(
-                        lat, lng, radius, firstDegree, secondDegree, since);
-            } else {
-                candidates = spotRepository.findExpertTrendingWithinRadius(lat, lng, radius, since);
-            }
-
-            // 2. Filter by preferred categories
-            List<String> preferredCategories = request.preferredCategories();
-            if (preferredCategories != null && !preferredCategories.isEmpty()) {
-                Set<String> lowerCategories = preferredCategories.stream()
-                        .map(String::toLowerCase)
-                        .collect(Collectors.toSet());
-                candidates = candidates.stream()
-                        .filter(s -> s.getType() != null && lowerCategories.contains(s.getType().toLowerCase()))
-                        .collect(Collectors.toList());
-            }
+            
+            int totalDays = request.resolvedNumberOfDays();
+            List<Spot> candidates = findGenerationCandidates(userId, request, numberOfStops);
 
             if (candidates.isEmpty()) {
                 gen.setStatus(GenerationStatus.FAILED);
@@ -284,54 +257,74 @@ public class ItineraryGenerationService {
                 return;
             }
 
-            // 3. Select and order stops with category-aware time slots.
-            List<ScheduledSpot> scheduled = scheduleByCategoryRules(candidates, lat, lng, numberOfStops);
-
-            // 5. Create the itinerary
+            // Create the itinerary
             Itinerary itinerary = new Itinerary();
             itinerary.setUserId(userId);
             itinerary.setTitle("Generated Itinerary — " +
                     (request.date() != null ? request.date() : LocalDate.now().toString()));
             itinerary.setDescription("Auto-generated based on " +
                     (reviewSource.equalsIgnoreCase("CONNECTIONS") ? "friends' reviews" : "expert reviews"));
+            
+            LocalDate startDate;
             if (request.date() != null && !request.date().isBlank()) {
-                itinerary.setDate(LocalDate.parse(request.date()));
+                startDate = LocalDate.parse(request.date());
             } else {
-                itinerary.setDate(LocalDate.now());
+                startDate = LocalDate.now();
+            }
+            itinerary.setDate(startDate);
+            if (totalDays > 1) {
+                itinerary.setEndDate(startDate.plusDays(totalDays - 1));
+            } else {
+                itinerary.setEndDate(startDate);
             }
             itinerary.setStatus(ItineraryStatus.DRAFT);
             itinerary.setSource(ItinerarySource.GENERATED);
             itinerary.setGenerationPreferences(gen.getPreferences());
             itinerary = itineraryRepository.save(itinerary);
 
-            // 6. Assign rule-based time slots and create stops
             List<ItineraryStop> stops = new ArrayList<>();
+            List<Spot> remainingCandidates = new ArrayList<>(candidates);
+            int globalStopOrder = 1;
 
-            for (int i = 0; i < scheduled.size(); i++) {
-                ScheduledSpot scheduledSpot = scheduled.get(i);
-                Spot spot = scheduledSpot.spot();
-                int duration = getDefaultDuration(spot.getType());
-                LocalTime startTime = scheduledSpot.startTime();
+            for (int day = 1; day <= totalDays; day++) {
+                if (remainingCandidates.size() < numberOfStops) {
+                    remainingCandidates.addAll(candidates);
+                }
+                
+                List<ScheduledSpot> scheduled = scheduleByCategoryRules(remainingCandidates, lat, lng, numberOfStops);
+                
+                // Remove scheduled spots from remaining candidates to avoid duplicates across days
+                for (ScheduledSpot ss : scheduled) {
+                    remainingCandidates.remove(ss.spot());
+                }
 
-                ItineraryStop stop = new ItineraryStop();
-                stop.setItineraryId(itinerary.getId());
-                stop.setSpotId(spot.getId());
-                stop.setStopOrder(i + 1);
-                stop.setStartTime(startTime);
-                stop.setEndTime(startTime.plusMinutes(duration));
-                stop.setDurationMinutes(duration);
-                stops.add(stop);
+                for (int i = 0; i < scheduled.size(); i++) {
+                    ScheduledSpot scheduledSpot = scheduled.get(i);
+                    Spot spot = scheduledSpot.spot();
+                    int duration = getDefaultDuration(spot.getType());
+                    LocalTime startTime = scheduledSpot.startTime();
+
+                    ItineraryStop stop = new ItineraryStop();
+                    stop.setItineraryId(itinerary.getId());
+                    stop.setSpotId(spot.getId());
+                    stop.setStopOrder(globalStopOrder++);
+                    stop.setStartTime(startTime);
+                    stop.setEndTime(startTime.plusMinutes(duration));
+                    stop.setDurationMinutes(duration);
+                    stop.setDayNumber(day);
+                    stops.add(stop);
+                }
             }
 
             stopRepository.saveAll(stops);
 
-            // 7. Mark generation as completed
+            // Mark generation as completed
             gen.setItineraryId(itinerary.getId());
             gen.setStatus(GenerationStatus.COMPLETED);
             gen.setCompletedAt(Instant.now());
             generationRepository.save(gen);
 
-            log.info("Generated itinerary {} with {} stops for user {}", itinerary.getId(), stops.size(), userId);
+            log.info("Generated itinerary {} with {} stops over {} days for user {}", itinerary.getId(), stops.size(), totalDays, userId);
 
         } catch (Exception e) {
             log.error("Failed to generate itinerary for generation {}", gen.getId(), e);
@@ -340,15 +333,101 @@ public class ItineraryGenerationService {
         }
     }
 
+    private List<Spot> findGenerationCandidates(Long userId, GenerateItineraryRequest request, int numberOfStops) {
+        Instant since = Instant.now().minus(Duration.ofDays(7));
+        double lat = request.centerLatitude() != null ? request.centerLatitude() : 0;
+        double lng = request.centerLongitude() != null ? request.centerLongitude() : 0;
+        double radius = request.radiusKm() != null ? request.radiusKm() : 10;
+        String reviewSource = request.reviewSource() != null ? request.reviewSource() : "EXPERT";
+
+        List<Spot> candidates;
+        if (reviewSource.equalsIgnoreCase("CONNECTIONS")) {
+            Set<Long> firstDegree = friendshipService.getFirstDegreeConnections(userId);
+            Set<Long> secondDegree = friendshipService.getSecondDegreeConnections(userId);
+            if (firstDegree.isEmpty()) firstDegree = Set.of(-1L);
+            if (secondDegree.isEmpty()) secondDegree = Set.of(-1L);
+            candidates = spotRepository.findPersonalizedTrendingWithinRadius(lat, lng, radius, firstDegree, secondDegree, since);
+
+            if (candidates.isEmpty()) {
+                log.info("No connection-based itinerary candidates found; falling back to expert candidates");
+                candidates = spotRepository.findExpertTrendingWithinRadius(lat, lng, radius, since);
+            }
+        } else {
+            candidates = spotRepository.findExpertTrendingWithinRadius(lat, lng, radius, since);
+        }
+
+        if (candidates.isEmpty()) {
+            candidates = spotRepository.findWithinRadiusOrderByRankScoreDesc(lat, lng, radius);
+        }
+
+        candidates = dedupeCandidates(candidates);
+        candidates = applyCategoryPreferences(candidates, request.preferredCategories(), request.strictCategoryMode());
+        return candidates;
+    }
+
+    private List<Spot> applyCategoryPreferences(List<Spot> candidates, List<String> preferredCategories, boolean strictCategories) {
+        if (preferredCategories == null || preferredCategories.isEmpty()) {
+            return candidates;
+        }
+
+        Set<String> preferred = preferredCategories.stream()
+                .map(this::normalizeCategory)
+                .filter(category -> !category.isBlank())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        if (preferred.isEmpty()) {
+            return candidates;
+        }
+
+        if (strictCategories) {
+            return candidates.stream()
+                    .filter(spot -> preferred.contains(normalizeCategory(spot.getType())))
+                    .collect(Collectors.toList());
+        }
+
+        return candidates.stream()
+                .sorted(Comparator.comparing(spot -> preferred.contains(normalizeCategory(spot.getType())) ? 0 : 1))
+                .collect(Collectors.toList());
+    }
+
+    private List<Spot> dedupeCandidates(List<Spot> candidates) {
+        Set<String> seen = new HashSet<>();
+        List<Spot> deduped = new ArrayList<>();
+
+        for (Spot spot : candidates) {
+            String key = normalizeCandidateKey(spot);
+            if (seen.add(key)) {
+                deduped.add(spot);
+            }
+        }
+
+        return deduped;
+    }
+
+    private String normalizeCandidateKey(Spot spot) {
+        String name = spot.getName() == null ? "" : normalizeText(spot.getName());
+        String address = spot.getAddress() == null ? "" : normalizeText(spot.getAddress());
+        return name + "|" + address;
+    }
+
+    private String normalizeText(String text) {
+        return Normalizer.normalize(text, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "")
+                .replaceAll("\\s+", " ")
+                .trim()
+                .toLowerCase(Locale.ROOT);
+    }
+
     private List<ScheduledSpot> scheduleByCategoryRules(List<Spot> candidates, double startLat, double startLng, int numberOfStops) {
         List<ScheduledSpot> scheduled = new ArrayList<>();
         Set<Long> usedSpotIds = new HashSet<>();
+        Map<String, Integer> categoryCounts = new HashMap<>();
         Map<Long, Integer> rankIndex = new HashMap<>();
         for (int i = 0; i < candidates.size(); i++) {
             rankIndex.put(candidates.get(i).getId(), i);
         }
 
-        Spot finalHotel = chooseBestCandidate(candidates, usedSpotIds, rankIndex, startLat, startLng,
+        Spot finalHotel = chooseBestCandidate(candidates, usedSpotIds, rankIndex, categoryCounts, startLat, startLng, startLat, startLng,
                 spot -> isLodging(spot.getType()));
         boolean reserveHotelStop = finalHotel != null && numberOfStops > 1;
         int nonHotelStopLimit = reserveHotelStop ? numberOfStops - 1 : numberOfStops;
@@ -356,35 +435,55 @@ public class ItineraryGenerationService {
         double currentLat = startLat;
         double currentLng = startLng;
         LocalTime nextFlexibleStart = DEFAULT_START_TIME;
+        boolean isFirst = true;
 
         for (TimeSlot slot : DAY_TEMPLATE) {
             if (scheduled.size() >= nonHotelStopLimit) break;
-            Spot spot = chooseForSlot(candidates, usedSpotIds, rankIndex, currentLat, currentLng, slot.kind());
+            Spot spot = chooseForSlot(candidates, usedSpotIds, rankIndex, categoryCounts, startLat, startLng, currentLat, currentLng, slot.kind());
             if (spot == null) continue;
 
-            LocalTime startTime = slot.startTime().isAfter(nextFlexibleStart) ? slot.startTime() : nextFlexibleStart;
+            LocalTime earliestStart = nextFlexibleStart;
+            if (!isFirst) {
+                int travelTime = estimateTravelTimeMinutes(currentLat, currentLng, spot.getLatitude(), spot.getLongitude());
+                earliestStart = nextFlexibleStart.plusMinutes(travelTime);
+            }
+            LocalTime startTime = slot.startTime().isAfter(earliestStart) ? slot.startTime() : earliestStart;
             scheduled.add(new ScheduledSpot(spot, startTime));
             usedSpotIds.add(spot.getId());
+            incrementCategoryCount(categoryCounts, spot);
             currentLat = spot.getLatitude();
             currentLng = spot.getLongitude();
-            nextFlexibleStart = startTime.plusMinutes(getDefaultDuration(spot.getType()) + TRAVEL_BUFFER_MINUTES);
+            nextFlexibleStart = startTime.plusMinutes(getDefaultDuration(spot.getType()));
+            isFirst = false;
         }
 
         while (scheduled.size() < nonHotelStopLimit) {
-            Spot spot = chooseBestCandidate(candidates, usedSpotIds, rankIndex, currentLat, currentLng,
+            Spot spot = chooseBestCandidate(candidates, usedSpotIds, rankIndex, categoryCounts, startLat, startLng, currentLat, currentLng,
                     candidate -> !isLodging(candidate.getType()));
             if (spot == null) break;
 
-            LocalTime startTime = nextFlexibleStart;
+            LocalTime earliestStart = nextFlexibleStart;
+            if (!isFirst) {
+                int travelTime = estimateTravelTimeMinutes(currentLat, currentLng, spot.getLatitude(), spot.getLongitude());
+                earliestStart = nextFlexibleStart.plusMinutes(travelTime);
+            }
+            LocalTime startTime = earliestStart;
             scheduled.add(new ScheduledSpot(spot, startTime));
             usedSpotIds.add(spot.getId());
+            incrementCategoryCount(categoryCounts, spot);
             currentLat = spot.getLatitude();
             currentLng = spot.getLongitude();
-            nextFlexibleStart = startTime.plusMinutes(getDefaultDuration(spot.getType()) + TRAVEL_BUFFER_MINUTES);
+            nextFlexibleStart = startTime.plusMinutes(getDefaultDuration(spot.getType()));
+            isFirst = false;
         }
 
         if (reserveHotelStop) {
-            LocalTime hotelTime = nextFlexibleStart.isAfter(HOTEL_CHECKIN_TIME) ? nextFlexibleStart : HOTEL_CHECKIN_TIME;
+            int travelTime = 0;
+            if (!isFirst) {
+                travelTime = estimateTravelTimeMinutes(currentLat, currentLng, finalHotel.getLatitude(), finalHotel.getLongitude());
+            }
+            LocalTime hotelStartTime = nextFlexibleStart.plusMinutes(travelTime);
+            LocalTime hotelTime = hotelStartTime.isAfter(HOTEL_CHECKIN_TIME) ? hotelStartTime : HOTEL_CHECKIN_TIME;
             scheduled.add(new ScheduledSpot(finalHotel, hotelTime));
         } else if (scheduled.size() < numberOfStops && finalHotel != null) {
             scheduled.add(new ScheduledSpot(finalHotel, HOTEL_CHECKIN_TIME));
@@ -394,27 +493,46 @@ public class ItineraryGenerationService {
     }
 
     private Spot chooseForSlot(List<Spot> candidates, Set<Long> usedSpotIds, Map<Long, Integer> rankIndex,
+                               Map<String, Integer> categoryCounts, double startLat, double startLng,
                                double currentLat, double currentLng, SlotKind slotKind) {
-        Spot spot = chooseBestCandidate(candidates, usedSpotIds, rankIndex, currentLat, currentLng,
+        Spot spot = chooseBestCandidate(candidates, usedSpotIds, rankIndex, categoryCounts, startLat, startLng, currentLat, currentLng,
                 candidate -> matchesSlot(candidate.getType(), slotKind));
         if (spot != null) return spot;
 
         if (slotKind == SlotKind.DAYTIME) {
-            return chooseBestCandidate(candidates, usedSpotIds, rankIndex, currentLat, currentLng,
+            return chooseBestCandidate(candidates, usedSpotIds, rankIndex, categoryCounts, startLat, startLng, currentLat, currentLng,
                     candidate -> isFlexibleDaytime(candidate.getType()));
         }
         return null;
     }
 
     private Spot chooseBestCandidate(List<Spot> candidates, Set<Long> usedSpotIds, Map<Long, Integer> rankIndex,
+                                     Map<String, Integer> categoryCounts, double startLat, double startLng,
                                      double currentLat, double currentLng, java.util.function.Predicate<Spot> predicate) {
         return candidates.stream()
                 .filter(spot -> spot.getId() != null && !usedSpotIds.contains(spot.getId()))
                 .filter(predicate)
-                .min(Comparator.comparingDouble(spot ->
-                        haversineDistance(currentLat, currentLng, spot.getLatitude(), spot.getLongitude())
-                                + rankIndex.getOrDefault(spot.getId(), 0) * 0.15))
+                .min(Comparator.comparingDouble(spot -> itineraryCandidateScore(
+                        spot, rankIndex, categoryCounts, startLat, startLng, currentLat, currentLng)))
                 .orElse(null);
+    }
+
+    private double itineraryCandidateScore(Spot spot, Map<Long, Integer> rankIndex, Map<String, Integer> categoryCounts,
+                                           double startLat, double startLng, double currentLat, double currentLng) {
+        double legDistanceKm = haversineDistance(currentLat, currentLng, spot.getLatitude(), spot.getLongitude());
+        double centerDistanceKm = haversineDistance(startLat, startLng, spot.getLatitude(), spot.getLongitude());
+        int originalRank = rankIndex.getOrDefault(spot.getId(), 0);
+        int repeatedCategoryCount = categoryCounts.getOrDefault(normalizeCategory(spot.getType()), 0);
+
+        return legDistanceKm * 0.75
+                + centerDistanceKm * 0.15
+                + originalRank * 0.20
+                + repeatedCategoryCount * 3.0;
+    }
+
+    private void incrementCategoryCount(Map<String, Integer> categoryCounts, Spot spot) {
+        String category = normalizeCategory(spot.getType());
+        categoryCounts.merge(category, 1, Integer::sum);
     }
 
     private boolean matchesSlot(String spotType, SlotKind slotKind) {
@@ -502,6 +620,15 @@ public class ItineraryGenerationService {
         return R * 2 * Math.asin(Math.sqrt(a));
     }
 
+    private int estimateTravelTimeMinutes(double lat1, double lng1, double lat2, double lng2) {
+        double dist = haversineDistance(lat1, lng1, lat2, lng2);
+        if (dist < 1.0) {
+            return (int) Math.max(5, Math.round((dist * 12.0) + 2.0));
+        } else {
+            return (int) Math.max(7, Math.round((dist * 2.0) + 3.0));
+        }
+    }
+
     /**
      * Get the default duration (in minutes) for a spot type.
      * To change these defaults, modify the DEFAULT_DURATIONS map at the top of this class.
@@ -530,6 +657,224 @@ public class ItineraryGenerationService {
 
     private record TimeSlot(LocalTime startTime, SlotKind kind) {}
     private record ScheduledSpot(Spot spot, LocalTime startTime) {}
+
+    // --- Regenerate / Swap ---
+
+    /**
+     * Regenerate an existing generated itinerary by re-running the algorithm
+     * with shuffled candidates for variety. Free — no additional payment required.
+     */
+    @Transactional
+    public ItineraryResponse regenerateItinerary(Long userId, Long itineraryId) {
+        Itinerary itinerary = itineraryRepository.findByIdAndUserId(itineraryId, userId)
+                .orElseThrow(() -> new IllegalArgumentException("Itinerary not found"));
+
+        if (itinerary.getSource() != ItinerarySource.GENERATED) {
+            throw new IllegalArgumentException("Only generated itineraries can be regenerated");
+        }
+
+        GenerateItineraryRequest request = loadRegenerationRequest(itinerary);
+
+        // Delete existing stops
+        stopRepository.deleteByItineraryId(itineraryId);
+        stopRepository.flush();
+
+        // Re-run generation with shuffled candidates for variety
+        int numberOfStops = request.numberOfStops() != null ? Math.min(request.numberOfStops(), MAX_STOPS) : 5;
+        int totalDays = request.resolvedNumberOfDays();
+
+        double lat = request.centerLatitude() != null ? request.centerLatitude() : 0;
+        double lng = request.centerLongitude() != null ? request.centerLongitude() : 0;
+        List<Spot> candidates = new ArrayList<>(findGenerationCandidates(userId, request, numberOfStops));
+
+        if (candidates.isEmpty()) {
+            throw new IllegalArgumentException("No spots found matching criteria. Try adjusting your preferences.");
+        }
+
+        // Shuffle to produce different results
+        Collections.shuffle(candidates);
+
+        List<ItineraryStop> newStops = new ArrayList<>();
+        List<Spot> remainingCandidates = new ArrayList<>(candidates);
+        int globalStopOrder = 1;
+
+        for (int day = 1; day <= totalDays; day++) {
+            if (remainingCandidates.size() < numberOfStops) {
+                remainingCandidates.addAll(candidates);
+            }
+            
+            List<ScheduledSpot> scheduled = scheduleByCategoryRules(remainingCandidates, lat, lng, numberOfStops);
+            
+            // Remove scheduled spots from remaining candidates to avoid duplicates across days
+            for (ScheduledSpot ss : scheduled) {
+                remainingCandidates.remove(ss.spot());
+            }
+
+            for (int i = 0; i < scheduled.size(); i++) {
+                ScheduledSpot scheduledSpot = scheduled.get(i);
+                Spot spot = scheduledSpot.spot();
+                int duration = getDefaultDuration(spot.getType());
+                LocalTime startTime = scheduledSpot.startTime();
+
+                ItineraryStop stop = new ItineraryStop();
+                stop.setItineraryId(itineraryId);
+                stop.setSpotId(spot.getId());
+                stop.setStopOrder(globalStopOrder++);
+                stop.setStartTime(startTime);
+                stop.setEndTime(startTime.plusMinutes(duration));
+                stop.setDurationMinutes(duration);
+                stop.setDayNumber(day);
+                newStops.add(stop);
+            }
+        }
+        stopRepository.saveAll(newStops);
+
+        log.info("Regenerated itinerary {} with {} stops for user {}", itineraryId, newStops.size(), userId);
+        return itineraryService.toResponse(itinerary, true);
+    }
+
+    private GenerateItineraryRequest loadRegenerationRequest(Itinerary itinerary) {
+        Optional<ItineraryGeneration> generation = generationRepository.findByItineraryId(itinerary.getId());
+
+        if (generation.isPresent()) {
+            return parseGenerationPreferences(generation.get().getPreferences());
+        }
+
+        if (itinerary.getGenerationPreferences() != null && !itinerary.getGenerationPreferences().isBlank()) {
+            return parseGenerationPreferences(itinerary.getGenerationPreferences());
+        }
+
+        return inferGenerationRequestFromCurrentStops(itinerary);
+    }
+
+    private GenerateItineraryRequest parseGenerationPreferences(String preferencesJson) {
+        try {
+            return objectMapper.readValue(preferencesJson, GenerateItineraryRequest.class);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to parse original generation preferences", e);
+        }
+    }
+
+    private GenerateItineraryRequest inferGenerationRequestFromCurrentStops(Itinerary itinerary) {
+        List<ItineraryStop> currentStops = stopRepository.findByItineraryIdOrderByStopOrderAsc(itinerary.getId());
+        if (currentStops.isEmpty()) {
+            throw new IllegalArgumentException("No original generation preferences found for this itinerary");
+        }
+
+        List<Long> spotIds = currentStops.stream().map(ItineraryStop::getSpotId).toList();
+        List<Spot> spots = spotRepository.findAllById(spotIds);
+        if (spots.isEmpty()) {
+            throw new IllegalArgumentException("No original generation preferences found for this itinerary");
+        }
+
+        List<String> categories = spots.stream()
+                .map(Spot::getType)
+                .filter(type -> type != null && !type.isBlank())
+                .map(this::normalizeCategory)
+                .distinct()
+                .toList();
+
+        double centerLat = spots.stream().mapToDouble(Spot::getLatitude).average().orElse(0.0);
+        double centerLng = spots.stream().mapToDouble(Spot::getLongitude).average().orElse(0.0);
+        double radiusKm = Math.max(5.0, estimateRadiusFromCenter(spots, centerLat, centerLng) + 2.0);
+
+        return new GenerateItineraryRequest(
+                categories,
+                "EXPERT",
+                itinerary.getDate() != null ? itinerary.getDate().toString() : null,
+                currentStops.size(),
+                centerLat,
+                centerLng,
+                radiusKm,
+                "SUBSCRIPTION"
+        );
+    }
+
+    private double estimateRadiusFromCenter(List<Spot> spots, double centerLat, double centerLng) {
+        return spots.stream()
+                .mapToDouble(spot -> haversineDistance(centerLat, centerLng, spot.getLatitude(), spot.getLongitude()))
+                .max()
+                .orElse(5.0);
+    }
+
+    /**
+     * Swap a single stop in a generated itinerary with the next-best alternative
+     * from the same category.
+     */
+    @Transactional
+    public ItineraryResponse swapStop(Long userId, Long itineraryId, Long stopId) {
+        Itinerary itinerary = itineraryRepository.findByIdAndUserId(itineraryId, userId)
+                .orElseThrow(() -> new IllegalArgumentException("Itinerary not found"));
+
+        if (itinerary.getSource() != ItinerarySource.GENERATED) {
+            throw new IllegalArgumentException("Swap is only available for generated itineraries");
+        }
+
+        ItineraryStop targetStop = stopRepository.findById(stopId)
+                .orElseThrow(() -> new IllegalArgumentException("Stop not found"));
+
+        if (!targetStop.getItineraryId().equals(itineraryId)) {
+            throw new IllegalArgumentException("Stop does not belong to this itinerary");
+        }
+
+        // Get the spot being replaced
+        Spot currentSpot = spotRepository.findById(targetStop.getSpotId())
+                .orElseThrow(() -> new IllegalArgumentException("Current spot not found"));
+
+        // Get all spot IDs already in this itinerary (to exclude)
+        List<ItineraryStop> allStops = stopRepository.findByItineraryIdOrderByStopOrderAsc(itineraryId);
+        Set<Long> excludedSpotIds = allStops.stream().map(ItineraryStop::getSpotId).collect(Collectors.toSet());
+
+        // Find the original generation preferences for radius/location
+        ItineraryGeneration gen = generationRepository.findByItineraryId(itineraryId)
+                .orElseThrow(() -> new IllegalArgumentException("Original generation record not found"));
+
+        GenerateItineraryRequest request;
+        try {
+            request = objectMapper.readValue(gen.getPreferences(), GenerateItineraryRequest.class);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to parse generation preferences", e);
+        }
+
+        List<Spot> candidates = findGenerationCandidates(userId, request, allStops.size() + 3);
+
+        // Filter to same category as the current spot, exclude already-used spots
+        String currentType = normalizeCategory(currentSpot.getType());
+        List<Spot> sameCategoryCandidates = candidates.stream()
+                .filter(s -> s.getId() != null && !excludedSpotIds.contains(s.getId()))
+                .filter(s -> normalizeCategory(s.getType()).equals(currentType))
+                .collect(Collectors.toList());
+
+        // If no same-category alternatives, try any category
+        if (sameCategoryCandidates.isEmpty()) {
+            sameCategoryCandidates = candidates.stream()
+                    .filter(s -> s.getId() != null && !excludedSpotIds.contains(s.getId()))
+                    .collect(Collectors.toList());
+        }
+
+        if (sameCategoryCandidates.isEmpty()) {
+            throw new IllegalArgumentException("No alternative spots available to swap");
+        }
+
+        // Pick the best candidate by proximity to the current spot's position
+        Spot replacement = sameCategoryCandidates.stream()
+                .min(Comparator.comparingDouble(s ->
+                        haversineDistance(currentSpot.getLatitude(), currentSpot.getLongitude(),
+                                s.getLatitude(), s.getLongitude())))
+                .orElse(sameCategoryCandidates.get(0));
+
+        // Replace the stop's spot
+        targetStop.setSpotId(replacement.getId());
+        int newDuration = getDefaultDuration(replacement.getType());
+        targetStop.setDurationMinutes(newDuration);
+        if (targetStop.getStartTime() != null) {
+            targetStop.setEndTime(targetStop.getStartTime().plusMinutes(newDuration));
+        }
+        stopRepository.save(targetStop);
+
+        log.info("Swapped stop {} in itinerary {} from spot {} to spot {}", stopId, itineraryId, currentSpot.getId(), replacement.getId());
+        return itineraryService.toResponse(itinerary, true);
+    }
 
     // --- Read-only endpoints ---
 

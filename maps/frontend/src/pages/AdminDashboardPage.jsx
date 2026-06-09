@@ -3,11 +3,13 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { useApi } from '../hooks/useApi'
 import { useAuth } from '../context/AuthContext'
 import ConfirmDialog from '../components/ConfirmDialog'
+import { useToast } from '../components/ToastProvider'
 import './AdminDashboardPage.css'
 
 export default function AdminDashboardPage() {
   const { apiFetch } = useApi()
   const { isSuperAdmin } = useAuth()
+  const { toast } = useToast()
   const [searchParams, setSearchParams] = useSearchParams()
   const adminTabs = ['reviews', 'spots', 'events', 'paths', 'reports', 'experts', 'categories', 'users']
   const initialTab = adminTabs.includes(searchParams.get('tab')) ? searchParams.get('tab') : 'reviews'
@@ -118,16 +120,16 @@ export default function AdminDashboardPage() {
         const errorText = await res.text()
         console.error(`Failed to ${statusVal} review ${id}:`, res.status, errorText)
         if (res.status === 404) {
-          alert(`Review ${id} not found. It may have been deleted.`)
+          toast.error(`Review ${id} not found. It may have been deleted.`)
         } else if (res.status === 403) {
-          alert('Permission denied. Please ensure you are logged in as an admin.')
+          toast.warning('Permission denied. Please ensure you are logged in as an admin.')
         } else {
-          alert(`Failed to ${statusVal} review: ${res.status}`)
+          toast.error(`Failed to ${statusVal} review: ${res.status}`)
         }
       }
     } catch (err) {
       console.error(`Error ${statusVal} review ${id}:`, err)
-      alert(`Error: ${err.message}`)
+      toast.error(`Error: ${err.message}`)
     }
   }
 
@@ -178,11 +180,11 @@ export default function AdminDashboardPage() {
           loadPendingPaths()
         }
       } else {
-        alert('Failed to update report status.')
+        toast.error('Failed to update report status.')
       }
     } catch (err) {
       console.error('Error updating report:', err)
-      alert('Error updating report.')
+      toast.error('Error updating report.')
     }
   }
 

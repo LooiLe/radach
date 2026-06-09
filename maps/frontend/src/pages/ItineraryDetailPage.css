@@ -12,6 +12,7 @@
   flex: 1;
   min-width: 0;
   height: 100%;
+  position: relative;
 }
 
 .detail-sidebar {
@@ -179,6 +180,90 @@
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: 0.25rem;
+}
+
+.day-tabs-container {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 64px;
+  margin: 0.35rem 0 0.5rem;
+  padding: 0.65rem 0.15rem 0.85rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  background: #ffffff;
+}
+
+.day-tab-btn {
+  min-width: 76px;
+  height: 44px;
+  min-height: 44px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0 0.8rem;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #cbd5e1;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.day-tab-btn:hover {
+  border-color: rgba(139, 92, 246, 0.65);
+  background: rgba(139, 92, 246, 0.12);
+  color: #ffffff;
+}
+
+.day-tab-btn.active {
+  border-color: #4f46e5;
+  background: #4f46e5;
+  color: #ffffff;
+  box-shadow: 0 6px 14px rgba(79, 70, 229, 0.22);
+}
+
+.day-tab-label,
+.day-tab-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.day-tab-number {
+  min-width: 1.25em;
+  font-variant-numeric: tabular-nums;
+}
+
+.budget-summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0.5rem 0 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid rgba(99, 102, 241, 0.16);
+  border-radius: 8px;
+  background: rgba(99, 102, 241, 0.06);
+  color: #cbd5e1;
+  font-size: 0.875rem;
+  line-height: 1.35;
+}
+
+.budget-summary strong {
+  color: #ffffff;
+  font-weight: 800;
 }
 
 .empty-timeline-message {
@@ -514,6 +599,7 @@
 .detail-stop-card .stop-type,
 .detail-stop-card .stop-notes,
 .empty-timeline-message,
+.budget-summary,
 .stop-edit-inputs label,
 .btn-cancel,
 .btn-add-stop-trigger {
@@ -575,6 +661,38 @@
   color: #ffffff;
 }
 
+.day-tabs-container {
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.day-tab-btn {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  color: #475569;
+}
+
+.day-tab-btn:hover {
+  background: #eef2ff;
+  border-color: #818cf8;
+  color: #3730a3;
+}
+
+.day-tab-btn.active {
+  background: #3730a3;
+  border-color: #3730a3;
+  color: #ffffff;
+  box-shadow: 0 6px 14px rgba(55, 48, 163, 0.22);
+}
+
+.budget-summary {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.budget-summary strong {
+  color: #0f172a;
+}
+
 .btn-delete {
   background: #fee2e2;
   border: 1px solid #fca5a5;
@@ -613,6 +731,32 @@
   background: #3730a3;
   border-color: #3730a3;
   color: #ffffff;
+}
+
+.btn-swap-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.7rem;
+  background: #fffbeb;
+  border: 1px solid #fbbf24;
+  color: #92400e;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-swap-link:hover:not(:disabled) {
+  background: #fbbf24;
+  border-color: #f59e0b;
+  color: #78350f;
+}
+
+.btn-swap-link:disabled {
+  opacity: 0.6;
+  cursor: wait;
 }
 
 .confirm-lightbox {
@@ -719,5 +863,496 @@
     height: 60vh;
     border-left: none;
     border-top: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+  }
+
+  .day-tabs-container {
+    margin-top: 0.75rem;
+    min-height: 58px;
+    padding-bottom: 0.45rem;
+  }
+
+  .day-tab-btn {
+    min-width: 68px;
+    height: 40px;
+    min-height: 40px;
+    padding: 0 0.7rem;
+    font-size: 0.8rem;
+  }
+
+  .budget-summary {
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+}
+
+/* Custom Leaflet Map Markers */
+.custom-itinerary-marker {
+  background: transparent !important;
+  border: none !important;
+}
+
+.itinerary-map-marker {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border-radius: 50% 50% 50% 0;
+  background: #8b5cf6;
+  border: 2px solid #fff;
+  transform: rotate(-45deg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.itinerary-map-marker img {
+  width: 22px;
+  height: 22px;
+  transform: rotate(45deg);
+  filter: brightness(0) invert(1);
+}
+
+.itinerary-map-marker .marker-number {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #22c55e;
+  border: 2px solid #fff;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: rotate(45deg);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+}
+
+.print-header {
+  display: none;
+}
+
+/* ─── Print Layout Active (applied by JS before calling window.print) ─── */
+.itinerary-detail-page.print-layout-active {
+  display: block !important;
+  height: auto !important;
+  overflow: visible !important;
+  background: #ffffff !important;
+  padding: 1.6cm 2cm !important;
+  position: relative;
+}
+
+.print-layout-active .print-header {
+  display: block !important;
+  text-align: center !important;
+  margin-bottom: 2rem !important;
+  border-bottom: 2px solid #e2e8f0 !important;
+  padding-bottom: 1rem !important;
+}
+
+.print-layout-active .detail-map-container {
+  display: none !important;
+}
+
+.print-layout-active .leaflet-overlay-pane,
+.print-layout-active .leaflet-overlay-pane svg,
+.print-layout-active .leaflet-overlay-pane path,
+.print-layout-active .leaflet-overlay-pane canvas,
+.print-layout-active .itinerary-route-line,
+.print-layout-active .leaflet-zoom-animated {
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.print-layout-active .itinerary-route-line {
+  stroke: #7c3aed !important;
+  stroke-width: 4px !important;
+  stroke-opacity: 0.95 !important;
+  fill: none !important;
+}
+
+.print-route-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.print-map-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 650;
+  pointer-events: none;
+}
+
+.print-map-marker {
+  position: absolute;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 3px solid #7c3aed;
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.28);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+
+.print-map-marker::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -10px;
+  width: 12px;
+  height: 12px;
+  background: #7c3aed;
+  transform: translateX(-50%) rotate(45deg);
+  border-radius: 2px;
+}
+
+.print-map-marker img {
+  width: 20px;
+  height: 20px;
+  position: relative;
+  z-index: 2;
+}
+
+.print-marker-number {
+  position: absolute;
+  top: -9px;
+  right: -9px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #22c55e;
+  border: 2px solid #ffffff;
+  color: #ffffff;
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 16px;
+  text-align: center;
+  z-index: 3;
+}
+
+.print-layout-active .leaflet-marker-pane,
+.print-layout-active .leaflet-shadow-pane,
+.print-layout-active .leaflet-overlay-pane {
+  display: none !important;
+}
+
+.print-layout-active .detail-sidebar {
+  width: 100% !important;
+  height: auto !important;
+  overflow: visible !important;
+  border: none !important;
+  background: #ffffff !important;
+}
+
+.print-layout-active .navbar,
+.print-layout-active .menu-drawer,
+.print-layout-active .menu-overlay,
+.print-layout-active .floating-add-btn,
+.print-layout-active .back-link,
+.print-layout-active .owner-actions,
+.print-layout-active .btn-spot-link,
+.print-layout-active .btn-directions-link,
+.print-layout-active .btn-add-stop-trigger,
+.print-layout-active .leaflet-control-container {
+  display: none !important;
+}
+
+/* ─── Timeline Travel Connector ─── */
+.timeline-travel-connector {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  padding: 0.35rem 0;
+  margin: 0.1rem 0;
+}
+
+.connector-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 28px;
+  width: 2px;
+  border-left: 2px dashed rgba(139, 92, 246, 0.3);
+  z-index: 1;
+}
+
+.itinerary-detail-page:not(.dark-mode) .connector-line {
+  border-left-color: rgba(99, 102, 241, 0.25);
+}
+
+.travel-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.75rem;
+  background: rgba(99, 102, 241, 0.08);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 20px;
+  font-size: 0.72rem;
+  color: #818cf8;
+  z-index: 2;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  margin-left: 52px;
+  align-self: flex-start;
+  font-weight: 500;
+}
+
+.travel-pill strong {
+  color: #8b5cf6;
+  font-weight: 700;
+}
+
+.travel-pill:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+  border-color: rgba(99, 102, 241, 0.4);
+  background: rgba(99, 102, 241, 0.12);
+}
+
+/* Light mode overrides */
+.itinerary-detail-page .travel-pill {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #475569;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+}
+
+.itinerary-detail-page .travel-pill strong {
+  color: #4f46e5;
+}
+
+.itinerary-detail-page .travel-pill:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+/* ─── Print View Styling ─── */
+@media print {
+  @page {
+    margin: 0;
+    size: auto;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Ensure map tiles and markers show up in print previews */
+  .detail-map-container,
+  .leaflet-container,
+  .leaflet-tile,
+  .leaflet-tile-container,
+  .custom-itinerary-marker,
+  .itinerary-map-marker,
+  .itinerary-map-marker .marker-number,
+  .itinerary-map-marker img,
+  .leaflet-overlay-pane,
+  .leaflet-overlay-pane svg,
+  .leaflet-overlay-pane path,
+  .leaflet-overlay-pane canvas,
+  .itinerary-route-line,
+  .leaflet-zoom-animated {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .leaflet-overlay-pane,
+  .leaflet-overlay-pane svg,
+  .leaflet-overlay-pane path,
+  .leaflet-overlay-pane canvas,
+  .itinerary-route-line,
+  .leaflet-zoom-animated {
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+
+  .itinerary-route-line {
+    stroke: #7c3aed !important;
+    stroke-width: 4px !important;
+    stroke-opacity: 0.95 !important;
+    fill: none !important;
+  }
+
+  .print-route-overlay {
+    display: block !important;
+    position: absolute !important;
+    inset: 0 !important;
+    z-index: 550 !important;
+    width: 100% !important;
+    height: 100% !important;
+    pointer-events: none !important;
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+
+  /* Hide headers, navigation drawer, and actions */
+  .navbar,
+  .menu-drawer,
+  .menu-overlay,
+  .floating-add-btn,
+  .back-link,
+  .owner-actions,
+  .btn-spot-link,
+  .btn-directions-link,
+  .btn-add-stop-trigger,
+  .leaflet-control-container {
+    display: none !important;
+  }
+
+  .print-header {
+    display: block !important;
+    text-align: center !important;
+    margin-bottom: 2rem !important;
+    border-bottom: 2px solid #e2e8f0 !important;
+    padding-bottom: 1rem !important;
+  }
+
+  .print-header h1 {
+    font-size: 1.6rem !important;
+    color: #4f46e5 !important;
+    font-weight: 800 !important;
+    margin: 0 !important;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .itinerary-detail-page {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+    padding: 1.6cm 2cm !important;
+  }
+
+  .detail-map-container {
+    display: none !important;
+  }
+
+  .detail-sidebar {
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    border: none !important;
+    background: #ffffff !important;
+  }
+
+  .detail-header {
+    border: none !important;
+    background: #ffffff !important;
+    padding: 0 0 1.5rem 0 !important;
+    margin-bottom: 1.5rem !important;
+    border-bottom: 2px solid #e2e8f0 !important;
+  }
+
+  .detail-header h2 {
+    font-size: 1.8rem !important;
+    color: #000000 !important;
+    margin-top: 0 !important;
+  }
+
+  .detail-timeline-section {
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  .detail-timeline-section h3 {
+    color: #000000 !important;
+    font-size: 1.1rem !important;
+    margin-bottom: 1rem !important;
+  }
+
+  .day-tabs-container {
+    display: none !important;
+  }
+
+  .budget-summary {
+    background: #f8fafc !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #334155 !important;
+    box-shadow: none !important;
+  }
+
+  .budget-summary strong {
+    color: #000000 !important;
+  }
+
+  .detail-stop-card {
+    page-break-inside: avoid !important;
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    box-shadow: none !important;
+    margin-bottom: 0.75rem !important;
+  }
+
+  .detail-stop-card .stop-name {
+    color: #000000 !important;
+    font-size: 1rem !important;
+  }
+
+  .detail-stop-card .stop-time {
+    color: #166534 !important;
+  }
+
+  .detail-stop-card .stop-notes {
+    background: #f8fafc !important;
+    border-left: 3px solid #8b5cf6 !important;
+    color: #334155 !important;
+    margin-top: 0.35rem !important;
+  }
+
+  .detail-stop-card .stop-badge {
+    background: #8b5cf6 !important;
+    color: #ffffff !important;
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+
+  .timeline-travel-connector {
+    page-break-inside: avoid !important;
+    margin: 0.1cm 0 !important;
+    padding: 0.2cm 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    position: relative !important;
+  }
+
+  .connector-line {
+    border-left: 2px dashed #cbd5e1 !important;
+    left: 28px !important;
+    z-index: 1 !important;
+  }
+
+  .travel-pill {
+    background: #f8fafc !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #475569 !important;
+    box-shadow: none !important;
+    margin-left: 52px !important;
+    align-self: flex-start !important;
+    font-size: 0.72rem !important;
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+
+  .travel-pill strong {
+    color: #4f46e5 !important;
   }
 }

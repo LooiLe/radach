@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApi } from '../hooks/useApi'
+import { useToast } from '../components/ToastProvider'
 import './FriendsPage.css'
 
 export default function FriendsPage() {
   const { apiFetch } = useApi()
   const navigate = useNavigate()
+  const { toast } = useToast()
   const [friends, setFriends] = useState([])
   const [requests, setRequests] = useState([])
   const [sentRequests, setSentRequests] = useState([])
@@ -55,15 +57,15 @@ export default function FriendsPage() {
     try {
       const res = await apiFetch(`/api/v1/friends/request/${userId}`, { method: 'POST' })
       if (res.ok) {
-        alert('Friend request sent!')
+        toast.success('Friend request sent!')
         setSearchResults(searchResults.map(u => u.id === userId ? { ...u, status: 'PENDING_FROM_ME' } : u))
         loadFriends()
       } else {
         const data = await res.json()
-        alert(data.message || 'Could not send request')
+        toast.error(data.message || 'Could not send request')
       }
     } catch (e) {
-      alert('Error sending request')
+      toast.error('Error sending request')
     }
   }
 

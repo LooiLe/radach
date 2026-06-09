@@ -5,7 +5,9 @@ export default defineConfig({
   plugins: [react()],
   envDir: '../',
   server: {
+    host: true,
     port: 5173,
+    allowedHosts: ['springs-designed-cases-div.trycloudflare.com'],
     proxy: {
       '/api': {
         target: 'http://localhost:8080',

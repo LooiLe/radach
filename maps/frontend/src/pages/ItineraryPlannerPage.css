@@ -492,6 +492,48 @@
   box-shadow: 0 0 12px rgba(139, 92, 246, 0.1);
 }
 
+.itinerary-mode-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.mode-option {
+  min-height: 76px;
+  padding: 0.65rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: #f4f4f8;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s;
+}
+
+.mode-option:hover {
+  border-color: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.mode-option.active {
+  border-color: #38bdf8;
+  background: rgba(14, 165, 233, 0.14);
+}
+
+.mode-option span {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 800;
+  margin-bottom: 0.25rem;
+}
+
+.mode-option small {
+  display: block;
+  color: #d7d7df;
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+
 /* Toggle Group */
 .toggle-group {
   display: flex;
@@ -999,6 +1041,7 @@
 .timeline-item-card,
 .selector-card,
 .pricing-card,
+.mode-option,
 .coordinate-display,
 .toggle-group,
 .center-suggestions {
@@ -1009,6 +1052,7 @@
 .timeline-item-card,
 .selector-card,
 .pricing-card,
+.mode-option,
 .coordinate-display,
 .center-suggestions {
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
@@ -1017,6 +1061,7 @@
 .filter-btn,
 .chip,
 .toggle-btn,
+.mode-option,
 .location-btn,
 .credit-buy-actions button,
 .sub-buy-actions button {
@@ -1028,6 +1073,7 @@
 .filter-btn:hover,
 .chip:hover,
 .toggle-btn:hover,
+.mode-option:hover,
 .location-btn:hover,
 .credit-buy-actions button:hover,
 .sub-buy-actions button:hover {
@@ -1039,9 +1085,23 @@
 .filter-btn.active,
 .chip.selected,
 .toggle-btn.active,
+.mode-option.active,
 .pricing-card.selected {
   background: #3730a3;
   border-color: #3730a3;
+  color: #ffffff;
+}
+
+.mode-option span {
+  color: #0f172a;
+}
+
+.mode-option small {
+  color: #475569;
+}
+
+.mode-option.active span,
+.mode-option.active small {
   color: #ffffff;
 }
 

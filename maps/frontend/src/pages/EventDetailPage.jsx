@@ -5,12 +5,14 @@ import { useAuth } from '../context/AuthContext'
 import Lightbox from '../components/Lightbox'
 import ReportModal from '../components/ReportModal'
 import ConfirmDialog from '../components/ConfirmDialog'
+import { useToast } from '../components/ToastProvider'
 import './EventDetailPage.css'
 
 export default function EventDetailPage() {
   const { id } = useParams()
   const { apiFetch } = useApi()
   const { isAuthenticated, isAdmin, userId } = useAuth()
+  const { toast } = useToast()
   const navigate = useNavigate()
 
   const [event, setEvent] = useState(null)
@@ -336,7 +338,7 @@ export default function EventDetailPage() {
           contentType={reportTarget.type} 
           contentId={reportTarget.id} 
           onClose={() => setReportModalOpen(false)}
-          onSuccess={() => alert('Thank you. This event has been reported for review.')}
+          onSuccess={() => toast.success('Thank you. This event has been reported for review.')}
         />
       )}
       <ConfirmDialog

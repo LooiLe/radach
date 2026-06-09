@@ -45,6 +45,15 @@ public class Itinerary {
     @Column(name = "generation_preferences", columnDefinition = "text")
     private String generationPreferences;
 
+    @Column(name = "share_token", unique = true, length = 36)
+    private String shareToken;
+
+    @Column(name = "end_date")
+    private LocalDate endDate;
+
+    @Column(nullable = false, length = 3)
+    private String currency = "USD";
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -56,6 +65,9 @@ public class Itinerary {
         Instant now = Instant.now();
         if (createdAt == null) createdAt = now;
         if (updatedAt == null) updatedAt = now;
+        if (shareToken == null) {
+            shareToken = java.util.UUID.randomUUID().toString();
+        }
     }
 
     @PreUpdate
@@ -87,6 +99,15 @@ public class Itinerary {
 
     public String getGenerationPreferences() { return generationPreferences; }
     public void setGenerationPreferences(String generationPreferences) { this.generationPreferences = generationPreferences; }
+
+    public String getShareToken() { return shareToken; }
+    public void setShareToken(String shareToken) { this.shareToken = shareToken; }
+
+    public LocalDate getEndDate() { return endDate; }
+    public void setEndDate(LocalDate endDate) { this.endDate = endDate; }
+
+    public String getCurrency() { return currency; }
+    public void setCurrency(String currency) { this.currency = currency; }
 
     public Instant getCreatedAt() { return createdAt; }
 

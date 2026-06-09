@@ -14,6 +14,8 @@ public interface ItineraryGenerationRepository extends JpaRepository<ItineraryGe
 
     Optional<ItineraryGeneration> findByStripeSessionId(String stripeSessionId);
 
+    Optional<ItineraryGeneration> findByItineraryId(Long itineraryId);
+
     List<ItineraryGeneration> findByUserIdOrderByCreatedAtDesc(Long userId);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)

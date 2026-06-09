@@ -10,10 +10,13 @@ public record ItineraryResponse(
         String title,
         String description,
         LocalDate date,
+        LocalDate endDate,
+        String currency,
         String status,
         String source,
         List<StopResponse> stops,
         int stopCount,
+        String shareToken,
         Instant createdAt,
         Instant updatedAt
 ) {}

@@ -51,7 +51,7 @@ public class SpotServiceSaveTest {
         assertThat(savedSpots.get(0).isSaved()).isTrue();
 
         // 5. Verify in findSpots (which is what /spots calls)
-        List<SpotResponse> allSpots = spotService.findSpots(null, null, null, "popularity", user.getId());
+        List<SpotResponse> allSpots = spotService.findSpots(40.0, -73.0, 1.0, "popularity", user.getId());
         SpotResponse foundSpot = allSpots.stream().filter(s -> s.id().equals(spot.id())).findFirst().orElseThrow();
         assertThat(foundSpot.isSaved()).isTrue();
     }
@@ -64,5 +64,25 @@ public class SpotServiceSaveTest {
         SpotResponse spot = new SpotResponse(null, "Test", "Park", "123", 40.0, -73.0, List.of(), List.of(), null, "ACTIVE", 0, java.time.Instant.now(), 0.0, 0.0, 0.0, 0.0, true, true, null, null, false, List.of(), 0, "global");
         String json = objectMapper.writeValueAsString(spot);
         assertThat(json).contains("\"isSaved\":true");
+    }
+
+    @Test
+    public void testSearchLimit() {
+        User user = new User();
+        user.setEmail("search-limit-test@example.com");
+        user.setPasswordHash("hash");
+        user.setName("Test");
+        user.setRole(com.radach.maps.model.Role.USER);
+        userRepository.saveAndFlush(user);
+
+        spotService.create(new SpotRequest("Alpha Spot", "Cafe", "Address 1", 10.0, 10.0, List.of("tag"), List.of(), null, com.radach.maps.model.SpotStatus.ACTIVE), true, user.getId());
+        spotService.create(new SpotRequest("Beta Spot", "Cafe", "Address 2", 10.0, 10.0, List.of("tag"), List.of(), null, com.radach.maps.model.SpotStatus.ACTIVE), true, user.getId());
+        spotService.create(new SpotRequest("Gamma Spot", "Cafe", "Address 3", 10.0, 10.0, List.of("tag"), List.of(), null, com.radach.maps.model.SpotStatus.ACTIVE), true, user.getId());
+
+        List<SpotResponse> results = spotService.search("Spot", 2, user.getId());
+        assertThat(results).hasSize(2);
+
+        List<SpotResponse> results2 = spotService.search("Spot", 1, user.getId());
+        assertThat(results2).hasSize(1);
     }
 }

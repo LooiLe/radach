@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.radach.maps.dto.FriendLikeDTO;
 import com.radach.maps.dto.SpotRequest;
+import com.radach.maps.dto.SpotMapResponse;
 import com.radach.maps.dto.SpotResponse;
 import com.radach.maps.service.SpotService;
 
@@ -56,7 +57,18 @@ public class SpotController {
             @RequestParam(required = false, defaultValue = "global") String mode,
             org.springframework.security.core.Authentication auth
     ) {
-        return spotService.findSpots(lat, lng, radiusKm, sortBy, getUserIdOrNull(auth), mode);
+        return spotService.findSpots(lat, lng, radiusKm, sortBy, limit, getUserIdOrNull(auth));
+    }
+
+    @GetMapping("/map")
+    public SpotMapResponse getMapSpots(
+            @RequestParam Double swLat,
+            @RequestParam Double swLng,
+            @RequestParam Double neLat,
+            @RequestParam Double neLng,
+            @RequestParam(required = false) Integer zoom
+    ) {
+        return spotService.findMapSpots(swLat, swLng, neLat, neLng, zoom);
     }
 
     @GetMapping("/trending")
@@ -65,8 +77,9 @@ public class SpotController {
             @RequestParam(required = false) Double lng,
             @RequestParam(required = false) Double radiusKm,
             @RequestParam(required = false, defaultValue = "personalized") String type,
+            @RequestParam(required = false) Integer limit,
             org.springframework.security.core.Authentication auth) {
-        return spotService.getTrending(getUserIdOrNull(auth), lat, lng, radiusKm, type);
+        return spotService.getTrending(getUserIdOrNull(auth), lat, lng, radiusKm, type, limit);
     }
 
     @GetMapping("/search")

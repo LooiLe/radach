@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.radach.maps.dto.GenerateItineraryRequest;
 import com.radach.maps.dto.GenerationResponse;
+import com.radach.maps.dto.ItineraryResponse;
 import com.radach.maps.dto.SpotRequest;
 import com.radach.maps.dto.SpotResponse;
 import com.radach.maps.model.*;
@@ -41,6 +42,12 @@ public class ItineraryGenerationServiceTest {
 
     @Autowired
     private ItineraryStopRepository stopRepository;
+
+    @Autowired
+    private SpotRepository spotRepository;
+
+    @Autowired
+    private ItineraryService itineraryService;
 
     @Autowired
     private UserCreditsRepository creditsRepository;
@@ -97,6 +104,17 @@ public class ItineraryGenerationServiceTest {
         mockSession.setId("sess_test_123");
         mockSession.setUrl("https://checkout.stripe.com/pay/test");
         when(stripeService.createOneTimeCheckoutSession(any(Long.class), any(Long.class), any())).thenReturn(mockSession);
+    }
+
+    @Autowired
+    private com.fasterxml.jackson.databind.ObjectMapper objectMapper;
+
+    @Test
+    public void testJacksonDeserialization() throws Exception {
+        String json = "{\"preferredCategories\":[\"Cafe\",\"Restaurant\"],\"reviewSource\":\"EXPERT\",\"date\":\"2026-06-01\",\"numberOfStops\":3,\"numberOfDays\":2,\"centerLatitude\":13.75,\"centerLongitude\":100.5,\"radiusKm\":10.0,\"paymentMethod\":\"ONE_TIME\",\"strictCategories\":false,\"cancelUrl\":\"http://localhost\"}";
+        GenerateItineraryRequest request = objectMapper.readValue(json, GenerateItineraryRequest.class);
+        assertThat(request).isNotNull();
+        assertThat(request.numberOfDays()).isEqualTo(2);
     }
 
     @Test
@@ -225,6 +243,112 @@ public class ItineraryGenerationServiceTest {
         assertThat(stops.get(0).getStartTime().toString()).isEqualTo("09:00");
         assertThat(stops.get(1).getStartTime().toString()).isEqualTo("12:30");
         assertThat(stops.get(2).getStartTime().toString()).isEqualTo("20:30");
-        assertThat(stops.get(3).getStartTime().toString()).isEqualTo("22:15");
+        assertThat(stops.get(3).getStartTime().toString()).isEqualTo("22:07");
+    }
+
+    @Test
+    public void testBalancedCategoryPreferenceKeepsRouteVaried() {
+        UserCredits uc = new UserCredits();
+        uc.setUserId(user.getId());
+        uc.setBalance(5);
+        creditsRepository.saveAndFlush(uc);
+
+        spotService.create(new SpotRequest(
+            "Second Restaurant", "Restaurant", "222 Food St", 13.755, 100.505, List.of("food"), List.of(), null, SpotStatus.ACTIVE
+        ), true, user.getId());
+        spotService.create(new SpotRequest(
+            "Third Restaurant", "Restaurant", "333 Food St", 13.765, 100.515, List.of("food"), List.of(), null, SpotStatus.ACTIVE
+        ), true, user.getId());
+
+        GenerateItineraryRequest request = new GenerateItineraryRequest(
+            List.of("Restaurant"),
+            "EXPERT",
+            "2026-06-01",
+            4,
+            13.75,
+            100.5,
+            10.0,
+            "CREDITS",
+            false,
+            null
+        );
+
+        GenerationResponse response = generationService.initiateGeneration(user.getId(), request);
+
+        assertThat(response.status()).isEqualTo(GenerationStatus.COMPLETED.name());
+        List<String> stopTypes = getGeneratedStopTypes(response.itineraryId());
+        assertThat(stopTypes).hasSize(4);
+        assertThat(stopTypes).contains("Restaurant");
+        assertThat(stopTypes).anyMatch(type -> !type.equalsIgnoreCase("Restaurant"));
+    }
+
+    @Test
+    public void testStrictCategoryPreferenceUsesOnlySelectedTypes() {
+        UserCredits uc = new UserCredits();
+        uc.setUserId(user.getId());
+        uc.setBalance(5);
+        creditsRepository.saveAndFlush(uc);
+
+        spotService.create(new SpotRequest(
+            "Second Restaurant", "Restaurant", "222 Food St", 13.755, 100.505, List.of("food"), List.of(), null, SpotStatus.ACTIVE
+        ), true, user.getId());
+        spotService.create(new SpotRequest(
+            "Third Restaurant", "Restaurant", "333 Food St", 13.765, 100.515, List.of("food"), List.of(), null, SpotStatus.ACTIVE
+        ), true, user.getId());
+
+        GenerateItineraryRequest request = new GenerateItineraryRequest(
+            List.of("Restaurant"),
+            "EXPERT",
+            "2026-06-01",
+            3,
+            13.75,
+            100.5,
+            10.0,
+            "CREDITS",
+            true,
+            null
+        );
+
+        GenerationResponse response = generationService.initiateGeneration(user.getId(), request);
+
+        assertThat(response.status()).isEqualTo(GenerationStatus.COMPLETED.name());
+        List<String> stopTypes = getGeneratedStopTypes(response.itineraryId());
+        assertThat(stopTypes).hasSize(3);
+        assertThat(stopTypes).allMatch(type -> type.equalsIgnoreCase("Restaurant"));
+    }
+
+    @Test
+    public void testRegenerateClonedGeneratedItineraryUsesStoredPreferences() {
+        UserCredits uc = new UserCredits();
+        uc.setUserId(user.getId());
+        uc.setBalance(5);
+        creditsRepository.saveAndFlush(uc);
+
+        GenerateItineraryRequest request = new GenerateItineraryRequest(
+            List.of("Cafe", "Restaurant", "Bar", "Hotel"),
+            "EXPERT",
+            "2026-06-01",
+            4,
+            13.75,
+            100.5,
+            10.0,
+            "CREDITS"
+        );
+
+        GenerationResponse response = generationService.initiateGeneration(user.getId(), request);
+        ItineraryResponse cloned = itineraryService.cloneItinerary(user.getId(), response.itineraryId());
+
+        ItineraryResponse regenerated = generationService.regenerateItinerary(user.getId(), cloned.id());
+
+        assertThat(regenerated.stops()).hasSize(4);
+        assertThat(regenerated.source()).isEqualTo(ItinerarySource.GENERATED.name());
+    }
+
+    private List<String> getGeneratedStopTypes(Long itineraryId) {
+        List<ItineraryStop> stops = stopRepository.findByItineraryIdOrderByStopOrderAsc(itineraryId);
+        return stops.stream()
+                .map(ItineraryStop::getSpotId)
+                .map(spotId -> spotRepository.findById(spotId).orElseThrow().getType())
+                .toList();
     }
 }
