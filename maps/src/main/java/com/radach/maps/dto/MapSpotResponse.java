@@ -6,6 +6,7 @@ public record MapSpotResponse(
         String type,
         Double latitude,
         Double longitude,
-        int rankScore
+        int rankScore,
+        Double averageRating
 ) {
 }

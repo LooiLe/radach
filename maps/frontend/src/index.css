@@ -432,8 +432,8 @@ a:hover {
 
 .custom-map-marker {
   position: relative;
-  width: 44px;
-  height: 44px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   background: #fff;
   display: flex;
@@ -444,18 +444,18 @@ a:hover {
 }
 
 .custom-map-marker img {
-  width: 22px;
+  width: 14px;
   height: 22px;
 }
 
 .custom-map-marker::after {
   content: '';
   position: absolute;
-  bottom: -4px;
+  bottom: -3px;
   left: 50%;
   transform: translateX(-50%);
-  width: 24px;
-  height: 6px;
+  width: 16px;
+  height: 4px;
   background: rgba(0, 0, 0, 0.08);
   border-radius: 50%;
   filter: blur(2px);

@@ -2,7 +2,7 @@ import './RatingModeSelector.css'
 
 export default function RatingModeSelector({ mode, onChange }) {
   const modes = [
-    { key: 'friends', label: 'Friends' },
+    { key: 'trusted', label: 'Trusted' },
     { key: 'global', label: 'Global' },
     { key: 'expert', label: 'Experts' },
   ]

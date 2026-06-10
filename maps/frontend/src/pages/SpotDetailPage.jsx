@@ -470,15 +470,15 @@ export default function SpotDetailPage() {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
                   <StatusBadge status={spot.status} />
-                  <span className="detail-rating" title="Friends rating" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
-                    <img src="/icons/la--user-friends.svg" alt="Friends" style={{ width: '1em', height: '1em' }} />
+                  <span className="detail-rating" title="Trusted — ratings from your friends and experts you follow" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem', cursor: 'help' }}>
+                    <img src="/icons/la--user-friends.svg" alt="Trusted" style={{ width: '1em', height: '1em' }} />
                     {spot.friendsRating > 0 ? spot.friendsRating.toFixed(1) : '-'}
                   </span>
-                  <span className="detail-rating" title="Global rating" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
+                  <span className="detail-rating" title="Global — average rating from all users" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem', cursor: 'help' }}>
                     <img src="/icons/solar--global-broken.svg" alt="Global" style={{ width: '1em', height: '1em' }} />
                     {spot.globalRating > 0 ? spot.globalRating.toFixed(1) : '-'}
                   </span>
-                  <span className="detail-rating" title="Expert rating" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
+                  <span className="detail-rating" title="Experts — average rating from verified experts" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem', cursor: 'help' }}>
                     <img src="/icons/mdi--user-tick-outline.svg" alt="Expert" style={{ width: '1em', height: '1em' }} />
                     {spot.expertRating > 0 ? spot.expertRating.toFixed(1) : '-'}
                   </span>
@@ -720,9 +720,9 @@ export default function SpotDetailPage() {
         <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '0.75rem 1rem', marginBottom: '1rem' }}>
           <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
             <button
-              className={`btn ${reviewFilter === 'friends' ? 'btn-primary' : 'btn-ghost'}`}
-              onClick={() => setReviewFilter('friends')}
-            >Friends</button>
+              className={`btn ${reviewFilter === 'trusted' ? 'btn-primary' : 'btn-ghost'}`}
+              onClick={() => setReviewFilter('trusted')}
+            >Trusted</button>
             <button
               className={`btn ${reviewFilter === 'all' ? 'btn-primary' : 'btn-ghost'}`}
               onClick={() => setReviewFilter('all')}
@@ -767,7 +767,7 @@ export default function SpotDetailPage() {
         {(() => {
           let filteredReviews = reviews;
 
-          if (reviewFilter === 'friends') {
+          if (reviewFilter === 'trusted') {
             filteredReviews = filteredReviews.filter(r => friendIds.has(String(r.authorId)));
           } else if (reviewFilter === 'expert') {
             filteredReviews = filteredReviews.filter(r => r.authorIsExpert);

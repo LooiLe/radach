@@ -20,6 +20,8 @@ let dynamicIconMap = {
   attractions: '/icons/material-symbols-light--attractions-outline-rounded.svg',
   viewpoints: '/icons/game-icons--hill-conquest.svg',
   viewpoint: '/icons/game-icons--hill-conquest.svg',
+  sport: '/icons/solar--football-linear.svg',
+  market: '/icons/healthicons--market-stall-outline.svg',
   default: '/icons/stash--pin-location-light.svg',
 }
 
@@ -29,24 +31,9 @@ function createMarkerIcon(type) {
   return new L.DivIcon({
     html: `<div class="custom-map-marker"><img src="${icon}" alt="${type || 'Spot'}" /></div>`,
     className: 'custom-leaflet-marker',
-    iconSize: [44, 44],
-    iconAnchor: [22, 44],
-    popupAnchor: [0, -44],
-  })
-}
-
-function createClusterIcon(count, type) {
-  const normalized = (type || '').toString().trim().toLowerCase().replace('Ã©', 'e')
-  const compactCount = count > 999 ? `${Math.round(count / 100) / 10}k` : count
-  void normalized
-  const density = count >= 10000 ? 'high' : count >= 1000 ? 'medium' : 'low'
-  const size = density === 'high' ? 64 : density === 'medium' ? 56 : 50
-  return new L.DivIcon({
-    html: `<div class="server-map-cluster density-${density}"><span>${compactCount}</span></div>`,
-    className: 'server-leaflet-cluster',
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2],
-    popupAnchor: [0, -size / 2],
+    iconSize: [28, 28],
+    iconAnchor: [14, 28],
+    popupAnchor: [0, -28],
   })
 }
 
@@ -54,11 +41,9 @@ import 'leaflet.markercluster/dist/MarkerCluster.css'
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css'
 import 'leaflet.markercluster'
 
-// MarkerClusterGroup component
-function MarkerClusterGroup({ spots, clusters, mode, createIcon }) {
+function MarkerClusterGroup({ spots, createIcon }) {
   const map = useMap()
   const spotClusterGroupRef = useRef(null)
-  const serverClusterLayerRef = useRef(null)
 
   useEffect(() => {
     if (!spotClusterGroupRef.current) {
@@ -68,81 +53,49 @@ function MarkerClusterGroup({ spots, clusters, mode, createIcon }) {
         maxClusterRadius: 50,
       })
     }
-    if (!serverClusterLayerRef.current) {
-      serverClusterLayerRef.current = L.layerGroup()
-    }
-
     const spotClusterGroup = spotClusterGroupRef.current
-    const serverClusterLayer = serverClusterLayerRef.current
     map.addLayer(spotClusterGroup)
-    map.addLayer(serverClusterLayer)
-
-    return () => {
-      map.removeLayer(spotClusterGroup)
-      map.removeLayer(serverClusterLayer)
-    }
+    return () => { map.removeLayer(spotClusterGroup) }
   }, [map])
 
   useEffect(() => {
     const spotClusterGroup = spotClusterGroupRef.current
-    const serverClusterLayer = serverClusterLayerRef.current
-    if (!spotClusterGroup || !serverClusterLayer) return
-
+    if (!spotClusterGroup) return
     spotClusterGroup.clearLayers()
-    serverClusterLayer.clearLayers()
-
-    if (mode === 'clusters') {
-      clusters.forEach(c => {
-        const marker = L.marker([c.latitude, c.longitude], {
-          icon: createClusterIcon(c.count, c.type)
-        })
-
-        const popupHtml = document.createElement('div')
-        popupHtml.innerHTML = `
-          <div class="cluster-popup">
-            <strong>${c.count.toLocaleString()} places around here</strong>
-            <span>Zoom in to reveal individual spots.</span>
-          </div>
-        `
-        marker.bindPopup(popupHtml)
-        serverClusterLayer.addLayer(marker)
-      })
-    }
-
     spots.forEach(s => {
-      const marker = L.marker([s.latitude, s.longitude], {
-        icon: createIcon(s.type)
-      })
-
+      const marker = L.marker([s.latitude, s.longitude], { icon: createIcon(s.type) })
       const popupHtml = document.createElement('div')
       popupHtml.innerHTML = `
-        <strong>${s.name}</strong>${s.isGlobal ? '<span style="font-size: 0.7rem; color: #888; margin-left: 4px;">🌐</span>' : ''}<br />
-        <span style="color: var(--star);">${s.averageRating > 0 ? `★ ${s.averageRating.toFixed(1)}` : s.isGlobal ? 'Global spot' : 'No ratings'}</span><br />
-        ${s.type} · ${s.address}<br />
-        ${!s.isGlobal ? `<a href="/spot/${s.id}">View details →</a>` : ''}
+        <strong>${s.name}</strong><br />
+        <span style="color: var(--star);">${s.averageRating > 0 ? '★ ' + s.averageRating.toFixed(1) : 'No ratings'}</span><br />
+        ${s.type}<br />
       `
       marker.bindPopup(popupHtml)
       spotClusterGroup.addLayer(marker)
     })
-  }, [spots, clusters, mode, createIcon])
-
+  }, [spots, createIcon])
   return null
 }
 
-function MapViewportLoader({ onViewportChange }) {
+function MapViewportLoader({ onViewportChange, onMapReady }) {
+  const debounceTimer = useRef(null)
+  const initialLoadDone = useRef(false)
   const map = useMapEvents({
-    moveend: () => onViewportChange(map),
-    zoomend: () => onViewportChange(map),
+    moveend: () => { clearTimeout(debounceTimer.current); debounceTimer.current = setTimeout(() => onViewportChange(map), 400) },
+    zoomend: () => { clearTimeout(debounceTimer.current); debounceTimer.current = setTimeout(() => onViewportChange(map), 400) },
   })
-
   useEffect(() => {
-    onViewportChange(map)
-  }, [map, onViewportChange])
-
+    if (!initialLoadDone.current) {
+      initialLoadDone.current = true
+      const timer = setTimeout(() => onViewportChange(map), 200)
+      if (onMapReady) onMapReady(map)
+      return () => { clearTimeout(timer); clearTimeout(debounceTimer.current) }
+    }
+    return () => clearTimeout(debounceTimer.current)
+  }, [map, onViewportChange, onMapReady])
   return null
 }
 
-// Fix default marker icon
 delete L.Icon.Default.prototype._getIconUrl
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
@@ -150,129 +103,32 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
 })
 
-// Helper to map Nominatim types to friendly category names
-function mapNominatimType(type, cls) {
-  const typeMap = {
-    restaurant: 'Restaurant', cafe: 'Cafe', bar: 'Bar', pub: 'Bar',
-    hotel: 'Hotel', hostel: 'Hotel', motel: 'Hotel', guest_house: 'Hotel',
-    museum: 'Attraction', gallery: 'Attraction', theatre: 'Attraction', cinema: 'Attraction',
-    park: 'Attraction', garden: 'Attraction', zoo: 'Attraction',
-    beach: 'Beach', viewpoint: 'Viewpoint',
-    marketplace: 'Market', supermarket: 'Market',
-    fast_food: 'Restaurant', food_court: 'Food Hall',
-  }
-  return typeMap[type] || typeMap[cls] || 'Other'
-}
-
 function FitBounds({ bounds }) {
   const map = useMap()
-  useEffect(() => {
-    if (bounds?.length) map.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 })
-  }, [bounds, map])
+  useEffect(() => { if (bounds?.length) map.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 }) }, [bounds, map])
   return null
 }
 
-// Zoom controls component using useMap hook
 function ZoomControls() {
   const map = useMap()
-
-  const handleZoomIn = (e) => {
-    e.preventDefault()
-    if (map) map.zoomIn()
-  }
-
-  const handleZoomOut = (e) => {
-    e.preventDefault()
-    if (map) map.zoomOut()
-  }
-
+  const handleZoomIn = (e) => { e.preventDefault(); map.zoomIn() }
+  const handleZoomOut = (e) => { e.preventDefault(); map.zoomOut() }
   return (
     <div className="leaflet-control-zoom" style={{ position: 'absolute', bottom: '20px', left: '20px', zIndex: 1000, display: 'flex', flexDirection: 'column', gap: '5px' }}>
-      <button
-        type="button"
-        className="leaflet-control-zoom-in"
-        title="Zoom in"
-        onClick={handleZoomIn}
-      >
-        +
-      </button>
-      <button
-        type="button"
-        className="leaflet-control-zoom-out"
-        title="Zoom out"
-        onClick={handleZoomOut}
-      >
-        –
-      </button>
+      <button type="button" className="leaflet-control-zoom-in" title="Zoom in" onClick={handleZoomIn}>+</button>
+      <button type="button" className="leaflet-control-zoom-out" title="Zoom out" onClick={handleZoomOut}>–</button>
     </div>
   )
 }
-
-// Component that tracks map viewport bounds for sidebar filtering
-function MapBoundsTracker({ onBoundsChange }) {
-  const map = useMap()
-  useEffect(() => {
-    const updateBounds = () => {
-      const bounds = map.getBounds()
-      onBoundsChange(bounds)
-    }
-    updateBounds()
-    map.on('moveend', updateBounds)
-    map.on('zoomend', updateBounds)
-    return () => {
-      map.off('moveend', updateBounds)
-      map.off('zoomend', updateBounds)
-    }
-  }, [map, onBoundsChange])
-  return null
-}
-
-const SpotResultsList = memo(function SpotResultsList({ filteredSpots, status }) {
-  return (
-    <div className="spots-list">
-      {filteredSpots.length === 0 && status && !status.includes('Loading') && (
-        <div className="empty-state">No spots found.</div>
-      )}
-      {filteredSpots.slice(0, 100).map(s => (
-        s.isGlobal ? (
-          <article key={s.id} className="spot-card glass" style={{ cursor: 'default' }}>
-            <div className="spot-card-header">
-              <div className="spot-card-title">
-                <img src="/icons/stash--pin-location-light.svg" alt={`${s.type} icon`} className="spot-card-type-icon" />
-                <div>
-                  <h3 className="spot-card-name">{s.name} <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 400 }}>Global</span></h3>
-                  <p className="spot-card-meta">{s.type} - {s.address}</p>
-                </div>
-              </div>
-            </div>
-          </article>
-        ) : (
-          <SpotCard key={s.id} spot={s} />
-        )
-      ))}
-      {filteredSpots.length > 100 && (
-        <div className="spots-limit-info" style={{ padding: '1rem', textAlign: 'center', fontSize: '0.85rem', color: 'var(--text-secondary)', borderTop: '1px dashed var(--border)' }}>
-          Showing top 100 of {filteredSpots.length} spots. Use filters or search to find specific spots.
-        </div>
-      )}
-    </div>
-  )
-})
 
 export default function SpotsPage() {
   const { apiFetch } = useApi()
-  const [spots, setSpots] = useState([])
   const [mapSpots, setMapSpots] = useState([])
-  const [clusters, setClusters] = useState([])
-  const [mapMode, setMapMode] = useState('spots')
   const [mapTotal, setMapTotal] = useState(0)
   const [mapLimited, setMapLimited] = useState(false)
   const [status, setStatus] = useState('Loading spots...')
   const [searchParams] = useSearchParams()
   const [searchMode, setSearchMode] = useState(() => searchParams.get('mode') || 'place')
-  const [mapBounds, setMapBounds] = useState(null)
-
-  // Geo search state
   const [place, setPlace] = useState('')
   const [lat, setLat] = useState(searchParams.get('lat') || '')
   const [lng, setLng] = useState(searchParams.get('lng') || '')
@@ -284,17 +140,14 @@ export default function SpotsPage() {
   const suggestionsAbort = useRef(null)
   const suggestionsRequestId = useRef(0)
   const viewportRequestId = useRef(0)
+  const mapInstanceRef = useRef(null)
+  const [page, setPage] = useState(0)
 
-  // Rating mode state
   const [ratingMode, setRatingMode] = useState(() => searchParams.get('mode') || 'global')
-
-  // Category filter state
   const [categoriesList, setCategoriesList] = useState([])
   const [selectedCategories, setSelectedCategories] = useState({ all: true })
   const [filterDropdownOpen, setFilterDropdownOpen] = useState(false)
   const [searchModeDropdownOpen, setSearchModeDropdownOpen] = useState(false)
-
-
 
   useEffect(() => {
     async function fetchCatList() {
@@ -308,14 +161,11 @@ export default function SpotsPage() {
             return a.name.localeCompare(b.name);
           })
           setCategoriesList(sorted)
-
           const selMap = { all: true }
           sorted.forEach(c => {
             const norm = c.name.trim().toLowerCase().replace('é', 'e')
             selMap[norm] = true
-            if (c.iconUrl) {
-              dynamicIconMap[norm] = c.iconUrl
-            }
+            if (c.iconUrl) dynamicIconMap[norm] = c.iconUrl
           })
           setSelectedCategories(selMap)
         }
@@ -325,62 +175,58 @@ export default function SpotsPage() {
   }, [apiFetch])
 
   useEffect(() => {
-    return () => {
-      clearTimeout(geocodeTimer.current)
-      suggestionsAbort.current?.abort()
-    }
+    return () => { clearTimeout(geocodeTimer.current); suggestionsAbort.current?.abort() }
   }, [])
 
   const toggleCategory = (categoryId) => {
     if (categoryId === 'all') {
       const allSelected = Object.keys(selectedCategories).filter(k => k !== 'all').every(k => selectedCategories[k] === true)
       const newState = { all: !allSelected }
-      categoriesList.forEach(c => {
-        const norm = c.name.trim().toLowerCase().replace('é', 'e')
-        newState[norm] = !allSelected
-      })
+      categoriesList.forEach(c => { const norm = c.name.trim().toLowerCase().replace('é', 'e'); newState[norm] = !allSelected })
       setSelectedCategories(newState)
     } else {
-      setSelectedCategories(prev => ({
-        ...prev,
-        [categoryId]: !prev[categoryId]
-      }))
+      setSelectedCategories(prev => ({ ...prev, [categoryId]: !prev[categoryId] }))
     }
   }
 
-  const filteredSpots = useMemo(() => spots.filter(spot => {
-    const normalized = (spot.type || '').trim().toLowerCase().replace('é', 'e')
-    return selectedCategories[normalized]
-  }), [spots, selectedCategories])
+  const visibleMapSpots = useMemo(() => {
+    const anySelected = Object.keys(selectedCategories).some(k => k !== 'all' && selectedCategories[k])
+    if (!anySelected) return []
+    return mapSpots.filter(spot => {
+      const normalized = (spot.type || '').trim().toLowerCase().replace('é', 'e')
+      return selectedCategories[normalized]
+    })
+  }, [mapSpots, selectedCategories])
 
-  const filteredMapSpots = useMemo(() => mapSpots.filter(spot => {
-    const normalized = (spot.type || '').trim().toLowerCase().replace('Ã©', 'e')
-    return selectedCategories[normalized]
-  }), [mapSpots, selectedCategories])
+  // Pagination: 50 per page
+  const pageSize = 50
+  const totalPages = Math.max(1, Math.ceil(visibleMapSpots.length / pageSize))
+  const currentPage = Math.min(page, totalPages - 1)
+  const pagedSpots = useMemo(() => {
+    const start = currentPage * pageSize
+    return visibleMapSpots.slice(start, start + pageSize)
+  }, [visibleMapSpots, currentPage, pageSize])
 
-  const filteredClusters = useMemo(() => clusters.filter(cluster => {
-    const normalized = (cluster.type || '').trim().toLowerCase().replace('Ã©', 'e')
-    return selectedCategories[normalized]
-  }), [clusters, selectedCategories])
-
-  const displayClusters = clusters.length ? clusters : filteredClusters
-
-  const filteredSpotCounts = useMemo(() => ({
-    db: filteredSpots.filter(s => !s.isGlobal).length,
-    global: filteredSpots.filter(s => s.isGlobal).length,
-  }), [filteredSpots])
+  const getActiveMapType = useCallback(() => {
+    const selected = Object.keys(selectedCategories).filter(k => k !== 'all' && selectedCategories[k])
+    if (selected.length === 1) return selected[0]
+    return null
+  }, [selectedCategories])
 
   const loadMapViewport = useCallback(async (map) => {
     if (!map || place || lat || lng) return
     const requestId = ++viewportRequestId.current
-    const bounds = map.getBounds()
+    const mapBounds = map.getBounds()
     const params = new URLSearchParams({
-      swLat: bounds.getSouth().toFixed(6),
-      swLng: bounds.getWest().toFixed(6),
-      neLat: bounds.getNorth().toFixed(6),
-      neLng: bounds.getEast().toFixed(6),
+      swLat: mapBounds.getSouth().toFixed(6),
+      swLng: mapBounds.getWest().toFixed(6),
+      neLat: mapBounds.getNorth().toFixed(6),
+      neLng: mapBounds.getEast().toFixed(6),
       zoom: String(Math.round(map.getZoom())),
     })
+    const activeType = getActiveMapType()
+    if (activeType) params.set('type', activeType)
+    params.set('mode', ratingMode)
 
     setStatus('Loading map spots...')
     try {
@@ -392,488 +238,120 @@ export default function SpotsPage() {
       const nextSpots = (data.spots || []).map(s => ({
         ...s,
         address: '',
-        averageRating: 0,
+        averageRating: s.averageRating || 0,
         status: 'ACTIVE',
         tags: [],
       }))
-      setMapMode(data.mode || 'spots')
       setMapTotal(data.total || 0)
       setMapLimited(!!data.limited)
       setMapSpots(nextSpots)
-      setClusters(data.clusters || [])
-
-      const visibleCount = data.mode === 'clusters' ? ((data.clusters || []).length + nextSpots.length) : nextSpots.length
-      setStatus(data.mode === 'clusters'
-        ? `${(data.total || 0).toLocaleString()} spots nearby. Zoom in to explore.`
-        : `Showing ${visibleCount.toLocaleString()} of ${(data.total || 0).toLocaleString()} spots in view${data.limited ? ' at this zoom' : ''}.`
-      )
+      setPage(0)
+      const loadedCount = nextSpots.length
+      const totalCount = data.total || 0
+      setStatus(`Showing ${loadedCount.toLocaleString()} of ${totalCount.toLocaleString()} spots in view${data.limited ? '' : '.'}`)
     } catch (e) {
       if (requestId === viewportRequestId.current) setStatus(e.message)
     }
-  }, [apiFetch, place, lat, lng])
+  }, [apiFetch, place, lat, lng, getActiveMapType, ratingMode])
 
-  const loadSpots = useCallback(async (filters) => {
-    const sidebarOnly = !!filters?.sidebarOnly
-    setStatus('Loading spots...')
-    if (!sidebarOnly) {
-      setClusters([])
-      setMapMode('spots')
+  const isInitialCategoryLoad = useRef(true)
+  useEffect(() => {
+    if (isInitialCategoryLoad.current) { isInitialCategoryLoad.current = false; return }
+    if (mapInstanceRef.current && !place && !lat && !lng) {
+      setPage(0)
+      loadMapViewport(mapInstanceRef.current)
     }
-    const params = new URLSearchParams()
-    const currentMode = filters?.mode !== undefined ? filters.mode : ratingMode
-    params.set('mode', currentMode)
-
-    const modeToUse = filters?.mode || searchMode
-    const currentSortBy = filters?.sortBy || sortBy
-    const isTrendingSort = ['popularity', 'trending_friends', 'trending_experts'].includes(currentSortBy)
-
-    const currentLat = filters?.lat !== undefined ? filters.lat : lat
-    const currentLng = filters?.lng !== undefined ? filters.lng : lng
-    const currentRadius = filters?.radiusKm !== undefined ? filters.radiusKm : radius
-
-    const hasLocation = !!(currentLat && currentLng)
-    const currentSearch = filters?.search !== undefined ? filters.search : (hasLocation ? '' : place)
-
-    // Build query params
-    if (currentSearch) {
-      params.set('q', currentSearch)
-    } else if (isTrendingSort) {
-      if (hasLocation) {
-        params.set('lat', currentLat)
-        params.set('lng', currentLng)
-        params.set('radiusKm', currentRadius || '10')
-      }
-    } else {
-      // Normal search mode behavior
-      if (modeToUse === 'nearby' && hasLocation && currentRadius) {
-        params.set('lat', currentLat)
-        params.set('lng', currentLng)
-        params.set('radiusKm', currentRadius)
-      } else if (modeToUse === 'place' && hasLocation) {
-        params.set('lat', currentLat)
-        params.set('lng', currentLng)
-        params.set('radiusKm', currentRadius || '5')
-      }
-    }
-
-    // Don't send custom trending sort keys to standard endpoints
-    if (currentSortBy && !currentSortBy.startsWith('trending_')) {
-      params.set('sortBy', currentSortBy)
-    }
-
-    try {
-      let dbSpots = []
-
-      // 1. Always fetch from our database
-      let path = '/api/v1/spots'
-      if (currentSearch) {
-        path = '/api/v1/spots/search'
-      } else if (currentSortBy === 'trending_friends' || currentSortBy === 'trending_experts') {
-        path = '/api/v1/spots/trending'
-        params.set('type', currentSortBy === 'trending_friends' ? 'personalized' : 'expert')
-      }
-      if (!currentSearch) {
-        params.set('limit', '500')
-      }
-      const queryString = params.toString()
-      const finalPath = queryString ? `${path}?${queryString}` : path
-      try {
-        const res = await apiFetch(finalPath)
-        const data = await res.json()
-        if (res.ok) dbSpots = data
-      } catch (e) { console.error('DB spots error:', e) }
-
-      // 2. If nearby mode is active, also fetch global POIs from Nominatim
-      let globalSpots = []
-      const isNearbyGeo = hasLocation && modeToUse === 'nearby'
-      const fetchLat = currentLat
-      const fetchLng = currentLng
-      const fetchRadius = currentRadius || '10'
-
-      if (isNearbyGeo && fetchRadius) {
-        try {
-          // Use Nominatim reverse geocoding to find POIs around the location
-          const radiusMeters = parseFloat(fetchRadius) * 1000
-          const latVal = parseFloat(fetchLat)
-          const lngVal = parseFloat(fetchLng)
-          // Calculate a bounding box from lat/lng and radius
-          const latDelta = radiusMeters / 111320
-          const lngDelta = radiusMeters / (111320 * Math.cos(latVal * Math.PI / 180))
-          const viewbox = `${lngVal - lngDelta},${latVal + latDelta},${lngVal + lngDelta},${latVal - latDelta}`
-
-          const nomRes = await fetch(
-            `https://nominatim.openstreetmap.org/search?q=restaurant+OR+cafe+OR+bar+OR+hotel+OR+attraction&format=json&limit=20&viewbox=${viewbox}&bounded=1`,
-            { headers: { 'Accept-Language': 'en' } }
-          )
-          const nomData = await nomRes.json()
-          if (nomData?.length > 0) {
-            // Get existing DB spot names to avoid duplicates
-            const dbNames = new Set(dbSpots.map(s => s.name?.toLowerCase()))
-            globalSpots = nomData
-              .filter(item => !dbNames.has(item.display_name?.split(',')[0]?.toLowerCase()))
-              .map((item, idx) => ({
-                id: `global-${idx}`,
-                name: item.display_name.split(',')[0],
-                type: mapNominatimType(item.type, item.class),
-                address: item.display_name.split(',').slice(1, 3).join(',').trim(),
-                latitude: parseFloat(item.lat),
-                longitude: parseFloat(item.lon),
-                averageRating: 0,
-                tags: [],
-                status: 'ACTIVE',
-                isGlobal: true
-              }))
-          }
-        } catch (e) { console.error('Nominatim nearby error:', e) }
-      }
-
-      const allSpots = [...dbSpots, ...globalSpots]
-      setSpots(allSpots)
-      if (!sidebarOnly) {
-        setMapSpots(allSpots)
-      }
-      const dbCount = dbSpots.length
-      const globalCount = globalSpots.length
-      let statusMsg = `${allSpots.length} spot${allSpots.length === 1 ? '' : 's'} found`
-      if (globalCount > 0) statusMsg += ` (${dbCount} from Radach, ${globalCount} nearby)`
-      statusMsg += '.'
-      setStatus(statusMsg)
-      if (allSpots.length) setBounds(allSpots.map(s => [s.latitude, s.longitude]))
-    } catch (e) { setStatus(e.message) }
-  }, [apiFetch, searchMode, sortBy, lat, lng, radius, place])
-
-  const handleLocateMe = () => {
-    setStatus('Getting your location...')
-    setSuggestions([])
-
-    const fallbackToIpLocation = async (reason) => {
-      setStatus(`HTML5 Geolocation unavailable (${reason}). Trying IP-based location...`)
-      try {
-        const res = await fetch('https://get.geojs.io/v1/ip/geo.json')
-        const data = await res.json()
-        if (data.latitude && data.longitude) {
-          const uLat = parseFloat(data.latitude)
-          const uLng = parseFloat(data.longitude)
-          setLat(uLat)
-          setLng(uLng)
-          setRadius('10')
-          setPlace(data.city || 'Your location')
-          setStatus(`Showing spots near ${data.city || 'your region'} (IP-based estimate).`)
-          loadSpots({ lat: uLat, lng: uLng, radiusKm: '10' })
-        } else {
-          throw new Error('Invalid IP data')
-        }
-      } catch {
-        setStatus('Unable to retrieve location. HTML5 Geolocation requires HTTPS, and IP fallback failed.')
-        setSpots([])
-      }
-    }
-
-    if (!navigator.geolocation) {
-      fallbackToIpLocation('Requires HTTPS or localhost')
-      return
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const uLat = pos.coords.latitude
-        const uLng = pos.coords.longitude
-        setLat(uLat)
-        setLng(uLng)
-        setRadius('10')
-        setPlace('Your location')
-        setStatus('Showing spots near you.')
-        loadSpots({ lat: uLat, lng: uLng, radiusKm: '10' })
-      },
-      (err) => {
-        fallbackToIpLocation(err.message || 'Permission denied')
-      },
-      { timeout: 5000, maximumAge: 60000 }
-    )
-  }
+  }, [selectedCategories, loadMapViewport, place, lat, lng])
 
   const handleClearSearch = () => {
-    setPlace('')
-    setLat('')
-    setLng('')
-    setRadius('')
-    setSuggestions([])
-    setBounds([])
-    setMapSpots([])
-    setClusters([])
+    setPlace(''); setLat(''); setLng(''); setRadius(''); setSuggestions([]); setBounds([]); setMapSpots([]); setPage(0)
     setStatus('Loading map spots...')
-    loadSpots({ lat: '', lng: '', radiusKm: '', search: '', sortBy, mode: searchMode, sidebarOnly: true })
+    if (mapInstanceRef.current) loadMapViewport(mapInstanceRef.current)
   }
 
-  useEffect(() => {
-    /* eslint-disable react-hooks/set-state-in-effect */
-    const pLat = searchParams.get('lat'), pLng = searchParams.get('lng'), pR = searchParams.get('radiusKm'), pSort = searchParams.get('sortBy') || 'popularity'
-    const pMode = searchParams.get('mode') || 'place' // default to place search
-    const pQ = searchParams.get('q')
+  useEffect(() => {}, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-    if (pQ && pMode === 'place') {
-      // Place search by keyword from URL
-      loadSpots({ search: pQ, sortBy: pSort, mode: pMode })
-    } else if (pLat && pLng && pR && pMode === 'nearby') {
-      // Nearby search with radius
-      loadSpots({ lat: pLat, lng: pLng, radiusKm: pR, sortBy: pSort, mode: pMode })
-    } else if (pLat && pLng && pMode === 'place') {
-      // Place search by coordinates from URL
-      loadSpots({ lat: pLat, lng: pLng, sortBy: pSort, mode: pMode })
-    } else {
-      setSortBy(pSort)
-      setSearchMode(pMode)
-      loadSpots({ sortBy: pSort, mode: pMode, sidebarOnly: true })
-    }
-    /* eslint-enable react-hooks/set-state-in-effect */
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Compute visible spots (map viewport + category filter)
-  const getVisibleSpots = () => {
-    const viewportFiltered = mapBounds && spots.length > 0
-      ? spots.filter(s => {
-          const lat = s.latitude
-          const lng = s.longitude
-          return lat && lng && mapBounds.contains([lat, lng])
-        })
-      : filteredSpots
-    return viewportFiltered.filter(spot => {
-      const normalized = (spot.type || '').trim().toLowerCase().replace('é', 'e')
-      return selectedCategories[normalized]
-    })
-  }
-
-  // Computed status text to avoid setState-in-effect lint warning
-  const getStatusText = () => {
-    if (status.includes('spots in view') && mapTotal > 0) {
-      return mapLimited ? `${status} Zoom in for more detail.` : status
-    }
-    const visible = getVisibleSpots()
-    if (status.endsWith('found.') || status.includes('spot found') || status.includes('spots found')) {
-      let msg = `${visible.length} spot${visible.length === 1 ? '' : 's'} found`
-      if (spots.length > 0) {
-        const globalCount = spots.filter(s => s.isGlobal).length
-        if (globalCount > 0) {
-          const filteredDbCount = visible.filter(s => !s.isGlobal).length
-          const filteredGlobalCount = visible.filter(s => s.isGlobal).length
-          if (filteredGlobalCount > 0 || filteredDbCount > 0) {
-            msg += ` (${filteredDbCount} from Radach, ${filteredGlobalCount} nearby)`
-          }
-        }
-      }
-      msg += '.'
-      return msg
-    }
-    return status
-  }
-
-  // Place autocomplete - search existing spots for suggestions
   const handlePlaceInput = (q) => {
     setPlace(q)
-    clearTimeout(geocodeTimer.current)
-    suggestionsAbort.current?.abort()
+    clearTimeout(geocodeTimer.current); suggestionsAbort.current?.abort()
     const requestId = ++suggestionsRequestId.current
-    if (q.length < 2) {
-      setSuggestions([]);
-      return
-    }
+    if (q.length < 2) { setSuggestions([]); return }
     geocodeTimer.current = setTimeout(async () => {
-      const controller = new AbortController()
-      suggestionsAbort.current = controller
+      const controller = new AbortController(); suggestionsAbort.current = controller
       try {
         let combinedSuggestions = []
-
-        // 1. Fetch from local backend spots
         try {
-          const res = await apiFetch(`/api/v1/spots/search?q=${encodeURIComponent(q)}&limit=5`, {
-            signal: controller.signal,
-          })
+          const res = await apiFetch(`/api/v1/spots/search?q=${encodeURIComponent(q)}&limit=5`, { signal: controller.signal })
           const data = await res.json()
-          if (res.ok && data?.length > 0) {
-            combinedSuggestions = [...data]
-          }
-        } catch (e) {
-          if (e.name !== 'AbortError') console.error('Backend search error:', e)
-        }
-
-        // 2. Only fetch from Nominatim in 'nearby' mode (place mode = database only)
-        if (searchMode === 'nearby') {
-          try {
-            const nomRes = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=3`, {
-              headers: { 'Accept-Language': 'en' },
-              signal: controller.signal,
-            })
-            const nomData = await nomRes.json()
-            if (nomData?.length > 0) {
-              const formatted = nomData.map(item => ({
-                latitude: parseFloat(item.lat),
-                longitude: parseFloat(item.lon),
-                name: item.display_name.split(',')[0],
-                type: 'City/Region',
-                address: item.display_name,
-                isCityDestination: true
-              }))
-              const existingNames = new Set(combinedSuggestions.map(s => s.name?.toLowerCase()))
-              const uniqueFormatted = formatted.filter(f => !existingNames.has(f.name?.toLowerCase()))
-              combinedSuggestions = [...combinedSuggestions, ...uniqueFormatted]
-            }
-          } catch (e) {
-            if (e.name !== 'AbortError') console.error('Nominatim search error:', e)
-          }
-        }
-
-        if (requestId === suggestionsRequestId.current && !controller.signal.aborted) {
-          setSuggestions(combinedSuggestions)
-        }
-      } catch (error) {
-        if (error.name === 'AbortError') return
-        console.error('Error fetching suggestions:', error)
-        if (requestId === suggestionsRequestId.current) setSuggestions([])
-      }
+          if (res.ok && data?.length > 0) combinedSuggestions = [...data]
+        } catch (e) { if (e.name !== 'AbortError') console.error(e) }
+        if (requestId === suggestionsRequestId.current && !controller.signal.aborted) setSuggestions(combinedSuggestions)
+      } catch (error) { if (error.name !== 'AbortError' && requestId === suggestionsRequestId.current) setSuggestions([]) }
     }, 250)
   }
 
   const selectSuggestion = (spot) => {
-    setPlace(spot.name)
-    setLat(spot.latitude)
-    setLng(spot.longitude)
-    setSuggestions([])
+    setPlace(spot.name); setLat(spot.latitude); setLng(spot.longitude); setSuggestions([]); setPage(0)
     if (spot.isCityDestination) {
-      const effectiveRadius = radius || '50'
-      setRadius(effectiveRadius)
-      loadSpots({ lat: spot.latitude, lng: spot.longitude, radiusKm: effectiveRadius, sortBy })
+      setRadius(radius || '50')
     } else if (searchMode === 'nearby' && radius) {
-      // In nearby mode with radius set, do a nearby search around the selected location
-      loadSpots({ lat: spot.latitude, lng: spot.longitude, radiusKm: radius, sortBy, mode: 'nearby' })
+      // keep radius
     } else {
-      // Load and display ONLY this specific spot
-      setRadius('')
-      setStatus('Loading spot details...')
-      apiFetch(`/api/v1/spots/${spot.id}`)
-        .then(res => res.json())
-        .then(data => {
-          setSpots([data])
-          setMapSpots([data])
-          setClusters([])
-          setMapMode('spots')
-          setStatus('1 spot found.')
-          setBounds([[data.latitude, data.longitude]])
-        })
-        .catch(err => {
-          console.error(err)
-          setSpots([spot])
-          setMapSpots([spot])
-          setClusters([])
-          setMapMode('spots')
-          setStatus('1 spot found.')
-          setBounds([[spot.latitude, spot.longitude]])
-        })
+      setRadius(''); setStatus('1 spot found.'); setMapSpots([spot]); setMapTotal(1); setBounds([[spot.latitude, spot.longitude]])
     }
   }
 
   const handleSearch = async () => {
     if (searchMode === 'nearby') {
-      if (!lat || !lng || !radius) {
-        setStatus('Search for a place first, then set a radius.')
-        return
-      }
-      loadSpots({ lat, lng, radiusKm: radius, sortBy })
+      if (!lat || !lng || !radius) { setStatus('Search for a place first, then set a radius.'); return }
     } else {
-      // Place mode: database-only search
       const query = place.trim()
-      if (!query) {
-        setStatus('Enter a place name to search.')
-        return
-      }
-
-      setStatus('Searching...')
-      setSuggestions([])
-
-      // In place mode, only search the database — no Nominatim
-      setLat('')
-      setLng('')
-      setRadius('')
-      loadSpots({ search: query, lat: '', lng: '', radiusKm: '', mode: 'place' })
+      if (!query) { setStatus('Enter a place name to search.'); return }
+      setStatus('Searching...'); setSuggestions([]); setLat(''); setLng(''); setRadius(''); setPage(0)
     }
   }
 
+  // Status text shows page info when paginating
+  const statusText = useMemo(() => {
+    if (status.includes('Loading')) return status
+    if (totalPages > 1) {
+      const start = currentPage * pageSize + 1
+      const end = Math.min((currentPage + 1) * pageSize, visibleMapSpots.length)
+      return `Showing page ${currentPage + 1} of ${totalPages} (spots ${start.toLocaleString()}-${end.toLocaleString()} of ${mapTotal.toLocaleString()})`
+    }
+    if (visibleMapSpots.length === 0 && !status.includes('spots in view')) return status
+    return `Showing ${visibleMapSpots.length.toLocaleString()} of ${mapTotal.toLocaleString()} spots in view${mapLimited ? '' : '.'}`
+  }, [status, visibleMapSpots.length, mapTotal, mapLimited, totalPages, currentPage, pageSize])
 
+  // Page numbers for pagination — max 5 pages
+  const pageNumbers = useMemo(() => {
+    if (totalPages <= 1) return []
+    const maxVisible = 5
+    const pages = []
+    let start = Math.max(0, currentPage - Math.floor(maxVisible / 2))
+    let end = Math.min(totalPages, start + maxVisible)
+    if (end - start < maxVisible) start = Math.max(0, end - maxVisible)
+    for (let i = start; i < end; i++) pages.push(i)
+    return pages
+  }, [totalPages, currentPage])
 
   return (
     <div className="spots-page">
       <div className="spots-map">
-        {/* Unified Search & Location Bar */}
         <div className="map-search-container">
           <div className="map-search-bar-wrapper">
-            <input
-              className="input map-search-input"
-              value={place}
-              onChange={e => handlePlaceInput(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') handleSearch() }}
-              placeholder="Search spots or cities..."
-              autoComplete="off"
-            />
-            
-            {/* Clear Button (rendered unconditionally for smooth transitions & stable positioning) */}
-            <button
-              type="button"
-              className={`map-search-icon-btn clear-btn${(place || lat || lng) ? ' active' : ''}`}
-              onClick={handleClearSearch}
-              title="Clear search & location"
-              aria-label="Clear search"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-              </svg>
+            <input className="input map-search-input" value={place} onChange={e => handlePlaceInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') handleSearch() }} placeholder="Search spots or cities..." autoComplete="off" />
+            <button type="button" className={`map-search-icon-btn clear-btn${(place || lat || lng) ? ' active' : ''}`} onClick={handleClearSearch} title="Clear search & location" aria-label="Clear search">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
             </button>
-
-            {/* Search Action Button */}
-            <button
-              type="button"
-              className="map-search-icon-btn search-btn"
-              onClick={handleSearch}
-              title="Search"
-              aria-label="Search"
-            >
-              <img src="/icons/fluent--search-16-regular.svg" alt="Search" />
-            </button>
-
-            {/* Options Ellipsis Button */}
-            <button
-              type="button"
-              className="map-search-icon-btn options-btn"
-              onClick={() => setSearchModeDropdownOpen(!searchModeDropdownOpen)}
-              title="Search mode options"
-              aria-label="Search options"
-            >
-              <img src="/icons/stash--ellipsis-v-light.svg" alt="Options" />
-            </button>
-
+            <button type="button" className="map-search-icon-btn search-btn" onClick={handleSearch} title="Search" aria-label="Search"><img src="/icons/fluent--search-16-regular.svg" alt="Search" /></button>
+            <button type="button" className="map-search-icon-btn options-btn" onClick={() => setSearchModeDropdownOpen(!searchModeDropdownOpen)} title="Search mode options" aria-label="Search options"><img src="/icons/stash--ellipsis-v-light.svg" alt="Options" /></button>
             {suggestions.length > 0 && (
               <div className="suggestions-dropdown">
                 {suggestions.map((s, i) => (
-                  <div
-                    key={i}
-                    className="suggestion-item"
-                    onClick={() => selectSuggestion(s)}
-                    style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}
-                  >
+                  <div key={i} className="suggestion-item" onClick={() => selectSuggestion(s)} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                     <div className="suggestion-icon" style={{ display: 'flex', alignItems: 'center', opacity: 0.6, color: 'var(--text-secondary)' }}>
-                      {s.isCityDestination ? (
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect>
-                          <line x1="9" y1="22" x2="9" y2="16"></line>
-                          <line x1="15" y1="22" x2="15" y2="16"></line>
-                          <line x1="9" y1="16" x2="15" y2="16"></line>
-                          <path d="M8 6h2v2H8V6zm0 4h2v2H8v-2zm8-4h2v2h-2V6zm0 4h2v2h-2v-2z"></path>
-                        </svg>
-                      ) : (
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                          <circle cx="12" cy="10" r="3"></circle>
-                        </svg>
-                      )}
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div className="suggestion-name" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</div>
@@ -884,110 +362,39 @@ export default function SpotsPage() {
               </div>
             )}
           </div>
-
-          {/* Locate Me Button */}
-          <button
-            type="button"
-            className="locate-me-btn glass-btn"
-            onClick={handleLocateMe}
-            title="Locate me / Near me"
-            aria-label="Locate me"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10"></circle>
-              <circle cx="12" cy="12" r="3"></circle>
-              <line x1="12" y1="1" x2="12" y2="3"></line>
-              <line x1="12" y1="21" x2="12" y2="23"></line>
-              <line x1="1" y1="12" x2="3" y2="12"></line>
-              <line x1="21" y1="12" x2="23" y2="12"></line>
-            </svg>
+          <button type="button" className="locate-me-btn glass-btn" onClick={() => { setStatus('Getting location...'); if (!navigator.geolocation) { setStatus('Geolocation not supported'); return; } navigator.geolocation.getCurrentPosition(pos => { const { latitude, longitude } = pos.coords; if (mapInstanceRef.current) { mapInstanceRef.current.flyTo([latitude, longitude], 14, { duration: 1.2 }); } setStatus(`Location: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`); }, err => { setStatus('Could not get location'); console.warn('Geolocation error:', err); }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }); }} title="Locate me" aria-label="Locate me">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="3"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line></svg>
           </button>
-
-          {/* Mode popup on right side of search bar (same level) */}
           {searchModeDropdownOpen && (
-            <div
-              style={{
-                position: 'absolute',
-                top: '0',
-                left: '100%',
-                marginLeft: '0.5rem',
-                background: 'var(--bg-surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-                zIndex: 1001,
-                minWidth: '180px',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-              }}
-            >
+            <div style={{ position: 'absolute', top: '0', left: '100%', marginLeft: '0.5rem', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', zIndex: 1001, minWidth: '180px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.35rem 0.75rem', cursor: 'pointer', fontSize: '0.75rem' }}>
-                <input
-                  type="radio"
-                  checked={searchMode === 'place'}
-                  onChange={() => { setSearchMode('place'); setSearchModeDropdownOpen(false) }}
-                  style={{ width: '14px', height: '14px', accentColor: 'var(--text-primary)' }}
-                />
-                <span>Place</span>
+                <input type="radio" checked={searchMode === 'place'} onChange={() => { setSearchMode('place'); setSearchModeDropdownOpen(false) }} style={{ width: '14px', height: '14px', accentColor: 'var(--text-primary)' }} /><span>Place</span>
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.35rem 0.75rem', cursor: 'pointer', fontSize: '0.75rem' }}>
-                <input
-                  type="radio"
-                  checked={searchMode === 'nearby'}
-                  onChange={() => { setSearchMode('nearby'); setSearchModeDropdownOpen(false) }}
-                  style={{ width: '14px', height: '14px', accentColor: 'var(--text-primary)' }}
-                />
-                <span>Nearby</span>
+                <input type="radio" checked={searchMode === 'nearby'} onChange={() => { setSearchMode('nearby'); setSearchModeDropdownOpen(false) }} style={{ width: '14px', height: '14px', accentColor: 'var(--text-primary)' }} /><span>Nearby</span>
               </label>
-              {/* Radius input - always visible in popup */}
               <div style={{ padding: '0.35rem 0.75rem', borderTop: '1px solid var(--border)', marginTop: '0.25rem' }}>
                 <label className="label" style={{ marginBottom: '0.15rem', fontSize: '0.65rem' }}>Radius (km)</label>
-                <input
-                  className="input"
-                  type="number"
-                  min="0.1"
-                  step="0.1"
-                  value={radius}
-                  onChange={e => setRadius(e.target.value)}
-                  placeholder="5"
-                  style={{ width: '80px', fontSize: '0.75rem', padding: '0.3rem 0.5rem' }}
-                />
+                <input className="input" type="number" min="0.1" step="0.1" value={radius} onChange={e => setRadius(e.target.value)} placeholder="5" style={{ width: '80px', fontSize: '0.75rem', padding: '0.3rem 0.5rem' }} />
               </div>
             </div>
           )}
         </div>
 
-        {/* Category filter button (moved to top right) */}
         <div className="map-filter-container" style={{ position: 'absolute', top: '1rem', right: '1rem', zIndex: 500 }}>
-          <button
-            className="btn btn-primary"
-            onClick={() => setFilterDropdownOpen(!filterDropdownOpen)}
-            style={{ whiteSpace: 'nowrap', padding: '0.5rem 1rem' }}
-          >
-            Categories
-          </button>
+          <button className="btn btn-primary" onClick={() => setFilterDropdownOpen(!filterDropdownOpen)} style={{ whiteSpace: 'nowrap', padding: '0.5rem 1rem' }}>Categories</button>
           {filterDropdownOpen && (
             <div className="map-filter-dropdown" style={{ position: 'absolute', top: '100%', right: 0, marginTop: '0.5rem', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '1rem', minWidth: '200px', zIndex: 1000 }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500', marginBottom: '0.5rem', paddingBottom: '0.5rem', borderBottom: '1px solid var(--border)' }}>
-                <input
-                  type="checkbox"
-                  checked={selectedCategories.all}
-                  onChange={() => toggleCategory('all')}
-                  style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: 'var(--text-primary)' }}
-                />
-                <span>All</span>
+                <input type="checkbox" checked={selectedCategories.all} onChange={() => toggleCategory('all')} style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: 'var(--text-primary)' }} /><span>All</span>
               </label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', maxHeight: '300px', overflowY: 'auto' }}>
                 {categoriesList.map(cat => {
                   const norm = cat.name.trim().toLowerCase().replace('é', 'e')
                   return (
                     <label key={cat.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500' }}>
-                      <input
-                        type="checkbox"
-                        checked={!!selectedCategories[norm]}
-                        onChange={() => toggleCategory(norm)}
-                        style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: 'var(--text-primary)' }}
-                      />
-                      <img src={cat.iconUrl || '/icons/stash--pin-location-light.svg'} alt="" style={{ width: 16, height: 16, objectFit: 'contain' }} />
-                      <span>{cat.name}</span>
+                      <input type="checkbox" checked={!!selectedCategories[norm]} onChange={() => toggleCategory(norm)} style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: 'var(--text-primary)' }} />
+                      <img src={cat.iconUrl || '/icons/stash--pin-location-light.svg'} alt="" style={{ width: 16, height: 16, objectFit: 'contain' }} /><span>{cat.name}</span>
                     </label>
                   )
                 })}
@@ -996,30 +403,16 @@ export default function SpotsPage() {
           )}
         </div>
 
-        <MapContainer
-          center={[13.7563, 100.5018]}
-          zoom={11}
-          style={{ width: '100%', height: '100%' }}
-          zoomControl={false} /* Disable default zoom controls to customize position */
-        >
-          <TileLayer
-            url={`https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png?api_key=${import.meta.env.VITE_STADIA_API_KEY}`}
-            attribution='Map tiles by <a href="https://stadiamaps.com/">Stadia Maps</a>, <a href="https://openmaptiles.org/">OpenMapTiles</a>, and <a href="http://openstreetmap.org">OpenStreetMap</a> contributors'
-          />
-          <MapViewportLoader onViewportChange={loadMapViewport} />
-          <MarkerClusterGroup
-            spots={filteredMapSpots}
-            clusters={displayClusters}
-            mode={mapMode}
-            createIcon={createMarkerIcon}
-          />
-          <MapBoundsTracker onBoundsChange={setMapBounds} />
+        <MapContainer center={[7.8804, 98.3923]} zoom={12} style={{ width: '100%', height: '100%' }} zoomControl={false}>
+          <TileLayer url={`https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png?api_key=${import.meta.env.VITE_STADIA_API_KEY}`}
+            attribution='Map tiles by <a href="https://stadiamaps.com/">Stadia Maps</a>, <a href="https://openmaptiles.org/">OpenMapTiles</a>, and <a href="http://openstreetmap.org">OpenStreetMap</a> contributors' />
+          <MapViewportLoader onViewportChange={loadMapViewport} onMapReady={(map) => { mapInstanceRef.current = map }} />
+          <MarkerClusterGroup spots={visibleMapSpots} createIcon={createMarkerIcon} />
           {lat && lng && radius && (
             <Circle center={[parseFloat(lat), parseFloat(lng)]} radius={parseFloat(radius) * 1000}
               pathOptions={{ color: 'var(--border-color)', fillColor: 'var(--border-color)', fillOpacity: 0.08, weight: 2 }} />
           )}
           <FitBounds bounds={bounds} />
-          {/* Custom zoom controls at bottom left - using useMap hook */}
           <ZoomControls />
         </MapContainer>
       </div>
@@ -1028,58 +421,40 @@ export default function SpotsPage() {
         <div style={{ display: 'flex', justifyContent: 'center', gap: '0.75rem', alignItems: 'center', marginTop: '1.5rem', marginBottom: '0.5rem' }}>
           <RatingModeSelector mode={ratingMode} onChange={(m) => {
             setRatingMode(m)
-            loadSpots({
-              lat: lat || undefined,
-              lng: lng || undefined,
-              radiusKm: radius || undefined,
-              mode: m,
-              sortBy
-            })
+            // Re-fetch map with new mode
+            if (mapInstanceRef.current && !place && !lat && !lng) {
+              setPage(0)
+              loadMapViewport(mapInstanceRef.current)
+            }
           }} />
           <select className="input select" style={{ width: 'auto', padding: '0.4rem 2.5rem 0.4rem 1rem' }}
-            value={sortBy}
-            onChange={e => {
-              const newSort = e.target.value
-              setSortBy(newSort)
-              loadSpots({
-                lat: lat || undefined,
-                lng: lng || undefined,
-                radiusKm: radius || undefined,
-                sortBy: newSort
-              })
-            }}
-          >
+            value={sortBy} onChange={e => { setSortBy(e.target.value) }}>
             <option value="popularity"> Trending</option>
             <option value="distance" disabled={!(lat && lng && radius)}> Distance</option>
           </select>
         </div>
-        <p className="spots-status" style={{ textAlign: 'center', marginBottom: '1rem' }}>{getStatusText()}</p>
-
-
-
+        <p className="spots-status" style={{ textAlign: 'center', marginBottom: '0.25rem' }}>{statusText}</p>
+        {totalPages > 1 && (
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '0.2rem', padding: '0.2rem 0 0.4rem', whiteSpace: 'nowrap', overflowX: 'visible', borderBottom: '1px solid var(--border)', marginBottom: '0.5rem' }}>
+            <button className="btn btn-ghost" onClick={() => setPage(0)} disabled={currentPage === 0} style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem', flexShrink: 0 }}>«</button>
+            <button className="btn btn-ghost" onClick={() => setPage(currentPage - 1)} disabled={currentPage === 0} style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem', flexShrink: 0 }}>‹</button>
+            {pageNumbers.map(p => (
+              <button key={p}
+                className={`btn ${p === currentPage ? 'btn-primary' : 'btn-ghost'}`}
+                onClick={() => setPage(p)}
+                style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem', minWidth: '24px', flexShrink: 0 }}
+              >{p + 1}</button>
+            ))}
+            <button className="btn btn-ghost" onClick={() => setPage(currentPage + 1)} disabled={currentPage >= totalPages - 1} style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem', flexShrink: 0 }}>›</button>
+            <button className="btn btn-ghost" onClick={() => setPage(totalPages - 1)} disabled={currentPage >= totalPages - 1} style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem', flexShrink: 0 }}>»</button>
+          </div>
+        )}
         <div className="spots-list">
-          {(() => {
-            const categoryFiltered = getVisibleSpots()
-            return categoryFiltered.length === 0 && status && !status.includes('Loading') ? (
-              <div className="empty-state">No spots in this area.</div>
-            ) : categoryFiltered.map(s => (
-            s.isGlobal ? (
-              <article key={s.id} className="spot-card glass" style={{ cursor: 'default' }}>
-                <div className="spot-card-header">
-                  <div className="spot-card-title">
-                    <img src="/icons/stash--pin-location-light.svg" alt={`${s.type} icon`} className="spot-card-type-icon" />
-                    <div>
-                      <h3 className="spot-card-name">{s.name} <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 400 }}>🌐 Global</span></h3>
-                      <p className="spot-card-meta">{s.type} · {s.address}</p>
-                    </div>
-                  </div>
-                </div>
-              </article>
-            ) : (
-              <SpotCard key={s.id} spot={s} />
-            )
-          ))
-        })()}
+          {pagedSpots.length === 0 && !status.includes('Loading') ? (
+            <div className="empty-state">No spots in this area.</div>
+          ) : (
+            pagedSpots.map(s => <SpotCard key={s.id} spot={s} />)
+          )}
         </div>
       </div>
     </div>

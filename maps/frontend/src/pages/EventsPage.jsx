@@ -22,7 +22,7 @@ const RECURRENCE_OPTIONS = [
   { label: 'Yearly', value: 'FREQ=YEARLY' },
 ]
 
-const ENTRY_COLORS = ['#4f8cff', '#e11d48', '#16a34a', '#d97706', '#8b5cf6', '#0891b2', '#ec4899']
+const ENTRY_COLORS = ['#4f8cff', '#e11d48', '#16a34a', '#d97706', '#6b7280', '#0891b2', '#ec4899']
 
 export default function EventsPage() {
   const { apiFetch } = useApi()
@@ -448,15 +448,15 @@ export default function EventsPage() {
       {/* View Toggle */}
       <div className="events-view-tabs">
         <button className={`events-view-tab ${view === 'events' ? 'active' : ''}`} onClick={() => changeView('events')}>
-          📋 Events
+          Events
         </button>
         {isAuthenticated && (
           <button className={`events-view-tab ${view === 'submissions' ? 'active' : ''}`} onClick={() => changeView('submissions')}>
-            📤 My Submissions
+            My Submissions
           </button>
         )}
         <button className={`events-view-tab ${view === 'calendar' ? 'active' : ''}`} onClick={() => changeView('calendar')}>
-          📅 My Calendar
+          My Calendar
         </button>
       </div>
 
@@ -509,7 +509,7 @@ export default function EventsPage() {
             <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>Loading events...</div>
           ) : events.length === 0 ? (
             <div className="empty-state">
-              <p style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>🎭</p>
+              <p style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}></p>
               <p>No upcoming events found.</p>
               <p style={{ fontSize: '0.85rem', marginTop: '0.5rem' }}>Try adjusting your filters or check back later.</p>
             </div>
@@ -526,7 +526,7 @@ export default function EventsPage() {
                       <img src={event.imageUrl} alt={event.title} className="event-card-image" />
                     </div>
                   ) : (
-                    <div className="event-card-image-placeholder">🎉</div>
+                    <div className="event-card-image-placeholder">Event</div>
                   )}
 
                   <div className="event-card-body">
@@ -586,18 +586,18 @@ export default function EventsPage() {
                       onClick={() => toggleLike(event.id)}
                       disabled={!isAuthenticated}
                     >
-                      {event.likedByCurrentUser ? '❤️' : '🤍'} {event.likeCount || 0}
+                      {event.likedByCurrentUser ? '♥' : '♡'} {event.likeCount || 0}
                     </button>
                     <button
                       className={`event-action-btn ${event.addedToCalendar ? 'in-calendar' : ''}`}
                       onClick={() => toggleCalendar(event.id)}
                       disabled={!isAuthenticated}
                     >
-                      {event.addedToCalendar ? '✓ In Calendar' : '📅 Add to Calendar'}
+                      {event.addedToCalendar ? 'In Calendar' : 'Add to Calendar'}
                     </button>
                     {(isAdmin || (userId && Number(event.submittedBy) === Number(userId))) && (
                       <>
-                        <button className="event-action-btn" onClick={() => navigate('/add-event', { state: { editEvent: event } })}>✏️ Edit</button>
+                        <button className="event-action-btn" onClick={() => navigate('/add-event', { state: { editEvent: event } })}>Edit</button>
                         <button
                           className="event-action-btn"
                           onClick={() => setConfirmDialog({
@@ -608,7 +608,7 @@ export default function EventsPage() {
                           })}
                           style={{ color: 'var(--danger)' }}
                         >
-                          🗑️ Delete
+                          Delete
                         </button>
                       </>
                     )}
@@ -627,7 +627,7 @@ export default function EventsPage() {
             <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>Loading submissions...</div>
           ) : submissions.length === 0 ? (
             <div className="empty-state">
-              <p style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>📤</p>
+              <p style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}></p>
               <p>You haven't submitted any events yet.</p>
               <p style={{ fontSize: '0.85rem', marginTop: '0.5rem' }}>Any events you submit will appear here.</p>
             </div>
@@ -645,7 +645,7 @@ export default function EventsPage() {
                         <img src={event.imageUrl} alt={event.title} className="event-card-image" />
                       </div>
                     ) : (
-                      <div className="event-card-image-placeholder">🎉</div>
+                      <div className="event-card-image-placeholder">Event</div>
                     )}
                     <div style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 10 }}>
                       <StatusBadge status={event.status} />
@@ -711,18 +711,18 @@ export default function EventsPage() {
                           onClick={() => toggleLike(event.id)}
                           disabled={!isAuthenticated}
                         >
-                          {event.likedByCurrentUser ? '❤️' : '🤍'} {event.likeCount || 0}
+                          {event.likedByCurrentUser ? '♥' : '♡'} {event.likeCount || 0}
                         </button>
                         <button
                           className={`event-action-btn ${event.addedToCalendar ? 'in-calendar' : ''}`}
                           onClick={() => toggleCalendar(event.id)}
                           disabled={!isAuthenticated}
                         >
-                          {event.addedToCalendar ? '✓ In Calendar' : '📅 Add to Calendar'}
+                          {event.addedToCalendar ? 'In Calendar' : 'Add to Calendar'}
                         </button>
                       </>
                     )}
-                    <button className="event-action-btn" onClick={() => navigate('/add-event', { state: { editEvent: event } })}>✏️ Edit</button>
+                    <button className="event-action-btn" onClick={() => navigate('/add-event', { state: { editEvent: event } })}>Edit</button>
                     <button
                       className="event-action-btn"
                       onClick={() => setConfirmDialog({
@@ -733,7 +733,7 @@ export default function EventsPage() {
                       })}
                       style={{ color: 'var(--danger)' }}
                     >
-                      🗑️ Delete
+                      Delete
                     </button>
                   </div>
                 </div>

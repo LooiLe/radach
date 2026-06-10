@@ -57,7 +57,13 @@ public class SpotController {
             @RequestParam(required = false, defaultValue = "global") String mode,
             org.springframework.security.core.Authentication auth
     ) {
-        return spotService.findSpots(lat, lng, radiusKm, sortBy, limit, getUserIdOrNull(auth));
+        // Default to Phuket area if no location specified
+        if (lat == null || lng == null) {
+            lat = 7.8804;
+            lng = 98.3923;
+            radiusKm = radiusKm != null ? radiusKm : 10.0;
+        }
+        return spotService.findSpots(lat, lng, radiusKm, sortBy, getUserIdOrNull(auth));
     }
 
     @GetMapping("/map")
@@ -66,9 +72,12 @@ public class SpotController {
             @RequestParam Double swLng,
             @RequestParam Double neLat,
             @RequestParam Double neLng,
-            @RequestParam(required = false) Integer zoom
+            @RequestParam(required = false) Integer zoom,
+            @RequestParam(required = false) String type,
+            @RequestParam(required = false, defaultValue = "global") String mode,
+            org.springframework.security.core.Authentication auth
     ) {
-        return spotService.findMapSpots(swLat, swLng, neLat, neLng, zoom);
+        return spotService.findMapSpots(swLat, swLng, neLat, neLng, zoom, type, mode, getUserIdOrNull(auth));
     }
 
     @GetMapping("/trending")

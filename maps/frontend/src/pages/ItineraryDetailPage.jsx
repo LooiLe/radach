@@ -115,7 +115,7 @@ function createPrintMapOverlay(map, printPoints) {
     const route = document.createElementNS('http://www.w3.org/2000/svg', 'polyline')
     route.setAttribute('points', points)
     route.setAttribute('fill', 'none')
-    route.setAttribute('stroke', '#7c3aed')
+    route.setAttribute('stroke', '#6b7280')
     route.setAttribute('stroke-width', '5')
     route.setAttribute('stroke-linecap', 'round')
     route.setAttribute('stroke-linejoin', 'round')
@@ -732,7 +732,7 @@ export default function ItineraryDetailPage() {
           {mapBounds.length > 1 && (
             <Polyline
               positions={mapBounds}
-              color="#8b5cf6"
+              color="#6b7280"
               weight={4}
               opacity={0.8}
               dashArray="8, 12"
@@ -751,10 +751,10 @@ export default function ItineraryDetailPage() {
         <div className="detail-header glass">
           <div className="header-meta">
             <Link to="/itineraries" className="back-link">
-              ⬅️ All Itineraries
+              All Itineraries
             </Link>
-            {itinerary.source === 'GENERATED' && <span className="source-badge generated">⚡Generated</span>}
-            {itinerary.source === 'MANUAL' && <span className="source-badge manual">✏️ Manual Plan</span>}
+            {itinerary.source === 'GENERATED' && <span className="source-badge generated">Generated</span>}
+            {itinerary.source === 'MANUAL' && <span className="source-badge manual">Manual Plan</span>}
           </div>
 
           {isEditing ? (
@@ -823,7 +823,7 @@ export default function ItineraryDetailPage() {
               <h2>{itinerary.title}</h2>
               {itinerary.date && (
                 <div className="detail-date">
-                  📅 {itinerary.date} {itinerary.endDate && itinerary.endDate !== itinerary.date ? ` to ${itinerary.endDate}` : ''}
+                  {itinerary.date} {itinerary.endDate && itinerary.endDate !== itinerary.date ? ` to ${itinerary.endDate}` : ''}
                 </div>
               )}
               {itinerary.description && <p className="detail-desc">{itinerary.description}</p>}
@@ -835,7 +835,7 @@ export default function ItineraryDetailPage() {
               {isEditing ? (
                 <>
                   <button onClick={handleSaveChanges} disabled={updating} className="btn-save">
-                    {updating ? 'Saving...' : '💾 Save Changes'}
+                    {updating ? 'Saving...' : 'Save Changes'}
                   </button>
                   <button onClick={() => { setIsEditing(false); loadItinerary(); }} className="btn-cancel">
                     Cancel
@@ -845,29 +845,29 @@ export default function ItineraryDetailPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100%' }}>
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
                     <button onClick={() => setIsEditing(true)} className="btn-edit" style={{ flex: 1 }}>
-                      ✏️ Edit Route
+                      Edit Route
                     </button>
                     <button onClick={() => setShowDeleteConfirm(true)} className="btn-delete" style={{ flex: 1 }}>
-                      🗑️ Delete
+                      Delete
                     </button>
                   </div>
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <button onClick={handleCopyShareLink} className="btn-edit" style={{ flex: 1, background: 'rgba(99, 102, 241, 0.12)', borderColor: 'rgba(99, 102, 241, 0.25)', color: '#4f46e5' }}>
-                      🔗 {shareCopied ? 'Link Copied!' : 'Copy Share Link'}
+                    <button onClick={handleCopyShareLink} className="btn-edit" style={{ flex: 1 }}>
+                      {shareCopied ? 'Link Copied!' : 'Copy Share Link'}
                     </button>
                     <button onClick={handlePrint} className="btn-edit" style={{ flex: 1 }}>
-                      🖨️ Export PDF / Print
+                      Export PDF / Print
                     </button>
                   </div>
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <button onClick={handleCloneItinerary} disabled={cloning} className="btn-edit" style={{ flex: 1, background: 'rgba(34, 197, 94, 0.12)', borderColor: 'rgba(34, 197, 94, 0.25)', color: '#16a34a' }}>
-                      📋 {cloning ? 'Duplicating...' : 'Duplicate Itinerary'}
+                    <button onClick={handleCloneItinerary} disabled={cloning} className="btn-edit" style={{ flex: 1 }}>
+                      {cloning ? 'Duplicating...' : 'Duplicate Itinerary'}
                     </button>
                   </div>
                   {itinerary.source === 'GENERATED' && (
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <button onClick={handleRegenerate} disabled={regenerating} className="btn-edit" style={{ flex: 1, background: 'rgba(245, 158, 11, 0.12)', borderColor: 'rgba(245, 158, 11, 0.25)', color: '#d97706' }}>
-                        🔄 {regenerating ? 'Regenerating...' : 'Regenerate Route'}
+                      <button onClick={handleRegenerate} disabled={regenerating} className="btn-edit" style={{ flex: 1 }}>
+                        {regenerating ? 'Regenerating...' : 'Regenerate Route'}
                       </button>
                     </div>
                   )}
@@ -920,7 +920,7 @@ export default function ItineraryDetailPage() {
                       </div>
 
                       <div className="stop-time">
-                        🕒 {stop.startTime} - {stop.endTime} ({stop.durationMinutes} mins)
+                        {stop.startTime} - {stop.endTime} ({stop.durationMinutes} mins)
                       </div>
 
                       {isEditing ? (
@@ -971,10 +971,10 @@ export default function ItineraryDetailPage() {
                         </div>
                       ) : (
                         <>
-                          {stop.notes && <div className="stop-notes">📝 <em>"{stop.notes}"</em></div>}
+                          {stop.notes && <div className="stop-notes"><em>"{stop.notes}"</em></div>}
                           {stop.estimatedCost && (
                             <div className="stop-cost" style={{ fontSize: '0.825rem', color: '#475569', marginTop: '0.25rem' }}>
-                              💰 Est. Cost: <strong>{currency} {parseFloat(stop.estimatedCost).toFixed(2)}</strong>
+                              Est. Cost: <strong>{currency} {parseFloat(stop.estimatedCost).toFixed(2)}</strong>
                             </div>
                           )}
                           <div className="stop-navigation-link">
@@ -982,7 +982,7 @@ export default function ItineraryDetailPage() {
                               View Spot
                             </Link>
                             <Link to={`/directions/${stop.spot.id}`} className="btn-directions-link">
-                              🚗 Get Directions
+                              Get Directions
                             </Link>
                             {itinerary.source === 'GENERATED' && stop.id && (
                               <button
@@ -990,7 +990,7 @@ export default function ItineraryDetailPage() {
                                 disabled={swappingStopId === stop.id}
                                 className="btn-swap-link"
                               >
-                                {swappingStopId === stop.id ? '🔄 Swapping...' : '🔀 Swap'}
+                                {swappingStopId === stop.id ? 'Swapping...' : 'Swap'}
                               </button>
                             )}
                           </div>
@@ -1002,7 +1002,7 @@ export default function ItineraryDetailPage() {
                       <div className="stop-edit-controls">
                         <button onClick={() => handleMoveStop(idx, -1)} disabled={idx === 0} className="edit-arrow-btn">▲</button>
                         <button onClick={() => handleMoveStop(idx, 1)} disabled={idx === stops.filter(s => (s.dayNumber || 1) === currentDayTab).length - 1} className="edit-arrow-btn">▼</button>
-                        <button onClick={() => handleRemoveStop(stop.spot.id)} className="edit-remove-btn">✕</button>
+                        <button onClick={() => handleRemoveStop(stop.spot.id)} className="edit-remove-btn">&#x2715;</button>
                       </div>
                     )}
                   </div>
@@ -1011,7 +1011,7 @@ export default function ItineraryDetailPage() {
                     <div className="timeline-travel-connector">
                       <div className="connector-line"></div>
                       <div className="travel-pill">
-                        {travelLegs[idx].mode === 'walk' ? '🚶 Walk' : '🚗 Drive'}{' '}
+                        {travelLegs[idx].mode === 'walk' ? 'Walk' : 'Drive'}{' '}
                         <strong>{travelLegs[idx].durationMinutes} min</strong> ({travelLegs[idx].distanceKm} km)
                       </div>
                     </div>
@@ -1023,7 +1023,7 @@ export default function ItineraryDetailPage() {
 
           {isEditing && !showAddForm && (
             <button className="btn-add-stop-trigger" onClick={() => setShowAddForm(true)}>
-              ➕ Add Another Spot
+              + Add Another Spot
             </button>
           )}
 
@@ -1031,7 +1031,7 @@ export default function ItineraryDetailPage() {
             <div className="add-stop-panel glass">
               <div className="panel-header">
                 <h4>Select Spot to Add</h4>
-                <button onClick={() => setShowAddForm(false)} className="close-panel-btn">✕</button>
+                <button onClick={() => setShowAddForm(false)} className="close-panel-btn">&#x2715;</button>
               </div>
 
               <div className="selector-filters">

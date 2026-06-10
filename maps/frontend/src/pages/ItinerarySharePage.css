@@ -77,14 +77,14 @@
 }
 
 .btn-clone {
-  background: #4f46e5;
-  border: 1px solid #4f46e5;
+  background: #6b7280;
+  border: 1px solid #6b7280;
   color: #ffffff;
 }
 
 .btn-clone:hover:not(:disabled) {
-  background: #3730a3;
-  border-color: #3730a3;
+  background: #374151;
+  border-color: #374151;
 }
 
 .btn-clone:disabled {
@@ -158,16 +158,15 @@
 }
 
 .day-tab-btn:hover {
-  background: #eef2ff;
-  border-color: #818cf8;
-  color: #3730a3;
+  background: #f3f4f6;
+  border-color: #9ca3af;
+  color: #374151;
 }
 
 .day-tab-btn.active {
-  background: #3730a3;
-  border-color: #3730a3;
-  color: #ffffff;
-  box-shadow: 0 6px 14px rgba(55, 48, 163, 0.22);
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #0f172a;
 }
 
 .detail-map-container {
@@ -185,7 +184,7 @@
   width: 44px;
   height: 44px;
   border-radius: 50% 50% 50% 0;
-  background: #8b5cf6;
+  background: #6b7280;
   border: 2px solid #fff;
   transform: rotate(-45deg);
   display: flex;
@@ -277,7 +276,7 @@
 }
 
 .print-layout-active .itinerary-route-line {
-  stroke: #7c3aed !important;
+  stroke: #6b7280 !important;
   stroke-width: 4px !important;
   stroke-opacity: 0.95 !important;
   fill: none !important;
@@ -305,7 +304,7 @@
   height: 38px;
   border-radius: 50%;
   background: #ffffff;
-  border: 3px solid #7c3aed;
+  border: 3px solid #6b7280;
   box-shadow: 0 3px 10px rgba(15, 23, 42, 0.28);
   display: flex;
   align-items: center;
@@ -321,7 +320,7 @@
   bottom: -10px;
   width: 12px;
   height: 12px;
-  background: #7c3aed;
+  background: #6b7280;
   transform: translateX(-50%) rotate(45deg);
   border-radius: 2px;
 }
@@ -392,12 +391,12 @@
   bottom: 0;
   left: 28px;
   width: 2px;
-  border-left: 2px dashed rgba(139, 92, 246, 0.3);
+  border-left: 2px dashed rgba(107, 114, 128, 0.3);
   z-index: 1;
 }
 
 .itinerary-share-page:not(.dark-mode) .connector-line {
-  border-left-color: rgba(99, 102, 241, 0.25);
+  border-left-color: rgba(107, 114, 128, 0.25);
 }
 
 .travel-pill {
@@ -405,11 +404,11 @@
   align-items: center;
   gap: 0.4rem;
   padding: 0.35rem 0.75rem;
-  background: rgba(99, 102, 241, 0.08);
-  border: 1px solid rgba(99, 102, 241, 0.2);
+  background: rgba(107, 114, 128, 0.08);
+  border: 1px solid rgba(107, 114, 128, 0.2);
   border-radius: 20px;
   font-size: 0.72rem;
-  color: #818cf8;
+  color: #9ca3af;
   z-index: 2;
   transition: all 0.2s ease;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
@@ -419,15 +418,15 @@
 }
 
 .travel-pill strong {
-  color: #8b5cf6;
+  color: #6b7280;
   font-weight: 700;
 }
 
 .travel-pill:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
-  border-color: rgba(99, 102, 241, 0.4);
-  background: rgba(99, 102, 241, 0.12);
+  box-shadow: 0 4px 12px rgba(107, 114, 128, 0.2);
+  border-color: rgba(107, 114, 128, 0.4);
+  background: rgba(107, 114, 128, 0.12);
 }
 
 /* Light mode overrides */
@@ -439,7 +438,7 @@
 }
 
 .itinerary-share-page .travel-pill strong {
-  color: #4f46e5;
+  color: #6b7280;
 }
 
 .itinerary-share-page .travel-pill:hover {
@@ -494,7 +493,7 @@
   }
 
   .itinerary-route-line {
-    stroke: #7c3aed !important;
+    stroke: #6b7280 !important;
     stroke-width: 4px !important;
     stroke-opacity: 0.95 !important;
     fill: none !important;
@@ -536,7 +535,7 @@
 
   .print-header h1 {
     font-size: 1.6rem !important;
-    color: #4f46e5 !important;
+    color: #6b7280 !important;
     font-weight: 800 !important;
     margin: 0 !important;
     text-transform: uppercase;
@@ -607,13 +606,13 @@
 
   .detail-stop-card .stop-notes {
     background: #f8fafc !important;
-    border-left: 3px solid #8b5cf6 !important;
+    border-left: 3px solid #6b7280 !important;
     color: #334155 !important;
     margin-top: 0.35rem !important;
   }
 
   .detail-stop-card .stop-badge {
-    background: #8b5cf6 !important;
+    background: #6b7280 !important;
     color: #ffffff !important;
     print-color-adjust: exact !important;
     -webkit-print-color-adjust: exact !important;
@@ -647,6 +646,6 @@
   }
 
   .travel-pill strong {
-    color: #4f46e5 !important;
+    color: #6b7280 !important;
   }
 }

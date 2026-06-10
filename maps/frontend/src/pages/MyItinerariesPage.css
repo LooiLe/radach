@@ -10,13 +10,11 @@
   font-size: 1.8rem;
   font-weight: 700;
   margin-bottom: 0.5rem;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: var(--text-primary);
 }
 
 .itineraries-page .page-subtitle {
-  color: var(--text-secondary, #999);
+  color: var(--text-secondary);
   margin-bottom: 2rem;
   font-size: 0.95rem;
 }
@@ -36,19 +34,18 @@
   gap: 0.5rem;
   padding: 0.7rem 1.4rem;
   border-radius: 12px;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  color: #fff;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
   font-weight: 600;
-  border: none;
   cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition: all 0.2s;
   text-decoration: none;
   font-size: 0.95rem;
 }
 
 .itineraries-header .create-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4);
+  background: var(--bg-card-hover);
 }
 
 /* ─── Itinerary Cards ─── */
@@ -59,12 +56,12 @@
 }
 
 .itinerary-card {
-  background: var(--bg-secondary, #1e1e2e);
+  background: var(--bg-card);
   border-radius: 16px;
   padding: 1.25rem 1.5rem;
-  border: 1px solid var(--border, rgba(255, 255, 255, 0.06));
+  border: 1px solid var(--border);
   cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+  transition: transform 0.2s, border-color 0.2s;
   display: flex;
   align-items: center;
   gap: 1.25rem;
@@ -72,8 +69,7 @@
 
 .itinerary-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-  border-color: rgba(99, 102, 241, 0.3);
+  border-color: var(--border-hover);
 }
 
 .itinerary-card .card-icon {
@@ -88,13 +84,13 @@
 }
 
 .itinerary-card .card-icon.manual {
-  background: linear-gradient(135deg, rgba(34, 197, 94, 0.15), rgba(34, 197, 94, 0.05));
-  color: #22c55e;
+  background: var(--bg-glass);
+  color: var(--text-secondary);
 }
 
 .itinerary-card .card-icon.generated {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(139, 92, 246, 0.05));
-  color: #8b5cf6;
+  background: var(--bg-glass);
+  color: var(--text-muted);
 }
 
 .itinerary-card .card-body {
@@ -106,7 +102,7 @@
   font-weight: 600;
   font-size: 1.05rem;
   margin-bottom: 0.3rem;
-  color: var(--text-primary, #fff);
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -116,7 +112,7 @@
   display: flex;
   gap: 1rem;
   font-size: 0.82rem;
-  color: var(--text-secondary, #999);
+  color: var(--text-secondary);
   flex-wrap: wrap;
 }
 
@@ -133,11 +129,11 @@
 }
 
 .itinerary-card .card-actions button {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-glass);
+  border: 1px solid var(--border);
   border-radius: 10px;
   padding: 0.45rem 0.8rem;
-  color: var(--text-secondary, #999);
+  color: var(--text-secondary);
   font-size: 0.8rem;
   cursor: pointer;
   transition: all 0.2s;
@@ -149,24 +145,22 @@
 }
 
 .itinerary-card .card-actions button:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
 }
 
 .itinerary-card .card-actions button.calendar-btn {
-  border-color: rgba(124, 58, 237, 0.28);
-  color: #7c3aed;
+  border-color: var(--border-color);
+  color: var(--text-secondary);
 }
 
 .itinerary-card .card-actions button.calendar-btn:hover {
-  background: rgba(124, 58, 237, 0.12);
-  border-color: rgba(124, 58, 237, 0.4);
-  color: #6d28d9;
+  background: var(--bg-card-hover);
 }
 
 .itinerary-card .card-actions button.delete-btn:hover {
-  background: rgba(239, 68, 68, 0.15);
-  color: #ef4444;
+  background: var(--error-bg);
+  color: var(--error);
   border-color: rgba(239, 68, 68, 0.3);
 }
 
@@ -185,13 +179,13 @@
 }
 
 .source-badge.manual {
-  background: rgba(34, 197, 94, 0.12);
-  color: #22c55e;
+  background: var(--bg-glass);
+  color: var(--text-secondary);
 }
 
 .source-badge.generated {
-  background: rgba(139, 92, 246, 0.12);
-  color: #8b5cf6;
+  background: var(--bg-glass);
+  color: var(--text-muted);
 }
 
 /* ─── Empty State ─── */
@@ -199,7 +193,7 @@
 .empty-state {
   text-align: center;
   padding: 4rem 2rem;
-  color: var(--text-secondary, #999);
+  color: var(--text-secondary);
 }
 
 .empty-state .empty-icon {
@@ -211,7 +205,7 @@
 .empty-state h3 {
   font-size: 1.2rem;
   margin-bottom: 0.5rem;
-  color: var(--text-primary, #fff);
+  color: var(--text-primary);
 }
 
 .empty-state p {
@@ -228,17 +222,17 @@
 }
 
 .status-card {
-  background: var(--bg-secondary, #1e1e2e);
+  background: var(--bg-card);
   border-radius: 14px;
   padding: 1rem 1.25rem;
-  border: 1px solid var(--border, rgba(255, 255, 255, 0.06));
+  border: 1px solid var(--border);
   flex: 1;
   min-width: 200px;
 }
 
 .status-card .status-label {
   font-size: 0.78rem;
-  color: var(--text-secondary, #999);
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: 0.4rem;
@@ -247,7 +241,7 @@
 .status-card .status-value {
   font-size: 1.3rem;
   font-weight: 700;
-  color: var(--text-primary, #fff);
+  color: var(--text-primary);
 }
 
 .status-actions {
@@ -260,9 +254,9 @@
 .status-actions button {
   flex: 1;
   min-width: 120px;
-  border: 1px solid rgba(99, 102, 241, 0.25);
-  background: rgba(99, 102, 241, 0.08);
-  color: #4f46e5;
+  border: 1px solid var(--border);
+  background: var(--bg-glass);
+  color: var(--text-secondary);
   border-radius: 9px;
   padding: 0.45rem 0.6rem;
   font-size: 0.75rem;
@@ -272,9 +266,9 @@
 }
 
 .status-actions button:hover {
-  background: #3730a3;
-  border-color: #3730a3;
-  color: #ffffff;
+  background: var(--bg-card-hover);
+  border-color: var(--border-hover);
+  color: var(--text-primary);
 }
 
 .calendar-message {
@@ -299,34 +293,34 @@
 }
 
 .calendar-message.success {
-  background: #dcfce7;
-  border: 1px solid #86efac;
-  color: #166534;
+  background: var(--success-bg);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  color: var(--success);
 }
 
 .calendar-message.error {
-  background: #fee2e2;
-  border: 1px solid #fca5a5;
-  color: #991b1b;
+  background: var(--error-bg);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: var(--error);
 }
 
 .calendar-message.info {
-  background: #e0e7ff;
-  border: 1px solid #a5b4fc;
-  color: #3730a3;
+  background: var(--bg-glass);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
 }
 
 .status-card .status-value.credits {
-  color: #f59e0b;
+  color: var(--text-primary);
 }
 
 .status-card .status-value.subscription {
-  color: #8b5cf6;
+  color: var(--text-primary);
 }
 
-/* High-contrast light treatment */
+/* Light treatment */
 .itineraries-page {
-  color: #0f172a;
+  color: var(--text-primary);
 }
 
 .itineraries-page .page-subtitle,
@@ -334,96 +328,90 @@
 .status-card .status-label,
 .empty-state,
 .empty-state p {
-  color: #334155;
+  color: var(--text-secondary);
 }
 
 .itinerary-card,
 .status-card,
 .empty-state {
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
 }
 
 .itinerary-card:hover {
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.10);
-  border-color: #818cf8;
+  border-color: var(--border-hover);
 }
 
 .itinerary-card .card-title,
 .status-card .status-value,
 .empty-state h3 {
-  color: #0f172a;
+  color: var(--text-primary);
 }
 
 .itinerary-card .card-actions button {
-  background: #f8fafc;
-  border-color: #cbd5e1;
-  color: #0f172a;
+  background: var(--bg-glass);
+  border-color: var(--border);
+  color: var(--text-primary);
 }
 
 .itinerary-card .card-actions button:hover {
-  background: #eef2ff;
-  border-color: #818cf8;
-  color: #0f172a;
+  background: var(--bg-card-hover);
+  border-color: var(--border-hover);
 }
 
 .itinerary-card .card-actions button.calendar-btn {
-  background: #f5f3ff;
-  border-color: #c4b5fd;
-  color: #5b21b6;
+  background: var(--bg-glass);
+  border-color: var(--border);
+  color: var(--text-secondary);
 }
 
 .itinerary-card .card-actions button.calendar-btn:hover {
-  background: #ede9fe;
-  border-color: #8b5cf6;
-  color: #4c1d95;
+  background: var(--bg-card-hover);
 }
 
 .itinerary-card .card-actions button.delete-btn {
-  color: #b91c1c;
+  color: var(--error);
 }
 
 .itinerary-card .card-actions button.delete-btn:hover {
-  background: #fee2e2;
-  color: #991b1b;
-  border-color: #fca5a5;
+  background: var(--error-bg);
+  border-color: rgba(239, 68, 68, 0.3);
 }
 
 .itinerary-card .card-actions button.clone-btn {
-  background: #f0fdf4;
-  border-color: #86efac;
-  color: #166534;
+  background: var(--bg-glass);
+  border-color: var(--border);
+  color: var(--text-secondary);
 }
 
 .itinerary-card .card-actions button.clone-btn:hover {
-  background: #dcfce7;
-  border-color: #4ade80;
-  color: #15803d;
+  background: var(--bg-card-hover);
+  border-color: var(--border-hover);
+  color: var(--text-primary);
 }
 
 .source-badge.manual {
-  background: #dcfce7;
-  color: #166534;
+  background: var(--bg-glass);
+  color: var(--text-secondary);
 }
 
 .source-badge.generated {
-  background: #e0e7ff;
-  color: #3730a3;
+  background: var(--bg-glass);
+  color: var(--text-muted);
 }
 
 .status-card .status-value.credits {
-  color: #92400e;
+  color: var(--text-primary);
 }
 
 .status-card .status-value.subscription {
-  color: #5b21b6;
+  color: var(--text-primary);
 }
 
 .status-actions button {
-  background: #eef2ff;
-  border-color: #818cf8;
-  color: #3730a3;
+  background: var(--bg-glass);
+  border-color: var(--border);
+  color: var(--text-secondary);
 }
 
 .confirm-lightbox {
@@ -440,22 +428,21 @@
 
 .confirm-dialog {
   width: min(420px, 100%);
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 1.25rem;
-  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.22);
 }
 
 .confirm-dialog h3 {
   margin: 0 0 0.5rem;
-  color: #0f172a;
+  color: var(--text-primary);
   font-size: 1.1rem;
 }
 
 .confirm-dialog p {
   margin: 0;
-  color: #334155;
+  color: var(--text-secondary);
   font-size: 0.9rem;
   line-height: 1.5;
 }
@@ -475,15 +462,15 @@
 }
 
 .confirm-secondary {
-  background: #f8fafc;
-  border: 1px solid #cbd5e1;
-  color: #0f172a;
+  background: var(--bg-glass);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
 }
 
 .confirm-danger {
-  background: #dc2626;
-  border: 1px solid #dc2626;
-  color: #ffffff;
+  background: var(--error-bg);
+  border: 1px solid var(--error);
+  color: var(--error);
 }
 
 /* My Saved Spots link */
@@ -493,16 +480,15 @@
   gap: 0.4rem;
   margin-top: 2.5rem;
   padding: 0.5rem 0.75rem;
-  color: var(--text-secondary, #64748b);
+  color: var(--text-secondary);
   font-size: 0.85rem;
   font-weight: 600;
   text-decoration: none;
-  border-radius: var(--radius-md, 8px);
-  transition: color 0.15s var(--ease);
+  border-radius: var(--radius-md);
 }
 
 .my-saved-spots-link:hover {
-  color: var(--text-primary, #0f172a);
+  color: var(--text-primary);
   text-decoration: underline;
   text-underline-offset: 2px;
 }

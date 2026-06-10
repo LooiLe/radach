@@ -34,7 +34,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
     // Per-IP buckets for search endpoints: 60 requests / minute
     private final Map<String, Bucket> searchBuckets = new ConcurrentHashMap<>();
 
-    // Per-IP buckets for general API: 200 requests / minute
+    // Per-IP buckets for general API: 600 requests / minute (map viewport changes fire frequently)
     private final Map<String, Bucket> apiBuckets = new ConcurrentHashMap<>();
 
     @Override
@@ -57,10 +57,10 @@ public class RateLimitFilter extends OncePerRequestFilter {
                             .addLimit(Bandwidth.simple(60, Duration.ofMinutes(1)))
                             .build());
         } else if (path.startsWith("/api/")) {
-            // General API limit: 200 req/min
+            // General API limit: 600 req/min (map viewport changes fire frequently during pan/zoom)
             bucket = apiBuckets.computeIfAbsent(ip, k ->
                     Bucket.builder()
-                            .addLimit(Bandwidth.simple(200, Duration.ofMinutes(1)))
+                            .addLimit(Bandwidth.simple(600, Duration.ofMinutes(1)))
                             .build());
         } else {
             // Not an API path (static files, etc.), skip rate limiting
