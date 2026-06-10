@@ -1,13 +1,11 @@
 package com.radach.maps.service;
 
-import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import jakarta.annotation.PostConstruct;
@@ -16,173 +14,195 @@ import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.radach.maps.exception.ResourceNotFoundException;
 import com.radach.maps.model.Review;
 import com.radach.maps.model.SpotVibeTag;
 import com.radach.maps.model.VibeTagDefinition;
 import com.radach.maps.repository.ReviewRepository;
 import com.radach.maps.repository.SpotVibeTagRepository;
 import com.radach.maps.repository.VibeTagDefinitionRepository;
+import com.radach.maps.service.tagging.TagGenerator;
 
 /**
- * NLP-powered service that analyzes review text to automatically generate
- * vibe-based tags for spots.
- * 
- * Architecture (3 phases):
- *   Phase 1 – Keyword matching (current, zero external deps)
- *   Phase 2 – PostgreSQL full-text + synonym expansion
- *   Phase 3 – OpenAI API / vector embeddings for semantic understanding
- * 
- * Each phase builds on the previous; all co-exist peacefully.
+ * Orchestrator that runs all registered {@link TagGenerator} beans against
+ * the approved reviews of a spot, merges their results, and persists the
+ * top tags to {@code spot_vibe_tags}.
+ *
+ * <p>The actual tag-generation algorithms live in
+ * {@code com.radach.maps.service.tagging} — see {@link TagGenerator} and the
+ * current {@code KeywordTagGenerator} implementation. To add a new generator
+ * (e.g. an OpenAI-backed or embedding-based one), drop in a new
+ * {@code @Component implements TagGenerator}; Spring auto-injects it into
+ * {@code generators} below and it is picked up on the next run.</p>
+ *
+ * <p>Manual tags (rows with {@code source = "manual"}) are preserved across
+ * re-analyses so admin-applied interventions aren't silently overwritten.</p>
  */
 @Service
 public class VibeAnalysisService {
 
     private static final Logger log = LoggerFactory.getLogger(VibeAnalysisService.class);
 
+    /** Sources that must survive a re-analysis (admin interventions). */
+    private static final List<String> PRESERVE_SOURCES = List.of("manual");
+
+    /** Cap on how many auto-generated tags we keep per spot. */
+    private static final int TOP_TAG_LIMIT = 12;
+
     private final VibeTagDefinitionRepository vibeDefRepo;
     private final SpotVibeTagRepository spotVibeRepo;
     private final ReviewRepository reviewRepo;
+    private final List<TagGenerator> generators;
 
     public VibeAnalysisService(VibeTagDefinitionRepository vibeDefRepo,
                                 SpotVibeTagRepository spotVibeRepo,
-                                ReviewRepository reviewRepo) {
+                                ReviewRepository reviewRepo,
+                                List<TagGenerator> generators) {
         this.vibeDefRepo = vibeDefRepo;
         this.spotVibeRepo = spotVibeRepo;
         this.reviewRepo = reviewRepo;
+        this.generators = generators;
     }
 
     // ────────────────────────────────────────────────────────
-    //  Phase 1: Keyword rule engine (zero external deps)
-    // ────────────────────────────────────────────────────────
-
-    /**
-     * Each vibe tag maps to a list of keyword patterns.
-     * Keywords are normalised (lowercased, trimmed).
-     * Matches use word-boundary regex so "cozy" doesn't match "cozying".
-     */
-    private static final Map<String, List<Pattern>> KEYWORD_RULES = buildKeywordRules();
-
-    private static Map<String, List<Pattern>> buildKeywordRules() {
-        Map<String, List<Pattern>> rules = new HashMap<>();
-
-        rules.put("cozy", patterns("cozy", "cosy", "intimate", "warm atmosphere", "snug"));
-        rules.put("romantic", patterns("romantic", "date night", "couples", "candlelit", "candle light"));
-        rules.put("lively", patterns("lively", "bustling", "energetic", "happening", "buzzy", "vibrant"));
-        rules.put("chill", patterns("chill", "laid.?back", "relaxed", "mellow", "low.key", "chilled"));
-        rules.put("aesthetic", patterns("aesthetic", "beautiful decor", "beautiful interior", "stylish", "gorgeous"));
-        rules.put("sunset views", patterns("sunset", "sunsets", "sun set", "panoramic view", "scenic", "great view", "nice view", "breathtaking"));
-        rules.put("outdoor seating", patterns("outdoor", "outdoor seating", "terrace", "patio", "al fresco", "alfresco", "garden seating", "rooftop"));
-        rules.put("good for studying", patterns("study", "studying", "get work done", "work here", "good wifi", "good wi-fi", "quiet enough to work", "laptop friendly"));
-        rules.put("good for groups", patterns("group", "groups", "gathering", "get together", "party", "large group", "big group"));
-        rules.put("late night spot", patterns("late night", "open late", "opens late", "after midnight", "2am", "3am", "4am", "night owl"));
-        rules.put("breakfast spot", patterns("breakfast", "brunch", "morning", "early"));
-        rules.put("budget friendly", patterns("budget", "cheap", "affordable", "reasonably priced", "good value", "inexpensive", "not expensive", "under \\$", "low price"));
-        rules.put("pricey", patterns("pricey", "expensive", "overpriced", "costly", "spendy", "premium price", "upscale", "high end"));
-        rules.put("digital nomad friendly", patterns("digital nomad", "remote work", "good wifi", "good wi-fi", "power outlet", "work from", "coworking", "co-working"));
-        rules.put("touristy", patterns("tourist", "touristy", "tourist trap", "overrun", "crowded with tourists", "tourist spot"));
-        rules.put("local favorite", patterns("local", "locals", "hidden gem", "authentic", "off the beaten path", "underrated"));
-        rules.put("family friendly", patterns("family", "kids", "children", "child friendly", "kid friendly", "baby", "stroller"));
-        rules.put("pet friendly", patterns("pet", "dog", "dog friendly", "dogs welcome", "pets", "furry"));
-        rules.put("hidden gem", patterns("hidden gem", "off the beaten path", "undiscovered", "secret spot", "tucked away"));
-        rules.put("trendy", patterns("trendy", "hip", "cool", "fashionable", "insta.*famous", "hottest"));
-        rules.put("quiet", patterns("quiet", "peaceful", "serene", "tranquil", "noiseless", "silent", "calm"));
-        rules.put("spacious", patterns("spacious", "roomy", "big", "large", "plenty of space", "open space", "airy"));
-        rules.put("fast service", patterns("fast service", "quick", "speedy", "efficient", "prompt", "no wait", "on point service"));
-        rules.put("instagrammable", patterns("instagram", "insta", "photo", "picturesque", "beautiful", "pretty", "snap", "pics", "instagramable"));
-
-        // ── Food & Drink specific ──
-        rules.put("brunch", patterns("brunch", "breakfast", "morning", "eggs benedict", "pancakes", "avocado toast", "waffles"));
-        rules.put("burgers", patterns("burger", "burgers", "patty", "fries", "cheeseburger", "bun"));
-        rules.put("pasta", patterns("pasta", "spaghetti", "carbonara", "bolognese", "noodles", "fettuccine", "penne"));
-        rules.put("coffee", patterns("coffee", "latte", "cappuccino", "espresso", "flat white", "cold brew", "mocha", "brew"));
-        rules.put("matcha", patterns("matcha", "green tea", "matcha latte"));
-        rules.put("thai food", patterns("thai", "pad thai", "green curry", "tom yum", "massaman", "som tum", "thai food", "spicy"));
-        rules.put("sushi", patterns("sushi", "sashimi", "maki", "nigiri", "roll", "japanese"));
-        rules.put("pizza", patterns("pizza", "margherita", "pepperoni", "neapolitan", "wood.fire", "thin crust"));
-        rules.put("seafood", patterns("seafood", "fish", "shrimp", "oyster", "crab", "lobster", "fresh fish"));
-        rules.put("desserts", patterns("dessert", "cake", "pastry", "pie", "ice cream", "sweet", "chocolate cake", "tiramisu"));
-        rules.put("vegan friendly", patterns("vegan", "plant.based", "vegetarian", "veggie", "tofu", "dairy.free"));
-
-        // ── Atmosphere & Views ──
-        rules.put("outdoor seating", patterns("outdoor", "outdoor seating", "terrace", "patio", "al fresco", "alfresco", "garden seating", "rooftop"));
-        rules.put("beautiful view", patterns("beautiful view", "great view", "nice view", "scenic", "panoramic", "stunning view", "amazing view", "breathtaking view", "city view", "ocean view", "river view"));
-        rules.put("live music", patterns("live music", "live band", "dj", "acoustic", "concert", "musician", "jazz", "performance"));
-
-        return rules;
-    }
-
-    private static List<Pattern> patterns(String... keywords) {
-        List<Pattern> result = new ArrayList<>();
-        for (String kw : keywords) {
-            // Word-boundary regex so "cozy" doesn't match "cozying"
-            result.add(Pattern.compile("\\b" + Pattern.quote(kw.toLowerCase()) + "\\b", Pattern.CASE_INSENSITIVE));
-        }
-        return result;
-    }
-
-    // ────────────────────────────────────────────────────────
-    //  Public API
+    //  Orchestrator
     // ────────────────────────────────────────────────────────
 
     /**
      * Analyze all APPROVED reviews for a spot and regenerate its vibe tags.
-     * Uses keyword matching (Phase 1).
+     * Runs every registered {@link TagGenerator}, merges by max confidence
+     * (keeping the winning generator's name as {@code source}), and preserves
+     * any rows in {@code spot_vibe_tags} whose source is in {@link #PRESERVE_SOURCES}.
      */
     @Transactional
     public void analyzeSpot(Long spotId) {
-        // 1. Fetch all approved reviews for this spot
         List<Review> reviews = reviewRepo.findBySpotIdAndStatus(spotId, Review.Status.APPROVED);
+
         if (reviews.isEmpty()) {
-            log.info("No approved reviews for spot {}, clearing vibe tags", spotId);
-            spotVibeRepo.deleteBySpotId(spotId);
+            log.info("No approved reviews for spot {}, clearing auto-generated vibe tags (preserving manual)", spotId);
+            spotVibeRepo.deleteBySpotIdAndSourceNotIn(spotId, PRESERVE_SOURCES);
             return;
         }
 
-        // 2. Concatenate all review bodies for analysis
         String corpus = reviews.stream()
                 .map(Review::getBody)
+                .filter(b -> b != null && !b.isBlank())
                 .collect(Collectors.joining(" "));
 
-        // 3. Phase 1: keyword matching
-        Map<String, Float> scores = keywordMatch(corpus);
+        Map<String, MergedScore> merged = runAllGenerators(corpus);
 
-        // 4. Persist results (replace existing)
-        spotVibeRepo.deleteBySpotId(spotId);
+        // Delete only auto-generated rows; keep manual interventions
+        spotVibeRepo.deleteBySpotIdAndSourceNotIn(spotId, PRESERVE_SOURCES);
+
+        // Don't re-insert tags the admin already pinned manually
+        List<SpotVibeTag> existingManual = spotVibeRepo.findBySpotId(spotId).stream()
+                .filter(svt -> PRESERVE_SOURCES.contains(svt.getSource()))
+                .toList();
+        java.util.Set<Long> manualTagIds = existingManual.stream()
+                .map(SpotVibeTag::getVibeTagId)
+                .collect(Collectors.toSet());
+
         List<VibeTagDefinition> allDefs = vibeDefRepo.findAll();
+        Map<String, VibeTagDefinition> defsByName = allDefs.stream()
+                .collect(Collectors.toMap(VibeTagDefinition::getName, d -> d, (a, b) -> a));
 
-        // Sort scores descending by confidence and limit to top 12
-        List<Map.Entry<String, Float>> topScores = scores.entrySet().stream()
-                .filter(e -> e.getValue() > 0)
-                .sorted(Map.Entry.<String, Float>comparingByValue().reversed())
-                .limit(12)
-                .collect(Collectors.toList());
+        // Sort by confidence desc, take top N
+        List<MergedScore> top = merged.values().stream()
+                .sorted(Comparator.comparingDouble((MergedScore m) -> m.confidence).reversed())
+                .limit(TOP_TAG_LIMIT)
+                .toList();
 
-        for (Map.Entry<String, Float> entry : topScores) {
-            // Find the definition by name
-            Optional<VibeTagDefinition> defOpt = allDefs.stream()
-                    .filter(d -> d.getName().equals(entry.getKey()))
-                    .findFirst();
-            if (defOpt.isEmpty()) continue;
-
-            SpotVibeTag svt = new SpotVibeTag(
-                    spotId,
-                    defOpt.get().getId(),
-                    entry.getValue(),
-                    "keyword"
-            );
-            spotVibeRepo.save(svt);
+        int inserted = 0;
+        for (MergedScore score : top) {
+            VibeTagDefinition def = defsByName.get(score.tagName);
+            if (def == null) {
+                // Tag returned by a generator that doesn't exist in the dictionary yet — skip.
+                continue;
+            }
+            if (manualTagIds.contains(def.getId())) {
+                // Admin already pinned this tag manually — don't double-write.
+                continue;
+            }
+            spotVibeRepo.save(new SpotVibeTag(spotId, def.getId(), score.confidence, score.source));
+            inserted++;
         }
 
-        log.info("Analyzed spot {} → {} vibe tags", spotId, topScores.size());
+        log.info("Analyzed spot {} → {} vibe tag(s) inserted across {} generator(s)",
+                spotId, inserted, generators.size());
+    }
+
+    /** Run every generator and merge by tag name (max confidence wins; tie-break by source order). */
+    private Map<String, MergedScore> runAllGenerators(String corpus) {
+        Map<String, MergedScore> merged = new HashMap<>();
+        if (generators.isEmpty()) {
+            log.warn("No TagGenerator beans registered — vibe analysis will be a no-op");
+            return merged;
+        }
+        for (TagGenerator gen : generators) {
+            try {
+                Map<String, Float> scores = gen.generate(corpus);
+                for (Map.Entry<String, Float> e : scores.entrySet()) {
+                    if (e.getValue() == null) continue;
+                    merged.merge(e.getKey(),
+                            new MergedScore(e.getKey(), e.getValue(), gen.getName()),
+                            (existing, incoming) -> incoming.confidence > existing.confidence ? incoming : existing);
+                }
+            } catch (Exception ex) {
+                log.error("TagGenerator '{}' failed; continuing with other generators", gen.getName(), ex);
+            }
+        }
+        return merged;
+    }
+
+    // ────────────────────────────────────────────────────────
+    //  Admin intervention
+    // ────────────────────────────────────────────────────────
+
+    /**
+     * Manually add a vibe tag to a spot (admin only). Upserts on conflict so
+     * re-adding the same tag is idempotent. Source is recorded as {@code "manual"}.
+     */
+    @Transactional
+    public SpotVibeTag addManualTag(Long spotId, Long vibeTagId, Float confidence) {
+        VibeTagDefinition def = vibeDefRepo.findById(vibeTagId)
+                .orElseThrow(() -> new ResourceNotFoundException("Vibe tag definition not found: " + vibeTagId));
+        float conf = confidence == null ? 1.0f : Math.max(0f, Math.min(1f, confidence));
+
+        // Upsert: replace any existing row for (spot, tag) so admin's manual override wins.
+        List<SpotVibeTag> existing = spotVibeRepo.findBySpotId(spotId);
+        for (SpotVibeTag svt : existing) {
+            if (svt.getVibeTagId().equals(def.getId())) {
+                svt.setConfidence(conf);
+                svt.setSource("manual");
+                return spotVibeRepo.save(svt);
+            }
+        }
+        return spotVibeRepo.save(new SpotVibeTag(spotId, def.getId(), conf, "manual"));
     }
 
     /**
-     * Analyze all spots that have new approved reviews.
-     * Designed to be called on a schedule or after review creation.
+     * Remove a specific tag from a spot. Returns true if a row was deleted.
      */
+    @Transactional
+    public boolean removeTag(Long spotId, Long vibeTagId) {
+        List<SpotVibeTag> existing = spotVibeRepo.findBySpotId(spotId);
+        boolean removed = false;
+        for (SpotVibeTag svt : existing) {
+            if (svt.getVibeTagId().equals(vibeTagId)) {
+                spotVibeRepo.delete(svt);
+                removed = true;
+            }
+        }
+        return removed;
+    }
+
+    // ────────────────────────────────────────────────────────
+    //  Bulk triggers
+    // ────────────────────────────────────────────────────────
+
+    /** Re-analyze every spot that has at least one approved review. */
     @Async
     public void analyzeAllSpots() {
         List<Long> spotIds = reviewRepo.findDistinctSpotIdsWithApprovedReviews();
@@ -196,10 +216,7 @@ public class VibeAnalysisService {
         }
     }
 
-    /**
-     * Backfill: on startup, analyze all spots that have approved reviews.
-     * This seeds the vibe tags from the existing database data immediately.
-     */
+    /** Backfill: on startup, analyze all spots that have approved reviews. */
     @PostConstruct
     public void backfillOnStartup() {
         log.info("Running vibe tag backfill from existing reviews...");
@@ -210,10 +227,7 @@ public class VibeAnalysisService {
         }
     }
 
-    /**
-     * Nightly full re-analysis of all spots with reviews (runs at 2 AM).
-     * This catches any drift as new reviews accumulate.
-     */
+    /** Nightly full re-analysis of all spots with reviews (runs at 2 AM). */
     @Scheduled(cron = "0 0 2 * * ?")
     public void scheduledReanalysis() {
         log.info("Starting nightly vibe tag re-analysis...");
@@ -222,90 +236,18 @@ public class VibeAnalysisService {
     }
 
     // ────────────────────────────────────────────────────────
-    //  Internal: Keyword matching engine
+    //  Helpers
     // ────────────────────────────────────────────────────────
 
-    /**
-     * Score each vibe tag based on keyword matches.
-     * Multiple hits on the same keyword only count once (binary per keyword),
-     * but different keywords for the same tag stack.
-     * Score is normalised to 0..1.
-     */
-    Map<String, Float> keywordMatch(String corpus) {
-        String lower = corpus.toLowerCase();
-        Map<String, Float> tagConfidences = new HashMap<>();
-        Map<String, Float> tagMaxPossible = new HashMap<>();
-
-        for (Map.Entry<String, List<Pattern>> entry : KEYWORD_RULES.entrySet()) {
-            String tagName = entry.getKey();
-            List<Pattern> patterns = entry.getValue();
-            float hits = 0;
-            for (Pattern p : patterns) {
-                if (p.matcher(lower).find()) {
-                    hits += 1.0f;
-                }
-            }
-            float normalised = patterns.isEmpty() ? 0 : hits / patterns.size();
-            // Boost: if more than half the keywords match, bump confidence
-            if (hits >= patterns.size() * 0.5f && hits > 0) {
-                normalised = Math.min(1.0f, normalised * 1.3f);
-            }
-            tagConfidences.put(tagName, normalised);
+    /** Mutable carrier for a single tag's merged score + winning source. */
+    private static final class MergedScore {
+        final String tagName;
+        final float confidence;
+        final String source;
+        MergedScore(String tagName, float confidence, String source) {
+            this.tagName = tagName;
+            this.confidence = confidence;
+            this.source = source;
         }
-
-        // Filter out low-confidence results (below 20%)
-        return tagConfidences.entrySet().stream()
-                .filter(e -> e.getValue() >= 0.1f)
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
-
-    // ────────────────────────────────────────────────────────
-    //  Phase 2 stub: Synonym expansion via PostgreSQL FTS
-    // ────────────────────────────────────────────────────────
-
-    /**
-     * Phase 2 uses PostgreSQL's full-text search with thesaurus dictionaries.
-     * This would add synonym expansion so "cheap" → "budget friendly".
-     * 
-     * SQL to create synonym thesaurus (run manually once):
-     * 
-     *   CREATE TEXT SEARCH DICTIONARY vibe_thesaurus (
-     *       TEMPLATE = thesaurus,
-     *       DictFile = vibe,
-     *       Dictionary = english_stem
-     *   );
-     *   
-     *   Then in /usr/share/postgresql/.../tsearch_data/vibe.ths:
-     *   cheap budget-friendly
-     *   affordable budget-friendly
-     *   expensive pricey
-     *   ...
-     */
-
-    // ────────────────────────────────────────────────────────
-    //  Phase 3 stub: OpenAI / LLM API integration
-    // ────────────────────────────────────────────────────────
-
-    /**
-     * Phase 3 would use an LLM to understand the semantic meaning of reviews
-     * beyond keyword matching. Example prompt:
-     * 
-     *   "Given these reviews for a spot, which vibe tags apply?
-     *    Reviews: {corpus}
-     *    Vibe tags: {valid tags}
-     *    Return a comma-separated list of matching tags with confidence scores."
-     * 
-     * Endpoint: POST /api/v1/vibe/analyze-ai
-     * 
-     * Implementation would use OpenAI API (gpt-4o-mini) via Spring's RestClient:
-     * 
-     *   String response = restClient.post()
-     *       .uri("https://api.openai.com/v1/chat/completions")
-     *       .header("Authorization", "Bearer " + openAiKey)
-     *       .body(new ChatRequest(...))
-     *       .retrieve()
-     *       .body(String.class);
-     * 
-     * Enable by setting: app.vibe.ai-api-key=${OPENAI_API_KEY}
-     */
 }

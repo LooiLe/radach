@@ -200,7 +200,7 @@ export default function MyItinerariesPage() {
           spotId,
           startTime: start.toISOString(),
           endTime: end.toISOString(),
-          color: '#7c3aed'
+          color: '#6b7280'
         })
       })
 
@@ -228,7 +228,7 @@ export default function MyItinerariesPage() {
             startTime: entry.startTime,
             endTime: entry.endTime || null,
             recurrenceRule: entry.recurrenceRule || null,
-            color: entry.color || '#7c3aed'
+            color: entry.color || '#6b7280'
           })
         })
       ))
@@ -302,8 +302,8 @@ export default function MyItinerariesPage() {
     <div className="itineraries-page">
       <div className="itineraries-header">
         <div>
-          <h1>🗺️ My Itineraries</h1>
-          <p className="page-subtitle">Plan your perfect day — manually or auto-generated</p>
+          <h1>My Itineraries</h1>
+          <p className="page-subtitle">Plan your perfect day</p>
         </div>
         <Link to="/itineraries/plan" className="create-btn">
           Plan New Itinerary
@@ -372,7 +372,7 @@ export default function MyItinerariesPage() {
           <h3>No itineraries yet</h3>
           <p>Create your first itinerary — plan it yourself for free, or let us generate one for you!</p>
           <Link to="/itineraries/plan" className="create-btn">
-            ✨ Get Started
+            Get Started
           </Link>
         </div>
       ) : (
@@ -389,10 +389,10 @@ export default function MyItinerariesPage() {
               <div className="card-body">
                 <div className="card-title">{it.title}</div>
                 <div className="card-meta">
-                  <span>📅 {it.date || 'No date'}</span>
-                  <span>📍 {it.stopCount} stop{it.stopCount !== 1 ? 's' : ''}</span>
+                  <span>{it.date || 'No date'}</span>
+                  <span>{it.stopCount} stop{it.stopCount !== 1 ? 's' : ''}</span>
                   <span className={`source-badge ${it.source === 'GENERATED' ? 'generated' : 'manual'}`}>
-                    {it.source === 'GENERATED' ? '⚡ Generated' : '✏️ Manual'}
+                    {it.source === 'GENERATED' ? '⚡ Generated' : 'Manual'}
                   </span>
                 </div>
               </div>
@@ -425,6 +425,14 @@ export default function MyItinerariesPage() {
           ))}
         </div>
       )}
+
+      {/* My Saved Spots link */}
+      <Link to="/saved" className="my-saved-spots-link">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+          <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"></path>
+        </svg>
+        My Saved Spots
+      </Link>
 
       {deleteTarget && (
         <div className="confirm-lightbox" role="dialog" aria-modal="true" aria-labelledby="delete-itinerary-title">

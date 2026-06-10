@@ -668,7 +668,7 @@ export default function ItineraryPlannerPage() {
           {activeTab === 'manual' && stops.length > 1 && (
             <Polyline
               positions={stops.map(s => [s.spot.latitude, s.spot.longitude])}
-              color="#8b5cf6"
+              color="#6b7280"
               weight={4}
               opacity={0.8}
               dashArray="8, 12"
@@ -690,7 +690,7 @@ export default function ItineraryPlannerPage() {
               <Circle
                 center={[centerLat, centerLng]}
                 radius={radiusKm * 1000}
-                pathOptions={{ color: '#6366f1', fillColor: '#6366f1', fillOpacity: 0.15, weight: 2 }}
+                pathOptions={{ color: '#f59e0b', fillColor: '#f59e0b', fillOpacity: 0.15, weight: 2 }}
               />
             </>
           )}
@@ -703,8 +703,8 @@ export default function ItineraryPlannerPage() {
       {/* PLANNER SIDEBAR */}
       <div className="itinerary-sidebar">
         <div style={{ padding: '1.5rem 1.5rem 0 1.5rem' }}>
-          <Link to="/itineraries" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none', color: '#6366f1', fontWeight: '600', transition: 'color 0.2s' }}>
-            ⬅️ Back to My Itineraries
+          <Link to="/itineraries" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none', color: '#6b7280', fontWeight: '600', transition: 'color 0.2s' }}>
+            ⬅ Back
           </Link>
         </div>
         <div className="planner-tabs">
@@ -712,13 +712,13 @@ export default function ItineraryPlannerPage() {
             className={`tab-btn ${activeTab === 'manual' ? 'active' : ''}`}
             onClick={() => changeTab('manual')}
           >
-            ✏️ Plan Your Own
+            Plan Your Own
           </button>
           <button 
             className={`tab-btn ${activeTab === 'generate' ? 'active' : ''}`}
             onClick={() => changeTab('generate')}
           >
-            ✨ Generate for Me
+            Generate for Me
           </button>
         </div>
 
@@ -799,12 +799,12 @@ export default function ItineraryPlannerPage() {
                     onClick={() => setCurrentDayTab(day)}
                     style={{
                       padding: '0.5rem 1rem',
-                      borderRadius: '8px',
+                      borderRadius: '20px',
                       border: '1px solid',
-                      borderColor: currentDayTab === day ? '#6366f1' : '#e2e8f0',
-                      backgroundColor: currentDayTab === day ? '#6366f1' : 'transparent',
-                      color: currentDayTab === day ? '#fff' : '#475569',
-                      fontWeight: '600',
+                      borderColor: currentDayTab === day ? '#e2e8f0' : '#e2e8f0',
+                      backgroundColor: currentDayTab === day ? '#f1f5f9' : '#ffffff',
+                      color: currentDayTab === day ? '#0f172a' : '#334155',
+                      fontWeight: '500',
                       cursor: 'pointer',
                       whiteSpace: 'nowrap',
                       transition: 'all 0.2s'
@@ -821,7 +821,7 @@ export default function ItineraryPlannerPage() {
               <h3 className="section-title">Timeline ({stops.length} stop{stops.length !== 1 ? 's' : ''})</h3>
               
               {stops.length > 0 && (
-                <div className="budget-summary" style={{ margin: '0.75rem 0', padding: '0.75rem', borderRadius: '8px', fontSize: '0.875rem', display: 'flex', justifyContent: 'space-between', background: 'rgba(99, 102, 241, 0.05)', border: '1px solid rgba(99, 102, 241, 0.1)' }}>
+                <div className="budget-summary" style={{ margin: '0.75rem 0', padding: '0.75rem', borderRadius: '8px', fontSize: '0.875rem', display: 'flex', justifyContent: 'space-between', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
                   <div>Day {currentDayTab} Budget: <strong>{itCurrency} {stops.filter(s => (s.dayNumber || 1) === currentDayTab).reduce((sum, s) => sum + (parseFloat(s.estimatedCost) || 0), 0).toFixed(2)}</strong></div>
                   <div>Total Budget: <strong>{itCurrency} {stops.reduce((sum, s) => sum + (parseFloat(s.estimatedCost) || 0), 0).toFixed(2)}</strong></div>
                 </div>
@@ -909,13 +909,13 @@ export default function ItineraryPlannerPage() {
                   className={`filter-btn ${showSavedOnly ? 'active' : ''}`}
                   onClick={() => setShowSavedOnly(true)}
                 >
-                  ❤️ Saved Spots
+                  Saved Spots
                 </button>
                 <button 
                   className={`filter-btn ${!showSavedOnly ? 'active' : ''}`}
                   onClick={() => setShowSavedOnly(false)}
                 >
-                  🔍 Search All
+                  Search All
                 </button>
               </div>
 
@@ -979,7 +979,7 @@ export default function ItineraryPlannerPage() {
                 disabled={saving || stops.length === 0}
                 className="save-itinerary-btn"
               >
-                {saving ? 'Saving...' : '💾 Save Itinerary'}
+                {saving ? 'Saving...' : 'Save Itinerary'}
               </button>
             </div>
           </div>
@@ -989,7 +989,7 @@ export default function ItineraryPlannerPage() {
         {activeTab === 'generate' && (
           <div className="tab-pane generate-pane">
             <div className="generation-form">
-              <h3>✨ Route Generation Settings</h3>
+              <h3>Route Generation Settings</h3>
               <p className="help-text">Select your preferences, center area on map, and generate your customized itinerary.</p>
 
               <div className="form-group">
@@ -1026,16 +1026,16 @@ export default function ItineraryPlannerPage() {
                     className={`mode-option ${!strictCategories ? 'active' : ''}`}
                     onClick={() => setStrictCategories(false)}
                   >
-                    <span>Balanced day</span>
-                    <small>Prefer selected categories, but add variety for a usable route.</small>
+                    <span style={{ color: '#0f172a' }}>Balanced day</span>
+                    <small style={{ color: '#334155' }}>Prefer selected categories, but add variety for a usable route.</small>
                   </button>
                   <button
                     type="button"
                     className={`mode-option ${strictCategories ? 'active' : ''}`}
                     onClick={() => setStrictCategories(true)}
                   >
-                    <span>Only selected types</span>
-                    <small>Use this when you only want selected categories.</small>
+                    <span style={{ color: '#0f172a' }}>Only selected types</span>
+                    <small style={{ color: '#334155' }}>Use this when you only want selected categories.</small>
                   </button>
                 </div>
               </div>
@@ -1048,14 +1048,14 @@ export default function ItineraryPlannerPage() {
                     className={`toggle-btn ${reviewSource === 'CONNECTIONS' ? 'active' : ''}`}
                     onClick={() => setReviewSource('CONNECTIONS')}
                   >
-                    👥 Friends & Connections
+                    Trusted
                   </button>
                   <button
                     type="button"
                     className={`toggle-btn ${reviewSource === 'EXPERT' ? 'active' : ''}`}
                     onClick={() => setReviewSource('EXPERT')}
                   >
-                    ⭐ Verified Experts
+                    Verified Experts
                   </button>
                 </div>
               </div>
@@ -1151,9 +1151,9 @@ export default function ItineraryPlannerPage() {
               <div className="pricing-header border-top">
                 <h3>Select Monetization / Payment Mode</h3>
                 <div className="user-balances">
-                  <div className="balance-pill credits">🎟️ Credits: {credits}</div>
+                  <div className="balance-pill credits">Credits: {credits}</div>
                   <div className="balance-pill sub">
-                    ⭐ Sub: {subscription?.tier === 'NONE' ? 'Free Tier' : `${subscription?.tier || 'Free Tier'}`}
+                    Sub: {subscription?.tier === 'NONE' ? 'Free Tier' : `${subscription?.tier || 'Free Tier'}`}
                   </div>
                 </div>
               </div>
@@ -1230,7 +1230,7 @@ export default function ItineraryPlannerPage() {
 
               {genError && (
                 <div className="gen-error-message">
-                  ⚠️ {genError}
+                  {genError}
                 </div>
               )}
 
@@ -1246,11 +1246,11 @@ export default function ItineraryPlannerPage() {
                       Generating...
                     </>
                   ) : selectedPaymentMethod === 'ONE_TIME' ? (
-                    '💳 Pay $1.99 & Generate Route'
+                    'Pay $1.99 & Generate Route'
                   ) : selectedPaymentMethod === 'CREDITS' ? (
-                    credits > 0 ? '🎟️ Spend 1 Credit & Generate' : '❌ Purchase Credits to Generate'
+                    credits > 0 ? 'Spend 1 Credit & Generate' : 'Purchase Credits to Generate'
                   ) : (
-                    subscription && subscription.tier !== 'NONE' ? '⚡ Generate Route (Subscription)' : '❌ Subscribe to Generate'
+                    subscription && subscription.tier !== 'NONE' ? '⚡ Generate Route (Subscription)' : 'Subscribe to Generate'
                   )}
                 </button>
               </div>

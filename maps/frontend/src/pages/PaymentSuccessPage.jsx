@@ -111,7 +111,7 @@ export default function PaymentSuccessPage() {
         {status === 'GENERAL_SUCCESS' && (
           <div style={styles.content}>
             <div style={styles.iconContainer}>🎉</div>
-            <h2 style={{ ...styles.title, color: '#8b5cf6' }}>Payment Successful!</h2>
+            <h2 style={{ ...styles.title, color: '#6b7280' }}>Payment Successful!</h2>
             <p style={styles.subtitle}>
               Thank you for your purchase. Your credits or subscription tier has been credited to your account.
             </p>
@@ -161,7 +161,7 @@ const styles = {
     width: '50px',
     height: '50px',
     border: '3px solid rgba(139, 92, 246, 0.1)',
-    borderLeftColor: '#8b5cf6',
+    borderLeftColor: '#6b7280',
     borderRadius: '50%',
     animation: 'spin 1s linear infinite'
   },

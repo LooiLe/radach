@@ -30,6 +30,18 @@ public interface UserSpotInteractionRepository extends JpaRepository<UserSpotInt
     @Query("SELECT u.spotId, u.userId, u.liked, u.saved FROM UserSpotInteraction u WHERE u.liked = true OR u.saved = true")
     List<Object[]> findAllActiveInteractions();
 
+    /** Count friends who liked a given spot. */
+    @Query("SELECT COUNT(u) FROM UserSpotInteraction u WHERE u.spotId = :spotId AND u.userId IN :friendIds AND u.liked = true")
+    long countFriendLikesBySpotId(@Param("spotId") Long spotId, @Param("friendIds") Collection<Long> friendIds);
+
+    /** Batch count of friend likes for multiple spots. Returns [spotId, count] pairs. */
+    @Query("SELECT u.spotId, COUNT(u) FROM UserSpotInteraction u WHERE u.spotId IN :spotIds AND u.userId IN :friendIds AND u.liked = true GROUP BY u.spotId")
+    List<Object[]> countFriendLikesBySpotIds(@Param("spotIds") Collection<Long> spotIds, @Param("friendIds") Collection<Long> friendIds);
+
+    /** Get the actual friend users who liked a spot (user IDs). */
+    @Query("SELECT u.userId FROM UserSpotInteraction u WHERE u.spotId = :spotId AND u.userId IN :friendIds AND u.liked = true")
+    List<Long> findFriendUserIdsWhoLikedSpot(@Param("spotId") Long spotId, @Param("friendIds") Collection<Long> friendIds);
+
     /** Recent interactions by a set of user IDs — powers the friend activity feed. */
     @Query(value = """
             SELECT * FROM user_spot_interactions

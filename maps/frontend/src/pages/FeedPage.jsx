@@ -45,8 +45,8 @@ export default function FeedPage() {
       const res = await apiFetch(`/api/v1/feed?filter=${filter}&limit=50`)
       if (res.ok) {
         const data = await res.json()
-        // Filter out the current user's own items from the feed
-        setFeed(data.filter(item => String(item.userId) !== String(userId)))
+        // Filter out the current user's own items and VIEW items (viewed spots are private)
+        setFeed(data.filter(item => String(item.userId) !== String(userId) && item.activityType !== 'VIEW'))
       }
     } catch { /* ignore */ }
     setLoading(false)
@@ -397,6 +397,7 @@ export default function FeedPage() {
                         {String(userId) === String(item.userId) ? 'You' : item.userName}
                       </Link>
                       {item.isExpert && <span className="badge badge-active" style={{ marginLeft: '0.5rem', fontSize: '0.7rem' }}>Expert</span>}
+                      {item.isAdmin && <span className="badge badge-role" style={{ marginLeft: '0.5rem', fontSize: '0.7rem' }}>Admin</span>}
                     </span>
                     <span className="feed-item-action">
                       {item.activityType === 'POST' ? 'created a post' : (item.activityType === 'REVIEW' ? 'left a review' : item.description)}
@@ -429,13 +430,23 @@ export default function FeedPage() {
                     </Link>
                   )}
                   <div className="feed-item-footer">
-                    <span
-                      className={`feed-action-btn ${showLikes[item.postId] ? 'active' : ''}`}
-                      onClick={() => setShowLikes({ ...showLikes, [item.postId]: !showLikes[item.postId] })}
-                      style={{ cursor: 'pointer' }}
-                    >
-                      {item.hasLiked ? '❤️' : '🤍'} {item.likeCount} Likes
-                    </span>
+                    <div className="feed-item-footer-left">
+                      <button
+                        className={`feed-like-heart ${item.hasLiked ? 'liked' : ''}`}
+                        onClick={() => toggleLike(item.postId)}
+                        aria-label="Like post"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill={item.hasLiked ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                        </svg>
+                      </button>
+                      <span
+                        className="feed-likes-text"
+                        onClick={() => setShowLikes({ ...showLikes, [item.postId]: !showLikes[item.postId] })}
+                      >
+                        {item.likeCount} Likes
+                      </span>
+                    </div>
                     <span
                       className={`feed-action-btn ${showComments[item.postId] ? 'active' : ''}`}
                       onClick={() => setShowComments({ ...showComments, [item.postId]: !showComments[item.postId] })}

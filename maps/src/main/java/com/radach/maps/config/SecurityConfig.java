@@ -89,6 +89,10 @@ public class SecurityConfig {
                 // Stripe webhook + pricing (public, no auth required)
                 .requestMatchers("/api/v1/webhooks/stripe").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/pricing").permitAll()
+                // Follow endpoints: GET check is public (returns follower count), POST/DELETE require auth
+                .requestMatchers(HttpMethod.GET, "/api/v1/follows/**").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/v1/follows/**").authenticated()
+                .requestMatchers(HttpMethod.DELETE, "/api/v1/follows/**").authenticated()
                 // Authenticated interactions
                 .requestMatchers(HttpMethod.POST, "/api/v1/spots/*/view", "/api/v1/spots/*/save").authenticated()
                 .requestMatchers(HttpMethod.POST, "/api/v1/spots/*/reviews").authenticated()

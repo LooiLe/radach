@@ -115,7 +115,7 @@ function createPrintMapOverlay(map, printPoints) {
     const route = document.createElementNS('http://www.w3.org/2000/svg', 'polyline')
     route.setAttribute('points', points)
     route.setAttribute('fill', 'none')
-    route.setAttribute('stroke', '#7c3aed')
+    route.setAttribute('stroke', '#6b7280')
     route.setAttribute('stroke-width', '5')
     route.setAttribute('stroke-linecap', 'round')
     route.setAttribute('stroke-linejoin', 'round')
@@ -458,7 +458,7 @@ export default function ItinerarySharePage() {
           {mapBounds.length > 1 && (
             <Polyline
               positions={mapBounds}
-              color="#8b5cf6"
+              color="#6b7280"
               weight={4}
               opacity={0.8}
               dashArray="8, 12"

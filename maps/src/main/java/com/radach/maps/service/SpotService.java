@@ -5,12 +5,15 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.radach.maps.dto.FriendLikeDTO;
+
 import org.springframework.data.domain.PageRequest;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.radach.maps.dto.CategoryCluster;
 import com.radach.maps.dto.MapSpotResponse;
 import com.radach.maps.dto.SpotRequest;
 import com.radach.maps.dto.SpotClusterResponse;
@@ -29,8 +32,8 @@ import com.radach.maps.repository.VibeTagDefinitionRepository;
 
 @Service
 public class SpotService {
-    private static final int DEFAULT_SPOT_LIMIT = 500;
-    private static final int MAX_SPOT_LIMIT = 1000;
+    private static final int DEFAULT_SPOT_LIMIT = 100;
+    private static final int MAX_SPOT_LIMIT = 100;
     private static final int MAP_SPOT_LIMIT = 5000;
     private static final int MAP_CLUSTER_LIMIT = 2500;
     private static final int MAP_CLUSTER_UNTIL_ZOOM = 12;
@@ -45,8 +48,9 @@ public class SpotService {
     private final SpotVibeTagRepository spotVibeRepo;
     private final VibeTagDefinitionRepository vibeDefRepo;
     private final NamedParameterJdbcTemplate jdbcTemplate;
+    private final FollowService followService;
 
-    public SpotService(SpotRepository spotRepository, ReviewRepository reviewRepository, FriendshipService friendshipService, com.radach.maps.repository.SpotEventRepository spotEventRepository, com.radach.maps.repository.UserSpotInteractionRepository interactionRepository, com.radach.maps.repository.UserRepository userRepository, SpotVibeTagRepository spotVibeRepo, VibeTagDefinitionRepository vibeDefRepo, NamedParameterJdbcTemplate jdbcTemplate) {
+    public SpotService(SpotRepository spotRepository, ReviewRepository reviewRepository, FriendshipService friendshipService, com.radach.maps.repository.SpotEventRepository spotEventRepository, com.radach.maps.repository.UserSpotInteractionRepository interactionRepository, com.radach.maps.repository.UserRepository userRepository, SpotVibeTagRepository spotVibeRepo, VibeTagDefinitionRepository vibeDefRepo, NamedParameterJdbcTemplate jdbcTemplate, FollowService followService) {
         this.spotRepository = spotRepository;
         this.reviewRepository = reviewRepository;
         this.friendshipService = friendshipService;
@@ -56,6 +60,7 @@ public class SpotService {
         this.spotVibeRepo = spotVibeRepo;
         this.vibeDefRepo = vibeDefRepo;
         this.jdbcTemplate = jdbcTemplate;
+        this.followService = followService;
     }
 
     /** Load vibe tags for a spot and convert to DTOs. */
@@ -78,18 +83,93 @@ public class SpotService {
     }
 
     private List<SpotResponse> withRatingsAndInteractions(List<Spot> spots, Long authenticatedUserId) {
+        return withRatingsAndInteractions(spots, authenticatedUserId, "global");
+    }
+
+    private List<SpotResponse> withRatingsAndInteractions(List<Spot> spots, Long authenticatedUserId, String ratingMode) {
         if (spots.isEmpty()) return List.of();
 
         List<Long> spotIds = spots.stream().map(Spot::getId).toList();
-        Map<Long, Double> ratings = reviewRepository.findAverageRatingsBySpotIds(spotIds)
+        String activeMode = (ratingMode != null) ? ratingMode.toLowerCase() : "global";
+
+        // Compute all 3 rating types in batch
+        Map<Long, Double> globalRatings = reviewRepository.findAverageRatingsBySpotIds(spotIds)
                 .stream()
                 .collect(Collectors.toMap(
                         row -> (Long) row[0],
                         row -> (Double) row[1]
                 ));
 
+        Map<Long, Double> expertRatings = reviewRepository.findAverageExpertRatingsBySpotIds(spotIds)
+                .stream()
+                .collect(Collectors.toMap(
+                        row -> (Long) row[0],
+                        row -> (Double) row[1]
+                ));
+
+        Map<Long, Double> friendsRatings;
+        if (authenticatedUserId != null) {
+            Set<Long> friendIds = friendshipService.getFirstDegreeConnections(authenticatedUserId);
+            if (!friendIds.isEmpty()) {
+                friendsRatings = reviewRepository.findAverageFriendsRatingsBySpotIds(spotIds, friendIds)
+                        .stream()
+                        .collect(Collectors.toMap(
+                                row -> (Long) row[0],
+                                row -> (Double) row[1]
+                        ));
+            } else {
+                friendsRatings = Map.of();
+            }
+        } else {
+            friendsRatings = Map.of();
+        }
+
+        // Compute trusted ratings (friends + followed experts)
+        Map<Long, Double> trustedRatings;
+        if (authenticatedUserId != null) {
+            Set<Long> friendIds = friendshipService.getFirstDegreeConnections(authenticatedUserId);
+            Set<Long> followedExpertIds = followService.getFollowedExpertIds(authenticatedUserId);
+            Set<Long> trustedIds = new java.util.HashSet<>(friendIds);
+            trustedIds.addAll(followedExpertIds);
+            if (!trustedIds.isEmpty()) {
+                trustedRatings = reviewRepository.findAverageFriendsRatingsBySpotIds(spotIds, trustedIds)
+                        .stream()
+                        .collect(Collectors.toMap(
+                                row -> (Long) row[0],
+                                row -> (Double) row[1]
+                        ));
+            } else {
+                trustedRatings = Map.of();
+            }
+        } else {
+            trustedRatings = Map.of();
+        }
+
+        // Select which rating to display based on mode
+        Map<Long, Double> displayRatings;
+        if ("expert".equals(activeMode)) {
+            displayRatings = expertRatings;
+        } else if ("trusted".equals(activeMode) && authenticatedUserId != null) {
+            displayRatings = trustedRatings;
+        } else {
+            displayRatings = globalRatings;
+        }
+
         Set<Long> likedSpotIds = authenticatedUserId != null ? interactionRepository.findLikedSpotIdsByUserId(authenticatedUserId) : Set.of();
         Set<Long> savedSpotIds = authenticatedUserId != null ? interactionRepository.findSavedSpotIdsByUserId(authenticatedUserId) : Set.of();
+
+        // Compute friend like counts for batch
+        Set<Long> friendIds = authenticatedUserId != null ? friendshipService.getFirstDegreeConnections(authenticatedUserId) : Set.of();
+        Map<Long, Integer> friendLikeCounts;
+        if (!friendIds.isEmpty()) {
+            friendLikeCounts = interactionRepository.countFriendLikesBySpotIds(spotIds, friendIds).stream()
+                    .collect(Collectors.toMap(
+                            row -> (Long) row[0],
+                            row -> ((Number) row[1]).intValue()
+                    ));
+        } else {
+            friendLikeCounts = Map.of();
+        }
 
         Set<Long> submitterIds = spots.stream().map(Spot::getSubmittedBy).filter(id -> id != null).collect(Collectors.toSet());
         Map<Long, com.radach.maps.model.User> submitters = submitterIds.isEmpty() ? Map.of() : 
@@ -133,23 +213,33 @@ public class SpotService {
                         }
                 ));
 
-        return spots.stream()
+                return spots.stream()
                 .map(spot -> {
                     com.radach.maps.model.User submitter = spot.getSubmittedBy() != null ? submitters.get(spot.getSubmittedBy()) : null;
+                    Long spotId = spot.getId();
                     return new SpotResponse(
                             spot, 
-                            ratings.getOrDefault(spot.getId(), 0.0),
-                            likedSpotIds.contains(spot.getId()),
-                            savedSpotIds.contains(spot.getId()),
+                            displayRatings.getOrDefault(spotId, 0.0),
+                            globalRatings.getOrDefault(spotId, 0.0),
+                            expertRatings.getOrDefault(spotId, 0.0),
+                            friendsRatings.getOrDefault(spotId, 0.0),
+                            likedSpotIds.contains(spotId),
+                            savedSpotIds.contains(spotId),
                             submitter != null ? submitter.getId() : null,
                             submitter != null ? submitter.getName() : null,
                             submitter != null && submitter.isExpert(),
-                            vibeTagMap.getOrDefault(spot.getId(), List.of())
+                            vibeTagMap.getOrDefault(spotId, List.of()),
+                            friendLikeCounts.getOrDefault(spotId, 0),
+                            activeMode
                     );
                 })
                 .toList();
     }
-    public List<SpotResponse> findSpots(Double lat, Double lng, Double radiusKm, String sortBy, Integer limit, Long authenticatedUserId) {
+    public List<SpotResponse> findSpots(Double lat, Double lng, Double radiusKm, String sortBy, Long authenticatedUserId, String ratingMode) {
+        return findSpots(lat, lng, radiusKm, sortBy, null, authenticatedUserId, ratingMode);
+    }
+
+    public List<SpotResponse> findSpots(Double lat, Double lng, Double radiusKm, String sortBy, Integer limit, Long authenticatedUserId, String ratingMode) {
         boolean geoSearch = lat != null || lng != null || radiusKm != null;
         if (geoSearch && (lat == null || lng == null || radiusKm == null)) {
             throw new IllegalArgumentException("lat, lng, and radiusKm are required for geo search");
@@ -171,41 +261,94 @@ public class SpotService {
             }
         } else {
             spots = sortPopularity
-                    ? spotRepository.findByStatusOrderByRankScoreDesc(SpotStatus.ACTIVE, PageRequest.of(0, effectiveLimit))
-                    : spotRepository.findByStatus(SpotStatus.ACTIVE, PageRequest.of(0, effectiveLimit));
+                    ? spotRepository.findAllByStatusOrderByRankScoreDesc(SpotStatus.ACTIVE)
+                    : spotRepository.findAllByStatus(SpotStatus.ACTIVE);
+            if (spots.size() > effectiveLimit) {
+                spots = spots.subList(0, effectiveLimit);
+            }
         }
 
-        return withRatingsAndInteractions(spots, authenticatedUserId);
+        return withRatingsAndInteractions(spots, authenticatedUserId, ratingMode);
     }
 
-    public SpotMapResponse findMapSpots(Double swLat, Double swLng, Double neLat, Double neLng, Integer zoom) {
+    private static final Map<String, String> TYPE_ICON_MAP = Map.of(
+        "restaurant", "/icons/material-symbols-light--chef-hat-outline.svg",
+        "bar", "/icons/guidance--bar.svg",
+        "hotel", "/icons/material-symbols-light--hotel-outline-rounded.svg",
+        "cafe", "/icons/carbon--cafe.svg",
+        "food hall", "/icons/material-symbols-light--chef-hat-outline.svg",
+        "beach", "/icons/streamline-plump--beach.svg",
+        "market", "/icons/healthicons--market-stall-outline.svg",
+        "attraction", "/icons/material-symbols-light--attractions-outline-rounded.svg",
+        "viewpoint", "/icons/game-icons--hill-conquest.svg"
+    );
+
+    private static final String DEFAULT_ICON = "/icons/stash--pin-location-light.svg";
+
+    public SpotMapResponse findMapSpots(Double swLat, Double swLng, Double neLat, Double neLng, Integer zoom, String typeFilter, String ratingMode, Long authenticatedUserId) {
         validateMapBounds(swLat, swLng, neLat, neLng);
         int effectiveZoom = zoom == null ? 6 : Math.max(0, Math.min(22, zoom));
         MapSqlParameterSource params = mapBoundsParams(swLat, swLng, neLat, neLng);
-        long total = countMapSpots(params);
 
-        if (effectiveZoom <= MAP_CLUSTER_UNTIL_ZOOM || total > MAP_SPOT_LIMIT) {
-            MapBucketResponses buckets = findMapBuckets(params, swLat, swLng, neLat, neLng, effectiveZoom);
-            return SpotMapResponse.clusters(total, buckets.spots(), buckets.clusters());
+        // Build WHERE clause with optional type filter
+        StringBuilder whereClause = new StringBuilder(
+            "s.status = 'ACTIVE' AND s.latitude BETWEEN :swLat AND :neLat AND s.longitude BETWEEN :swLng AND :neLng"
+        );
+        if (typeFilter != null && !typeFilter.isBlank()) {
+            whereClause.append(" AND LOWER(s.type) = LOWER(:typeFilter)");
+            params.addValue("typeFilter", typeFilter.trim());
         }
 
+        // Count query — use a separate params copy to avoid extraneous params
+        MapSqlParameterSource countParams = new MapSqlParameterSource()
+            .addValue("swLat", swLat)
+            .addValue("swLng", swLng)
+            .addValue("neLat", neLat)
+            .addValue("neLng", neLng);
+        String countWhere = "status = 'ACTIVE' AND latitude BETWEEN :swLat AND :neLat AND longitude BETWEEN :swLng AND :neLng";
+        if (typeFilter != null && !typeFilter.isBlank()) {
+            countWhere += " AND LOWER(type) = LOWER(:typeFilter)";
+            countParams.addValue("typeFilter", typeFilter.trim());
+        }
+        Long totalObj = jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM spots WHERE " + countWhere, countParams, Long.class
+        );
+        long total = totalObj != null ? totalObj : 0L;
+
+        // Choose rating subquery based on mode
+        String ratingSubquery;
+        String activeMode = (ratingMode != null) ? ratingMode.toLowerCase() : "global";
+        if ("expert".equals(activeMode)) {
+            ratingSubquery = "(SELECT COALESCE(AVG(r.rating), 0) FROM reviews r JOIN users u ON u.id = r.author_id WHERE r.spot_id = s.id AND r.status = 'APPROVED' AND u.is_expert = true)";
+        } else if ("trusted".equals(activeMode) && authenticatedUserId != null) {
+            Set<Long> trustedIds = new java.util.HashSet<>(friendshipService.getFirstDegreeConnections(authenticatedUserId));
+            trustedIds.addAll(followService.getFollowedExpertIds(authenticatedUserId));
+            if (!trustedIds.isEmpty()) {
+                ratingSubquery = "(SELECT COALESCE(AVG(r.rating), 0) FROM reviews r WHERE r.spot_id = s.id AND r.status = 'APPROVED' AND r.author_id IN (" + trustedIds.stream().map(String::valueOf).collect(Collectors.joining(",")) + "))";
+            } else {
+                ratingSubquery = "0.0";
+            }
+        } else {
+            ratingSubquery = "(SELECT COALESCE(AVG(r.rating), 0) FROM reviews r WHERE r.spot_id = s.id AND r.status = 'APPROVED')";
+        }
+
+        // Return up to MAP_SPOT_LIMIT spots — frontend handles pagination of the results
         params.addValue("limit", MAP_SPOT_LIMIT);
-        List<MapSpotResponse> spots = jdbcTemplate.query("""
-                SELECT id, name, type, latitude, longitude, rank_score
-                FROM spots
-                WHERE status = 'ACTIVE'
-                  AND latitude BETWEEN :swLat AND :neLat
-                  AND longitude BETWEEN :swLng AND :neLng
-                ORDER BY rank_score DESC, id DESC
-                LIMIT :limit
-                """, params, (rs, rowNum) -> new MapSpotResponse(
+        String sql = "SELECT s.id, s.name, s.type, s.latitude, s.longitude, s.rank_score, COALESCE(" + ratingSubquery + ", 0.0) as avg_rating " +
+            "FROM spots s WHERE " + whereClause +
+            " ORDER BY s.rank_score DESC, s.id DESC LIMIT :limit";
+
+        List<MapSpotResponse> spots = jdbcTemplate.query(
+            sql, params, (rs, rowNum) -> new MapSpotResponse(
                 rs.getLong("id"),
                 rs.getString("name"),
                 rs.getString("type"),
                 rs.getDouble("latitude"),
                 rs.getDouble("longitude"),
-                rs.getInt("rank_score")
-        ));
+                rs.getInt("rank_score"),
+                rs.getDouble("avg_rating")
+            )
+        );
 
         return SpotMapResponse.spots(total, total > MAP_SPOT_LIMIT, spots);
     }
@@ -291,7 +434,8 @@ public class SpotService {
                         bucket.type(),
                         bucket.latitude(),
                         bucket.longitude(),
-                        bucket.rankScore()
+                        bucket.rankScore(),
+                        0.0
                 ))
                 .toList();
 
@@ -331,7 +475,7 @@ public class SpotService {
     }
 
     public List<SpotResponse> findSpots(Double lat, Double lng, Double radiusKm, String sortBy, Long authenticatedUserId) {
-        return findSpots(lat, lng, radiusKm, sortBy, null, authenticatedUserId);
+        return findSpots(lat, lng, radiusKm, sortBy, null, authenticatedUserId, "global");
     }
 
     private int normalizeSpotLimit(Integer limit) {
@@ -345,9 +489,57 @@ public class SpotService {
     }
 
     public SpotResponse findById(Long id, Long authenticatedUserId) {
+        return findById(id, authenticatedUserId, "global");
+    }
+
+    public SpotResponse findById(Long id, Long authenticatedUserId, String ratingMode) {
         Spot spot = spotRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Spot not found"));
-        Double avg = reviewRepository.findAverageRatingBySpotId(spot.getId());
+        Double globalAvg = reviewRepository.findAverageRatingBySpotId(spot.getId());
+        Double expertAvg = 0.0;
+        Double friendsAvg = 0.0;
+        
+        // Compute expert rating
+        var expertResult = reviewRepository.findAverageExpertRatingsBySpotIds(List.of(id));
+        if (!expertResult.isEmpty()) {
+            expertAvg = (Double) expertResult.get(0)[1];
+        }
+        
+        // Compute friends rating
+        if (authenticatedUserId != null) {
+            Set<Long> friendIds = friendshipService.getFirstDegreeConnections(authenticatedUserId);
+            if (!friendIds.isEmpty()) {
+                var friendsResult = reviewRepository.findAverageFriendsRatingsBySpotIds(List.of(id), friendIds);
+                if (!friendsResult.isEmpty()) {
+                    friendsAvg = (Double) friendsResult.get(0)[1];
+                }
+            }
+        }
+        
+        // Compute trusted rating (friends + followed experts)
+        Double trustedAvg = 0.0;
+        if (authenticatedUserId != null) {
+            Set<Long> friendIds = friendshipService.getFirstDegreeConnections(authenticatedUserId);
+            Set<Long> followedExpertIds = followService.getFollowedExpertIds(authenticatedUserId);
+            Set<Long> trustedIds = new java.util.HashSet<>(friendIds);
+            trustedIds.addAll(followedExpertIds);
+            if (!trustedIds.isEmpty()) {
+                var trustedResult = reviewRepository.findAverageFriendsRatingsBySpotIds(List.of(id), trustedIds);
+                if (!trustedResult.isEmpty()) {
+                    trustedAvg = (Double) trustedResult.get(0)[1];
+                }
+            }
+        }
+        
+        String activeMode = (ratingMode != null) ? ratingMode.toLowerCase() : "global";
+        Double displayRating;
+        if ("expert".equals(activeMode)) {
+            displayRating = expertAvg;
+        } else if ("trusted".equals(activeMode) && authenticatedUserId != null) {
+            displayRating = trustedAvg;
+        } else {
+            displayRating = globalAvg;
+        }
         
         boolean isLiked = false;
         boolean isSaved = false;
@@ -359,15 +551,38 @@ public class SpotService {
             }
         }
         
+        int friendLikeCount = 0;
+        if (authenticatedUserId != null) {
+            Set<Long> friendIds = friendshipService.getFirstDegreeConnections(authenticatedUserId);
+            if (!friendIds.isEmpty()) {
+                friendLikeCount = (int) interactionRepository.countFriendLikesBySpotId(id, friendIds);
+            }
+        }
+        
         List<VibeTagDTO> vibeTags = loadVibeTags(id);
         com.radach.maps.model.User submitter = spot.getSubmittedBy() != null ? userRepository.findById(spot.getSubmittedBy()).orElse(null) : null;
         return new SpotResponse(
-                spot, avg, isLiked, isSaved, 
+                spot, displayRating, globalAvg, expertAvg, friendsAvg, isLiked, isSaved, 
                 submitter != null ? submitter.getId() : null,
                 submitter != null ? submitter.getName() : null,
                 submitter != null && submitter.isExpert(),
-                vibeTags
+                vibeTags,
+                friendLikeCount,
+                activeMode
         );
+    }
+
+    /** Get the list of friends who liked a spot. */
+    public List<FriendLikeDTO> getFriendLikes(Long spotId, Long userId) {
+        Set<Long> friendIds = friendshipService.getFirstDegreeConnections(userId);
+        if (friendIds.isEmpty()) return List.of();
+        
+        List<Long> friendUserIds = interactionRepository.findFriendUserIdsWhoLikedSpot(spotId, friendIds);
+        if (friendUserIds.isEmpty()) return List.of();
+        
+        return userRepository.findAllById(friendUserIds).stream()
+                .map(u -> new FriendLikeDTO(u.getId(), u.getName(), u.getProfilePicture()))
+                .toList();
     }
 
     @Transactional
@@ -550,25 +765,33 @@ public class SpotService {
         };
     }
 
-    public List<SpotResponse> search(String q, Integer limit, Long authenticatedUserId) {
+    public List<SpotResponse> search(String q, Long authenticatedUserId, String ratingMode) {
+        return search(q, null, authenticatedUserId, ratingMode);
+    }
+
+    public List<SpotResponse> search(String q, Integer limit, Long authenticatedUserId, String ratingMode) {
         if (q == null || q.isBlank()) {
             throw new IllegalArgumentException("Search query is required");
         }
         String trimmed = q.trim();
-        int effectiveLimit = limit != null && limit > 0 ? Math.min(limit, 100) : 100;
-        List<Spot> spots;
+        int effectiveLimit = limit != null && limit > 0 ? Math.min(limit, MAX_SPOT_LIMIT) : MAX_SPOT_LIMIT;
         // Handle vibe: prefix — search by vibe tag name
         if (trimmed.toLowerCase().startsWith("vibe:")) {
             String vibeName = trimmed.substring(5).trim();
             if (vibeName.isEmpty()) {
                 throw new IllegalArgumentException("Vibe tag name is required after 'vibe:'");
             }
-            spots = spotRepository.findByVibeTagName(vibeName, effectiveLimit);
-        } else {
-            spots = spotRepository.searchByNameOrTag(trimmed, effectiveLimit);
+            List<Spot> spots = spotRepository.findByVibeTagName(vibeName);
+            if (spots.size() > effectiveLimit) {
+                spots = spots.subList(0, effectiveLimit);
+            }
+            return withRatingsAndInteractions(spots, authenticatedUserId, ratingMode);
         }
-
-        return withRatingsAndInteractions(spots, authenticatedUserId);
+        List<Spot> spots = spotRepository.searchByNameOrTag(trimmed);
+        if (spots.size() > effectiveLimit) {
+            spots = spots.subList(0, effectiveLimit);
+        }
+        return withRatingsAndInteractions(spots, authenticatedUserId, ratingMode);
     }
     
     @Transactional
@@ -598,10 +821,14 @@ public class SpotService {
     }
 
     public List<SpotResponse> getSavedSpots(Long userId) {
+        return getSavedSpots(userId, "global");
+    }
+
+    public List<SpotResponse> getSavedSpots(Long userId, String ratingMode) {
         Set<Long> savedIds = interactionRepository.findSavedSpotIdsByUserId(userId);
         if (savedIds.isEmpty()) return List.of();
         
         List<Spot> spots = spotRepository.findAllById(savedIds);
-        return withRatingsAndInteractions(spots, userId);
+        return withRatingsAndInteractions(spots, userId, ratingMode);
     }
 }

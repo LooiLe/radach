@@ -32,6 +32,8 @@ export default function UserProfilePage() {
   const initialFeedTab = profileTabs.includes(searchParams.get('tab')) ? searchParams.get('tab') : 'all'
   const [feedTab, setFeedTab] = useState(initialFeedTab) // 'all' shows posts + reviews, 'posts' shows only posts, 'reviews' shows only reviews
   const [friendCount, setFriendCount] = useState(0)
+  const [isFollowing, setIsFollowing] = useState(false)
+  const [followerCount, setFollowerCount] = useState(0)
 
   // Expert application form
   const [showApplyForm, setShowApplyForm] = useState(false)
@@ -187,12 +189,43 @@ export default function UserProfilePage() {
     } catch { /* ignore */ }
   }, [apiFetch])
 
+  const loadFollowInfo = useCallback(async () => {
+    if (isOwnProfile || !id || !userId) return
+    try {
+      const res = await apiFetch(`/api/v1/follows/check/${id}`)
+      if (res.ok) {
+        const data = await res.json()
+        setIsFollowing(data.following)
+        setFollowerCount(data.followerCount)
+      }
+    } catch { /* ignore */ }
+  }, [apiFetch, id, userId, isOwnProfile])
+
+  const handleFollowToggle = useCallback(async () => {
+    try {
+      if (isFollowing) {
+        const res = await apiFetch(`/api/v1/follows/${id}`, { method: 'DELETE' })
+        if (res.ok) {
+          setIsFollowing(false)
+          setFollowerCount(prev => Math.max(0, prev - 1))
+        }
+      } else {
+        const res = await apiFetch(`/api/v1/follows/${id}`, { method: 'POST' })
+        if (res.ok) {
+          setIsFollowing(true)
+          setFollowerCount(prev => prev + 1)
+        }
+      }
+    } catch { /* ignore */ }
+  }, [apiFetch, id, isFollowing])
+
   useEffect(() => {
     loadData()
     loadMyApplications()
     loadPersonalFeed()
     loadFriendCount()
-  }, [loadData, loadMyApplications, loadPersonalFeed, loadFriendCount])
+    loadFollowInfo()
+  }, [loadData, loadMyApplications, loadPersonalFeed, loadFriendCount, loadFollowInfo])
 
   useEffect(() => {
     const nextTab = profileTabs.includes(searchParams.get('tab')) ? searchParams.get('tab') : 'all'
@@ -270,7 +303,15 @@ export default function UserProfilePage() {
       <div className="profile-actions-row">
         <button className="btn btn-ghost back-btn" onClick={() => navigate(-1)}>← Back</button>
         {!isOwnProfile && user && (
-          <div className="profile-friend-action">
+          <div className="profile-friend-action" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            {user?.isExpert && (
+              <button
+                className={`btn ${isFollowing ? 'btn-outline' : 'btn-primary'} btn-sm`}
+                onClick={handleFollowToggle}
+              >
+                {isFollowing ? 'Followed ✓' : 'Follow'}
+              </button>
+            )}
             {user.isFriend ? (
               <span className="badge badge-ghost">Friends</span>
             ) : (
@@ -300,13 +341,29 @@ export default function UserProfilePage() {
           <h1>
             {isOwnProfile ? 'You' : user?.name}
             {user?.isExpert && <span className="badge badge-active" style={{ marginLeft: '0.75rem', fontSize: '0.8rem', verticalAlign: 'middle' }}>Expert</span>}
+            {(user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN') && <span className="badge badge-role" style={{ marginLeft: '0.5rem', fontSize: '0.8rem', verticalAlign: 'middle' }}>Admin</span>}
           </h1>
           <p>{user?.email}</p>
           {isOwnProfile && (
             <p style={{ marginTop: '0.5rem' }}>
+              {user?.isExpert && (
+                <span style={{ marginRight: '1rem' }}>
+                  <strong>{followerCount}</strong> follower{followerCount !== 1 ? 's' : ''}
+                </span>
+              )}
               <Link to="/friends" className="friends-count-link" onClick={(e) => { e.stopPropagation(); }}>
                 <strong>{friendCount}</strong> friend{friendCount !== 1 ? 's' : ''}
               </Link>
+            </p>
+          )}
+          {!isOwnProfile && user?.isExpert && (
+            <p style={{ marginTop: '0.5rem' }}>
+              <span style={{ marginRight: '1rem' }}>
+                <strong>{followerCount}</strong> follower{followerCount !== 1 ? 's' : ''}
+              </span>
+              <span>
+                <strong>{friendCount}</strong> friend{friendCount !== 1 ? 's' : ''}
+              </span>
             </p>
           )}
           {user?.isExpert && user?.professionalTitle && (
@@ -545,7 +602,7 @@ export default function UserProfilePage() {
           <div className="empty-state">No activity yet.</div>
         ) : (
           (() => {
-            let filteredFeed = personalFeed
+            let filteredFeed = personalFeed.filter(item => item.activityType !== 'VIEW')
             if (feedTab === 'posts') {
               filteredFeed = filteredFeed.filter(item => item.activityType === 'POST')
             } else if (feedTab === 'reviews') {

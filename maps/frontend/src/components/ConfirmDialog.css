@@ -59,7 +59,7 @@
 }
 
 .confirm-dialog-primary {
-  border: 1px solid #3730a3;
-  background: #3730a3;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
   color: #ffffff;
 }

@@ -135,12 +135,14 @@ public class FeedService {
         for (Review r : reviews) {
             Spot spot = spotMap.get(r.getSpotId());
             User author = userMap.get(r.getAuthorId());
+            boolean authorIsAdmin = author != null && (author.getRole() == Role.ADMIN || author.getRole() == Role.SUPER_ADMIN);
             items.add(new FeedItem(
                     null, // Not a FeedPost
                     r.getAuthorId(),
                     author != null ? author.getName() : "Unknown",
                     author != null ? author.getProfilePicture() : null,
                     author != null && author.isExpert(),
+                    authorIsAdmin,
                     "REVIEW",
                     r.getSpotId(),
                     spot != null ? spot.getName() : "Unknown spot",
@@ -154,15 +156,19 @@ public class FeedService {
 
         for (SpotEvent e : events) {
             if (e.getUserId() == null) continue;
+            // Skip VIEW events — viewed spots are private to each user
+            if (e.getEventType() == SpotEvent.EventType.VIEW) continue;
             Spot spot = spotMap.get(e.getSpotId());
             User author = userMap.get(e.getUserId());
-            String action = e.getEventType() == SpotEvent.EventType.VIEW ? "viewed" : "saved";
+            boolean authorIsAdmin = author != null && (author.getRole() == Role.ADMIN || author.getRole() == Role.SUPER_ADMIN);
+            String action = "saved";
             items.add(new FeedItem(
                     null,
                     e.getUserId(),
                     author != null ? author.getName() : "Unknown",
                     author != null ? author.getProfilePicture() : null,
                     author != null && author.isExpert(),
+                    authorIsAdmin,
                     e.getEventType().name(),
                     e.getSpotId(),
                     spot != null ? spot.getName() : "Unknown spot",
@@ -177,6 +183,7 @@ public class FeedService {
         for (UserSpotInteraction i : interactions) {
             Spot spot = spotMap.get(i.getSpotId());
             User author = userMap.get(i.getUserId());
+            boolean authorIsAdmin = author != null && (author.getRole() == Role.ADMIN || author.getRole() == Role.SUPER_ADMIN);
             if (i.isLiked()) {
                 items.add(new FeedItem(
                         null,
@@ -184,6 +191,7 @@ public class FeedService {
                         author != null ? author.getName() : "Unknown",
                         author != null ? author.getProfilePicture() : null,
                         author != null && author.isExpert(),
+                        authorIsAdmin,
                         "LIKE",
                         i.getSpotId(),
                         spot != null ? spot.getName() : "Unknown spot",
@@ -201,6 +209,7 @@ public class FeedService {
                         author != null ? author.getName() : "Unknown",
                         author != null ? author.getProfilePicture() : null,
                         author != null && author.isExpert(),
+                        authorIsAdmin,
                         "SAVE",
                         i.getSpotId(),
                         spot != null ? spot.getName() : "Unknown spot",
@@ -232,12 +241,14 @@ public class FeedService {
 
             Spot postSpot = p.getSpotId() != null ? spotMap.get(p.getSpotId()) : null;
             Event postEvent = p.getEventId() != null ? eventMap.get(p.getEventId()) : null;
+            boolean authorIsAdmin = author != null && (author.getRole() == Role.ADMIN || author.getRole() == Role.SUPER_ADMIN);
             items.add(new FeedItem(
                     p.getId(),
                     p.getAuthorId(),
                     author != null ? author.getName() : "Unknown",
                     author != null ? author.getProfilePicture() : null,
                     author != null && author.isExpert(),
+                    authorIsAdmin,
                     "POST",
                     p.getSpotId(),
                     postSpot != null ? postSpot.getName() : null,
@@ -280,6 +291,7 @@ public class FeedService {
             String userName,
             String userProfilePicture,
             boolean isExpert,
+            boolean isAdmin,
             String activityType, // REVIEW, LIKE, SAVE, VIEW, POST
             Long spotId,
             String spotName,
