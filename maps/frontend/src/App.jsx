@@ -22,7 +22,7 @@ import DirectionsPage from './pages/DirectionsPage'
 import EventsPage from './pages/EventsPage'
 import AddEventPage from './pages/AddEventPage'
 import EventDetailPage from './pages/EventDetailPage'
-import SubmitTrailPathPage from './pages/SubmitTrailPathPage'
+import AddJourneyPage from './pages/AddJourneyPage'
 import TrailPathDetailPage from './pages/TrailPathDetailPage'
 import MyItinerariesPage from './pages/MyItinerariesPage'
 import ItineraryPlannerPage from './pages/ItineraryPlannerPage'
@@ -37,10 +37,10 @@ export default function App() {
         <Navbar />
 
        <Routes>
-         <Route path="/" element={<LandingPage />} />
+         <Route path="/" element={<ProtectedRoute><SpotsPage /></ProtectedRoute>} />
          <Route path="/login" element={<LoginPage />} />
          <Route path="/register" element={<RegisterPage />} />
-         <Route path="/spots" element={<ProtectedRoute><SpotsPage /></ProtectedRoute>} />
+          <Route path="/discover" element={<ProtectedRoute><SpotsPage /></ProtectedRoute>} />
          <Route path="/search" element={<ProtectedRoute><SearchPage /></ProtectedRoute>} />
           <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
           <Route path="/friends" element={<ProtectedRoute><FriendsPage /></ProtectedRoute>} />
@@ -50,7 +50,8 @@ export default function App() {
          <Route path="/spot/:id" element={<ProtectedRoute><SpotDetailPage /></ProtectedRoute>} />
          <Route path="/directions" element={<ProtectedRoute><DirectionsPage /></ProtectedRoute>} />
          <Route path="/directions/:id" element={<ProtectedRoute><DirectionsPage /></ProtectedRoute>} />
-         <Route path="/spot/:id/submit-path" element={<ProtectedRoute><SubmitTrailPathPage /></ProtectedRoute>} />
+          <Route path="/spot/:id/add-journey" element={<ProtectedRoute><AddJourneyPage /></ProtectedRoute>} />
+          <Route path="/add-journey" element={<ProtectedRoute><AddJourneyPage /></ProtectedRoute>} />
          <Route path="/path/:id" element={<ProtectedRoute><TrailPathDetailPage /></ProtectedRoute>} />
          <Route path="/events" element={<ProtectedRoute><EventsPage /></ProtectedRoute>} />
          <Route path="/event/:id" element={<ProtectedRoute><EventDetailPage /></ProtectedRoute>} />

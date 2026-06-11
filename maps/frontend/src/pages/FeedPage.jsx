@@ -12,7 +12,7 @@ export default function FeedPage() {
   const [feed, setFeed] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchParams, setSearchParams] = useSearchParams()
-  const feedTabs = ['friends', 'global', 'experts']
+  const feedTabs = ['trusted', 'global', 'experts']
   const initialTab = feedTabs.includes(searchParams.get('tab')) ? searchParams.get('tab') : 'global'
   const [activeTab, setActiveTab] = useState(initialTab)
   const navigate = useNavigate()
@@ -261,7 +261,7 @@ export default function FeedPage() {
       </div>
 
       <div className="feed-tabs">
-        {['friends', 'global', 'experts'].map(tab => (
+        {['trusted', 'global', 'experts'].map(tab => (
           <div 
             key={tab} 
             className={`feed-tab ${activeTab === tab ? 'active' : ''}`}
@@ -375,8 +375,25 @@ export default function FeedPage() {
       ) : feed.length === 0 ? (
         <div className="feed-empty glass">
           <span className="feed-empty-icon"></span>
-          <h2>Nothing to see here yet</h2>
-          <p>Try following more friends or checking the Global feed.</p>
+          {activeTab === 'trusted' && (
+            <>
+
+              <h2>Your trusted feed is empty</h2>
+              <p>Follow people you trust to see their activity here.</p>
+            </>
+          )}
+          {activeTab === 'global' && (
+            <>
+              <h2>Nothing happening yet</h2>
+              <p>Check back later to see what's trending around you.</p>
+            </>
+          )}
+          {activeTab === 'experts' && (
+            <>
+              <h2>No expert activity</h2>
+              <p>Follow experts to see their reviews and recommendations.</p>
+            </>
+          )}
         </div>
       ) : (
         <div className="feed-timeline">

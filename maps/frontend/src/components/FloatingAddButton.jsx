@@ -28,6 +28,12 @@ export default function FloatingAddButton() {
           >
             Add Spot 📍
           </button>
+          <button 
+            className="fab-item" 
+            onClick={() => { setIsOpen(false); navigate('/add-journey'); }}
+          >
+            Add Journey 🥾
+          </button>
         </div>
       )}
       <button 

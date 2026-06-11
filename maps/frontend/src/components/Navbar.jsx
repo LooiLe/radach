@@ -82,7 +82,7 @@ export default function Navbar() {
     <>
       <nav className="navbar">
         <div className="navbar-left">
-          {!['/', '/login', '/register'].includes(location.pathname) && (
+          {!['/login', '/register'].includes(location.pathname) && (
             <button className="hamburger" onClick={() => setMenuOpen(!menuOpen)} aria-label="Menu">
               <span className={`hamburger-icon ${menuOpen ? 'open' : ''}`}>
                 <span /><span /><span />
@@ -121,8 +121,8 @@ export default function Navbar() {
       {/* Slide-out menu */}
       {menuOpen && <div className="menu-overlay" onClick={() => setMenuOpen(false)} />}
       <div className={`menu-drawer ${menuOpen ? 'open' : ''}`}>
-        <Link to="/spots" className={`menu-item ${isActive('/spots') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
-          <span className="menu-icon"></span> Spots
+        <Link to="/discover" className={`menu-item ${isActive('/discover') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
+          <span className="menu-icon"></span> Discover
         </Link>
         <Link to="/itineraries" className={`menu-item ${isActive('/itineraries') ? 'active' : ''}`} onClick={() => setMenuOpen(false)}>
           <span className="menu-icon"></span> Itineraries

@@ -190,7 +190,7 @@ export default function UserProfilePage() {
   }, [apiFetch])
 
   const loadFollowInfo = useCallback(async () => {
-    if (isOwnProfile || !id || !userId) return
+    if (!id || !userId) return
     try {
       const res = await apiFetch(`/api/v1/follows/check/${id}`)
       if (res.ok) {

@@ -4,7 +4,7 @@ import { MapContainer, TileLayer, Marker, Polyline, useMapEvents, useMap } from 
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { useApi } from '../hooks/useApi'
-import './SubmitTrailPathPage.css'
+import './AddJourneyPage.css'
 
 // Fix default marker icon
 delete L.Icon.Default.prototype._getIconUrl
@@ -117,7 +117,7 @@ function FitToPoints({ points, spotCenter }) {
   return null
 }
 
-export default function SubmitTrailPathPage() {
+export default function SubmitJourneyPage() {
   const { id: spotId } = useParams()
   const navigate = useNavigate()
   const { apiFetch } = useApi()
@@ -206,9 +206,6 @@ export default function SubmitTrailPathPage() {
         const res = await apiFetch(`/api/v1/spots/${spotId}`)
         const data = await res.json()
         if (res.ok) {
-          if (data.type?.toLowerCase() !== 'trail') {
-            setMsg({ type: 'error', text: 'Trail paths can only be submitted for trail-type spots.' })
-          }
           setSpot(data)
         }
       } catch {
@@ -348,7 +345,7 @@ export default function SubmitTrailPathPage() {
       if (res.ok) {
         setMsg({
           type: 'success',
-          text: '✓ Trail path submitted! It will be visible after admin approval.',
+          text: '✓ Journey submitted! It will be visible after admin approval.',
         })
         // Reset form
         setTimeout(() => navigate(`/spot/${spotId}`), 2000)
@@ -374,7 +371,7 @@ export default function SubmitTrailPathPage() {
             <polyline points="12 19 5 12 12 5"></polyline>
           </svg>
         </button>
-        <h2>Submit Trail Path{spot ? ` — ${spot.name}` : ''}</h2>
+        <h2>Add Journey{spot ? ` — ${spot.name}` : ''}</h2>
       </div>
 
       <div className="submit-path-content">
@@ -430,14 +427,14 @@ export default function SubmitTrailPathPage() {
 
           {/* Name */}
           <div className="field">
-            <label className="label">Path Name *</label>
+            <label className="label">Journey Name *</label>
             <input className="input" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Scenic Loop, Ridge Trail..." maxLength={255} />
           </div>
 
           {/* Description */}
           <div className="field">
             <label className="label">Description</label>
-            <textarea className="textarea" value={description} onChange={e => setDescription(e.target.value)} placeholder="Describe the trail, notable landmarks, tips..." maxLength={2000} rows={3} />
+            <textarea className="textarea" value={description} onChange={e => setDescription(e.target.value)} placeholder="Describe the journey, notable landmarks, signs..." maxLength={2000} rows={3} />
           </div>
 
           {/* Difficulty */}
@@ -462,7 +459,7 @@ export default function SubmitTrailPathPage() {
           <div className="privacy-toggle">
             <label>
               <input type="checkbox" checked={isPrivate} onChange={e => setIsPrivate(e.target.checked)} />
-              Private path (only visible to you)
+              Private journey (only visible to you)
             </label>
           </div>
 
@@ -493,7 +490,7 @@ export default function SubmitTrailPathPage() {
 
           {/* Submit */}
           <button className="btn btn-primary" onClick={handleSubmit} disabled={submitting || currentPoints.length < 2} style={{ width: '100%', marginTop: '0.5rem' }}>
-            {submitting ? 'Submitting...' : 'Submit Trail Path'}
+            {submitting ? 'Submitting...' : 'Submit Journey'}
           </button>
         </div>
 

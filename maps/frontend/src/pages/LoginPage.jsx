@@ -22,7 +22,7 @@ export default function LoginPage() {
         body: JSON.stringify({ email: email.trim(), password })
       })
       const data = await res.json()
-      if (res.ok) { login(data); navigate('/spots', { replace: true }) }
+      if (res.ok) { login(data); navigate('/', { replace: true }) }
       else { setError(data.error || 'Invalid email or password.') }
     } catch { setError('Could not reach the server.') }
     finally { setLoading(false) }
