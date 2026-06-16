@@ -3,7 +3,7 @@ package com.radach.maps.dto;
 import java.time.Instant;
 import java.util.List;
 
-public record TrailPathResponse(
+public record JourneyResponse(
         Long id,
         Long spotId,
         String spotName,
@@ -21,6 +21,6 @@ public record TrailPathResponse(
         int upvoteCount,
         boolean isUpvoted,
         Instant createdAt,
-        Long categoryId,
-        String categoryName
+        Long journeyCategoryId,
+        String journeyCategoryName
 ) {}

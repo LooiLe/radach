@@ -76,7 +76,7 @@ export default function AdminDashboardPage() {
 
   const loadPendingPaths = useCallback(async () => {
     try {
-      const res = await apiFetch('/api/v1/admin/paths/pending')
+      const res = await apiFetch('/api/v1/admin/journeys/pending')
       const data = await res.json()
       if (res.ok) { setPendingPaths(data); setPendingPathsCount(data.length) }
     } catch { /* ignore */ }
@@ -86,9 +86,9 @@ export default function AdminDashboardPage() {
     try {
       let res;
       if (action === 'APPROVE') {
-        res = await apiFetch(`/api/v1/admin/paths/${id}/status?status=ACTIVE`, { method: 'PATCH' })
+        res = await apiFetch(`/api/v1/admin/journeys/${id}/status?status=ACTIVE`, { method: 'PATCH' })
       } else if (action === 'REJECT') {
-        res = await apiFetch(`/api/v1/admin/paths/${id}`, { method: 'DELETE' })
+        res = await apiFetch(`/api/v1/admin/journeys/${id}`, { method: 'DELETE' })
       }
       if (res && res.ok) {
         setPendingPaths(prev => prev.filter(p => p.id !== id))

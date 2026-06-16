@@ -16,8 +16,8 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 
 @Entity
-@Table(name = "trail_paths")
-public class TrailPath {
+@Table(name = "journeys")
+public class Journey {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -65,14 +65,15 @@ public class TrailPath {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
+    @Column(name = "journey_category_id", nullable = false)
+    private Long journeyCategoryId;
+
     @PrePersist
     void prePersist() {
         if (createdAt == null) {
             createdAt = Instant.now();
         }
     }
-
-    // --- Getters & Setters ---
 
     public Long getId() { return id; }
 
@@ -113,4 +114,8 @@ public class TrailPath {
     public void setUpvoteCount(int upvoteCount) { this.upvoteCount = upvoteCount; }
 
     public Instant getCreatedAt() { return createdAt; }
+
+    public Long getJourneyCategoryId() { return journeyCategoryId; }
+    public void setJourneyCategoryId(Long journeyCategoryId) { this.journeyCategoryId = journeyCategoryId; }
+
 }

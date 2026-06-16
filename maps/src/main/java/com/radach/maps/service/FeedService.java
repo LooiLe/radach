@@ -22,6 +22,7 @@ public class FeedService {
     private final PostCommentRepository postCommentRepository;
 
     private final EventRepository eventRepository;
+    private final JourneyRepository journeyRepository;
 
     public FeedService(
             SpotEventRepository spotEventRepository,
@@ -33,7 +34,8 @@ public class FeedService {
             FeedPostRepository feedPostRepository,
             PostLikeRepository postLikeRepository,
             PostCommentRepository postCommentRepository,
-            EventRepository eventRepository
+            EventRepository eventRepository,
+            JourneyRepository journeyRepository
     ) {
         this.spotEventRepository = spotEventRepository;
         this.reviewRepository = reviewRepository;
@@ -45,6 +47,7 @@ public class FeedService {
         this.postLikeRepository = postLikeRepository;
         this.postCommentRepository = postCommentRepository;
         this.eventRepository = eventRepository;
+        this.journeyRepository = journeyRepository;
     }
 
     /**
@@ -111,18 +114,22 @@ public class FeedService {
             feedPosts = feedPosts.subList(0, limit);
         }
 
-        // Also collect spotIds and eventIds from feed posts
+        // Also collect spotIds, eventIds, journeyIds from feed posts
         Set<Long> allEventIds = new HashSet<>();
+        Set<Long> allJourneyIds = new HashSet<>();
         for (FeedPost p : feedPosts) {
             if (p.getSpotId() != null) allSpotIds.add(p.getSpotId());
             if (p.getEventId() != null) allEventIds.add(p.getEventId());
+            if (p.getJourneyId() != null) allJourneyIds.add(p.getJourneyId());
         }
 
-        // Prefetch spots and events
+        // Prefetch spots, events, and journeys
         Map<Long, Spot> spotMap = spotRepository.findAllById(allSpotIds).stream()
                 .collect(Collectors.toMap(Spot::getId, s -> s));
         Map<Long, Event> eventMap = eventRepository.findAllById(allEventIds).stream()
                 .collect(Collectors.toMap(Event::getId, e -> e));
+        Map<Long, Journey> journeyMap = journeyRepository.findAllById(allJourneyIds).stream()
+                .collect(Collectors.toMap(Journey::getId, j -> j));
 
         // Prefetch post likes & comments
         List<Long> postIds = feedPosts.stream().map(FeedPost::getId).toList();
@@ -148,6 +155,7 @@ public class FeedService {
                     spot != null ? spot.getName() : "Unknown spot",
                     spot != null ? spot.getAddress() : null,
                     null, null,
+                    null, null,  // journeyId, journeyName
                     r.getBody(),
                     r.getCreatedAt(),
                     null, 0, false, List.of(), List.of()
@@ -174,6 +182,7 @@ public class FeedService {
                     spot != null ? spot.getName() : "Unknown spot",
                     spot != null ? spot.getAddress() : null,
                     null, null,
+                    null, null,  // journeyId, journeyName
                     action,
                     e.getCreatedAt(),
                     null, 0, false, List.of(), List.of()
@@ -197,6 +206,7 @@ public class FeedService {
                         spot != null ? spot.getName() : "Unknown spot",
                         spot != null ? spot.getAddress() : null,
                         null, null,
+                        null, null,  // journeyId, journeyName
                         "liked",
                         i.getUpdatedAt(),
                         null, 0, false, List.of(), List.of()
@@ -215,6 +225,7 @@ public class FeedService {
                         spot != null ? spot.getName() : "Unknown spot",
                         spot != null ? spot.getAddress() : null,
                         null, null,
+                        null, null,  // journeyId, journeyName
                         "saved",
                         i.getUpdatedAt(),
                         null, 0, false, List.of(), List.of()
@@ -241,6 +252,7 @@ public class FeedService {
 
             Spot postSpot = p.getSpotId() != null ? spotMap.get(p.getSpotId()) : null;
             Event postEvent = p.getEventId() != null ? eventMap.get(p.getEventId()) : null;
+            Journey postJourney = p.getJourneyId() != null ? journeyMap.get(p.getJourneyId()) : null;
             boolean authorIsAdmin = author != null && (author.getRole() == Role.ADMIN || author.getRole() == Role.SUPER_ADMIN);
             items.add(new FeedItem(
                     p.getId(),
@@ -255,6 +267,8 @@ public class FeedService {
                     postSpot != null ? postSpot.getAddress() : null,
                     p.getEventId(),
                     postEvent != null ? postEvent.getTitle() : null,
+                    p.getJourneyId(),
+                    postJourney != null ? postJourney.getName() : null,
                     p.getContent(),
                     p.getCreatedAt(),
                     p.getMediaUrls(),
@@ -298,6 +312,8 @@ public class FeedService {
             String spotAddress,
             Long eventId,
             String eventName,
+            Long journeyId,
+            String journeyName,
             String description,
             Instant timestamp,
             List<String> mediaUrls,

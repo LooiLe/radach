@@ -643,7 +643,7 @@ export default function SpotDetailPage() {
         <>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <h2 className="section-heading" style={{ margin: 0 }}>Journeys</h2>
-            <button className="btn btn-primary btn-sm" onClick={() => navigate(`/spot/${spot.id}/submit-path`)} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+            <button className="btn btn-primary btn-sm" onClick={() => navigate(`/spot/${spot.id}/add-journey`)} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
               Submit a Journey
             </button>
@@ -653,7 +653,7 @@ export default function SpotDetailPage() {
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
               {trailPaths.map(tp => (
-                <div key={tp.id} className="glass" style={{ padding: '1rem', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', cursor: 'pointer', transition: 'border-color 0.2s' }} onClick={() => navigate(`/path/${tp.id}`)} onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--primary)'} onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
+                <div key={tp.id} className="glass" style={{ padding: '1rem', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', cursor: 'pointer', transition: 'border-color 0.2s' }} onClick={() => navigate(`/journey/${tp.id}`)} onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--primary)'} onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
                     <h3 style={{ fontSize: '1rem', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                       {tp.name}

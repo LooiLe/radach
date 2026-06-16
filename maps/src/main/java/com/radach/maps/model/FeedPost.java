@@ -36,6 +36,9 @@ public class FeedPost {
     @Column
     private Long eventId;
 
+    @Column
+    private Long journeyId;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -63,6 +66,9 @@ public class FeedPost {
 
     public Long getEventId() { return eventId; }
     public void setEventId(Long eventId) { this.eventId = eventId; }
+
+    public Long getJourneyId() { return journeyId; }
+    public void setJourneyId(Long journeyId) { this.journeyId = journeyId; }
 
     public Instant getCreatedAt() { return createdAt; }
 }

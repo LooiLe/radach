@@ -87,6 +87,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/v1/paths/my-submissions").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/v1/spots/*/paths").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/paths/*").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/journeys", "/api/v1/journeys/**").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/v1/journeys/*/upvote").permitAll()
                 // Stripe webhook + pricing (public, no auth required)
                 .requestMatchers("/api/v1/webhooks/stripe").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/pricing").permitAll()

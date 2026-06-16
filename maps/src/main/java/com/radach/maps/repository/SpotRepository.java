@@ -141,6 +141,8 @@ public interface SpotRepository extends JpaRepository<Spot, Long> {
 
     List<Spot> findByStatusOrderByCreatedAtAsc(com.radach.maps.model.SpotStatus status);
 
+    List<Spot> findBySubmittedByOrderByCreatedAtDesc(Long submittedBy);
+
     @Query(value = """
             SELECT s.*
             FROM spots s

@@ -23,7 +23,7 @@ import EventsPage from './pages/EventsPage'
 import AddEventPage from './pages/AddEventPage'
 import EventDetailPage from './pages/EventDetailPage'
 import AddJourneyPage from './pages/AddJourneyPage'
-import TrailPathDetailPage from './pages/TrailPathDetailPage'
+import JourneyDetailPage from './pages/JourneyDetailPage'
 import MyItinerariesPage from './pages/MyItinerariesPage'
 import ItineraryPlannerPage from './pages/ItineraryPlannerPage'
 import ItineraryDetailPage from './pages/ItineraryDetailPage'
@@ -52,7 +52,8 @@ export default function App() {
          <Route path="/directions/:id" element={<ProtectedRoute><DirectionsPage /></ProtectedRoute>} />
           <Route path="/spot/:id/add-journey" element={<ProtectedRoute><AddJourneyPage /></ProtectedRoute>} />
           <Route path="/add-journey" element={<ProtectedRoute><AddJourneyPage /></ProtectedRoute>} />
-         <Route path="/path/:id" element={<ProtectedRoute><TrailPathDetailPage /></ProtectedRoute>} />
+          <Route path="/journey/:id/edit" element={<ProtectedRoute><AddJourneyPage /></ProtectedRoute>} />
+          <Route path="/journey/:id" element={<ProtectedRoute><JourneyDetailPage /></ProtectedRoute>} />
          <Route path="/events" element={<ProtectedRoute><EventsPage /></ProtectedRoute>} />
          <Route path="/event/:id" element={<ProtectedRoute><EventDetailPage /></ProtectedRoute>} />
          <Route path="/add-spot" element={<ProtectedRoute><AddSpotPage /></ProtectedRoute>} />

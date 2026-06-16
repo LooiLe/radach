@@ -6,5 +6,6 @@ public record FeedPostRequest(
         String content,
         List<String> mediaUrls,
         Long spotId,
-        Long eventId
+        Long eventId,
+        Long journeyId
 ) {}

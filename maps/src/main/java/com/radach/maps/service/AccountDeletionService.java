@@ -12,15 +12,15 @@ import com.radach.maps.model.CalendarEntry;
 import com.radach.maps.model.EventLike;
 import com.radach.maps.model.Friendship;
 import com.radach.maps.model.Notification;
-import com.radach.maps.model.TrailPathUpvote;
+import com.radach.maps.model.JourneyUpvote;
 import com.radach.maps.model.User;
 import com.radach.maps.model.UserSpotInteraction;
 import com.radach.maps.repository.CalendarEntryRepository;
 import com.radach.maps.repository.EventLikeRepository;
 import com.radach.maps.repository.FriendshipRepository;
+import com.radach.maps.repository.JourneyUpvoteRepository;
 import com.radach.maps.repository.NotificationRepository;
 import com.radach.maps.repository.RefreshTokenRepository;
-import com.radach.maps.repository.TrailPathUpvoteRepository;
 import com.radach.maps.repository.UserRepository;
 import com.radach.maps.repository.UserSpotInteractionRepository;
 
@@ -32,7 +32,7 @@ public class AccountDeletionService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final CalendarEntryRepository calendarEntryRepository;
     private final EventLikeRepository eventLikeRepository;
-    private final TrailPathUpvoteRepository trailPathUpvoteRepository;
+    private final JourneyUpvoteRepository journeyUpvoteRepository;
     private final UserSpotInteractionRepository userSpotInteractionRepository;
     private final NotificationRepository notificationRepository;
     private final PasswordEncoder passwordEncoder;
@@ -42,7 +42,7 @@ public class AccountDeletionService {
                                   RefreshTokenRepository refreshTokenRepository,
                                   CalendarEntryRepository calendarEntryRepository,
                                   EventLikeRepository eventLikeRepository,
-                                  TrailPathUpvoteRepository trailPathUpvoteRepository,
+                                  JourneyUpvoteRepository journeyUpvoteRepository,
                                   UserSpotInteractionRepository userSpotInteractionRepository,
                                   NotificationRepository notificationRepository,
                                   PasswordEncoder passwordEncoder) {
@@ -51,7 +51,7 @@ public class AccountDeletionService {
         this.refreshTokenRepository = refreshTokenRepository;
         this.calendarEntryRepository = calendarEntryRepository;
         this.eventLikeRepository = eventLikeRepository;
-        this.trailPathUpvoteRepository = trailPathUpvoteRepository;
+        this.journeyUpvoteRepository = journeyUpvoteRepository;
         this.userSpotInteractionRepository = userSpotInteractionRepository;
         this.notificationRepository = notificationRepository;
         this.passwordEncoder = passwordEncoder;
@@ -77,9 +77,9 @@ public class AccountDeletionService {
         List<EventLike> eventLikes = eventLikeRepository.findByUserId(userId);
         eventLikeRepository.deleteAll(eventLikes);
 
-        // 5. Delete trail path upvotes
-        List<TrailPathUpvote> upvotes = trailPathUpvoteRepository.findByUserId(userId);
-        trailPathUpvoteRepository.deleteAll(upvotes);
+        // 5. Delete journey upvotes
+        List<JourneyUpvote> upvotes = journeyUpvoteRepository.findByUserId(userId);
+        journeyUpvoteRepository.deleteAll(upvotes);
 
         // 6. Delete spot interactions (likes, saves, etc.)
         List<UserSpotInteraction> interactions = userSpotInteractionRepository.findByUserId(userId);

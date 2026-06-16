@@ -5,9 +5,9 @@ import java.util.List;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
-public record TrailPathRequest(
+public record JourneyRequest(
         Long spotId,
-        @NotNull Long categoryId,
+        @NotNull Long journeyCategoryId,
         @NotBlank String name,
         String description,
         String difficulty,

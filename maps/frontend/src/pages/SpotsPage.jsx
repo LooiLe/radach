@@ -108,6 +108,78 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
 })
 
+const journeyIconMap = {
+  'walks & trails': '/icons/ph--person-simple-hike.svg',
+  'food & drink': '/icons/boxicons--food-menu.svg',
+  'scenic & photography': '/icons/mdi--camera.svg',
+  'culture & history': '/icons/proicons--museum.svg',
+  'local experiences': '/icons/icon-park-solid--local.svg',
+}
+
+function JourneyMarkerLayer({ journeys }) {
+  const map = useMap()
+  const markersRef = useRef([])
+
+  function getFirstCoordinate(geoJson) {
+    if (!geoJson) return null
+    try {
+      const parsed = JSON.parse(geoJson)
+      if (parsed.coordinates && parsed.coordinates.length > 0) {
+        const coord = parsed.coordinates[0]
+        // GeoJSON is [lng, lat]
+        if (Array.isArray(coord) && coord.length >= 2) {
+          return [coord[1], coord[0]]
+        }
+      }
+    } catch {
+      // ignore parse errors
+    }
+    return null
+  }
+
+  function getJourneyIconUrl(categoryName) {
+    const key = (categoryName || '').toLowerCase().trim()
+    return journeyIconMap[key] || '/icons/ph--person-simple-hike.svg'
+  }
+
+  useEffect(() => {
+    // Remove old markers
+    markersRef.current.forEach(m => map.removeLayer(m))
+    markersRef.current = []
+
+    journeys.forEach(j => {
+      const position = getFirstCoordinate(j.geoJson)
+      if (!position) return
+      const iconUrl = getJourneyIconUrl(j.journeyCategoryName)
+      const icon = new L.DivIcon({
+        html: `<div class="custom-map-marker"><img src="${iconUrl}" alt="Journey" /></div>`,
+        className: 'custom-leaflet-marker',
+        iconSize: [28, 28],
+        iconAnchor: [14, 28],
+        popupAnchor: [0, -28],
+      })
+      const marker = L.marker(position, { icon })
+      const popupHtml = document.createElement('div')
+      popupHtml.innerHTML = `
+        <strong>${j.name}</strong><br />
+        <span style="color: var(--text-secondary); font-size: 0.85em;">${j.journeyCategoryName || 'Journey'}</span><br />
+        ${j.difficulty ? `<span style="font-size: 0.85em;">${j.difficulty}</span>` : ''}
+        ${j.distanceMeters ? `<span style="font-size: 0.85em;"> · ${j.distanceMeters >= 1000 ? (j.distanceMeters / 1000).toFixed(1) + ' km' : j.distanceMeters + ' m'}</span>` : ''}
+      `
+      marker.bindPopup(popupHtml)
+      marker.addTo(map)
+      markersRef.current.push(marker)
+    })
+
+    return () => {
+      markersRef.current.forEach(m => map.removeLayer(m))
+      markersRef.current = []
+    }
+  }, [journeys, map])
+
+  return null
+}
+
 function FitBounds({ bounds }) {
   const map = useMap()
   useEffect(() => { if (bounds?.length) map.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 }) }, [bounds, map])
@@ -150,11 +222,28 @@ export default function SpotsPage() {
 
   const [ratingMode, setRatingMode] = useState(() => searchParams.get('mode') || 'global')
   const [categoriesList, setCategoriesList] = useState([])
-  const [selectedCategories, setSelectedCategories] = useState({ all: true })
+  const [selectedCategories, setSelectedCategories] = useState({ all: false })
   const [journeyCategoriesList, setJourneyCategoriesList] = useState([])
   const [selectedJourneyCategories, setSelectedJourneyCategories] = useState({})
   const [filterDropdownOpen, setFilterDropdownOpen] = useState(false)
   const [searchModeDropdownOpen, setSearchModeDropdownOpen] = useState(false)
+  const [journeys, setJourneys] = useState([])
+  const [journeysLoading, setJourneysLoading] = useState(false)
+  const [allJourneyCategoriesSelected, setAllJourneyCategoriesSelected] = useState(false)
+  const [mapBounds, setMapBounds] = useState(null)
+
+  function isJourneyInBounds(j, bounds) {
+    if (!bounds || !j.geoJson) return false
+    try {
+      const geo = JSON.parse(j.geoJson)
+      if (geo.coordinates && geo.coordinates.length > 0) {
+        const [lng, lat] = geo.coordinates[0]
+        return lat >= bounds.southWest.lat && lat <= bounds.northEast.lat &&
+               lng >= bounds.southWest.lng && lng <= bounds.northEast.lng
+      }
+    } catch { /* ignore */ }
+    return false
+  }
 
   useEffect(() => {
     async function fetchCatList() {
@@ -170,10 +259,10 @@ export default function SpotsPage() {
             return a.name.localeCompare(b.name);
           })
           setCategoriesList(sorted)
-          const selMap = { all: true }
+          const selMap = { all: false }
           sorted.forEach(c => {
             const norm = c.name.trim().toLowerCase().replace('é', 'e')
-            selMap[norm] = true
+            selMap[norm] = false
             if (c.iconUrl) dynamicIconMap[norm] = c.iconUrl
           })
           setSelectedCategories(selMap)
@@ -189,9 +278,8 @@ export default function SpotsPage() {
         if (res.ok && data.length > 0) {
           const sorted = data.sort((a, b) => a.name.localeCompare(b.name))
           setJourneyCategoriesList(sorted)
-          const selMap = {}
-          sorted.forEach(c => { selMap[c.id] = true })
-          setSelectedJourneyCategories(selMap)
+          // Default: none selected
+          setSelectedJourneyCategories({})
         }
       } catch { /* ignore */ }
     }
@@ -222,16 +310,30 @@ export default function SpotsPage() {
     'local experiences': [],
   }
 
-  const toggleJourneyCategory = (categoryId) => {
-    if (categoryId === 'all') {
-      const allSelected = journeyCategoriesList.every(c => selectedJourneyCategories[c.id])
-      const newState = {}
-      journeyCategoriesList.forEach(c => { newState[c.id] = !allSelected })
-      setSelectedJourneyCategories(newState)
-    } else {
-      setSelectedJourneyCategories(prev => ({ ...prev, [categoryId]: !prev[categoryId] }))
-    }
+  const toggleAllJourneyCategories = () => {
+    const allSelected = journeyCategoriesList.every(c => selectedJourneyCategories[c.id])
+    const newState = {}
+    journeyCategoriesList.forEach(c => { newState[c.id] = !allSelected })
+    setSelectedJourneyCategories(newState)
+    setAllJourneyCategoriesSelected(!allSelected)
   }
+
+  const toggleJourneyCategory = (categoryId) => {
+    setSelectedJourneyCategories(prev => {
+      const next = { ...prev, [categoryId]: !prev[categoryId] }
+      const allNowSelected = journeyCategoriesList.every(c => next[c.id])
+      setAllJourneyCategoriesSelected(allNowSelected)
+      return next
+    })
+  }
+
+  const filteredJourneys = useMemo(() => {
+    if (!journeyCategoriesList.length) return journeys
+    const anySelected = journeyCategoriesList.some(c => selectedJourneyCategories[c.id])
+    if (!anySelected) return []
+    const selectedIds = new Set(journeyCategoriesList.filter(c => selectedJourneyCategories[c.id]).map(c => c.id))
+    return journeys.filter(j => selectedIds.has(j.journeyCategoryId) && isJourneyInBounds(j, mapBounds))
+  }, [journeys, journeyCategoriesList, selectedJourneyCategories, mapBounds])
 
   const visibleMapSpots = useMemo(() => {
     const spotCategoriesActive = Object.keys(selectedCategories).some(k => k !== 'all' && selectedCategories[k])
@@ -276,12 +378,16 @@ export default function SpotsPage() {
   const loadMapViewport = useCallback(async (map) => {
     if (!map || place || lat || lng) return
     const requestId = ++viewportRequestId.current
-    const mapBounds = map.getBounds()
+    const bounds = map.getBounds()
+    setMapBounds({
+      southWest: { lat: bounds.getSouth(), lng: bounds.getWest() },
+      northEast: { lat: bounds.getNorth(), lng: bounds.getEast() },
+    })
     const params = new URLSearchParams({
-      swLat: mapBounds.getSouth().toFixed(6),
-      swLng: mapBounds.getWest().toFixed(6),
-      neLat: mapBounds.getNorth().toFixed(6),
-      neLng: mapBounds.getEast().toFixed(6),
+      swLat: bounds.getSouth().toFixed(6),
+      swLng: bounds.getWest().toFixed(6),
+      neLat: bounds.getNorth().toFixed(6),
+      neLng: bounds.getEast().toFixed(6),
       zoom: String(Math.round(map.getZoom())),
     })
     const activeType = getActiveMapType()
@@ -329,7 +435,15 @@ export default function SpotsPage() {
     if (mapInstanceRef.current) loadMapViewport(mapInstanceRef.current)
   }
 
-  useEffect(() => {}, []) // eslint-disable-line react-hooks/exhaustive-deps
+  // Fetch all journeys on mount
+  useEffect(() => {
+    setJourneysLoading(true)
+    apiFetch('/api/v1/journeys')
+      .then(res => res.json())
+      .then(data => setJourneys(data || []))
+      .catch(() => setJourneys([]))
+      .finally(() => setJourneysLoading(false))
+  }, [apiFetch])
 
   const handlePlaceInput = (q) => {
     setPlace(q)
@@ -411,15 +525,21 @@ export default function SpotsPage() {
     if (status.includes('Loading')) return status
     const spotActive = Object.keys(selectedCategories).some(k => k !== 'all' && selectedCategories[k])
     const journeyActive = journeyCategoriesList.some(c => selectedJourneyCategories[c.id])
-    if (!spotActive && !journeyActive) return 'None found.'
-    if (visibleMapSpots.length === 0 && !status.includes('spots in view')) return status
-    const count = visibleMapSpots.length
-    let label = 'spots'
-    if (spotActive && journeyActive) label = 'spots and journeys'
-    else if (journeyActive) label = 'journeys'
-    if (count > 1000) return `More than 1000 ${label} found.`
-    return `${count.toLocaleString()} ${label} found.`
-  }, [status, visibleMapSpots.length, mapTotal, mapLimited, totalPages, currentPage, pageSize, selectedCategories, selectedJourneyCategories, journeyCategoriesList])
+    if (!spotActive && !journeyActive) return 'Select a category!'
+    if (visibleMapSpots.length === 0 && !status.includes('spots in view') && !journeyActive) return status
+    const spotCount = visibleMapSpots.length
+    const journeyCount = filteredJourneys.length
+    if (spotActive && journeyActive) {
+      const total = spotCount + journeyCount
+      if (total > 1000) return `More than 1000 spots and journeys found.`
+      return `${total.toLocaleString()} spots and journeys found.`
+    } else if (journeyActive) {
+      if (journeyCount > 1000) return `More than 1000 journeys found.`
+      return `${journeyCount.toLocaleString()} journeys found.`
+    }
+    if (spotCount > 1000) return `More than 1000 spots found.`
+    return `${spotCount.toLocaleString()} spots found.`
+  }, [status, visibleMapSpots.length, filteredJourneys.length, mapTotal, mapLimited, totalPages, currentPage, pageSize, selectedCategories, selectedJourneyCategories, journeyCategoriesList])
 
   // Page numbers for pagination — show current group of 5, can shift groups with arrows
   const pageNumbers = useMemo(() => {
@@ -502,6 +622,9 @@ export default function SpotsPage() {
                 })}
               </div>
               <div style={{ fontWeight: 600, fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem', paddingBottom: '0.25rem', borderBottom: '1px solid var(--border)', marginTop: '0.5rem' }}>Journeys</div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500', marginBottom: '0.5rem', paddingBottom: '0.5rem', borderBottom: '1px solid var(--border)' }}>
+                <input type="checkbox" checked={allJourneyCategoriesSelected} onChange={toggleAllJourneyCategories} style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: 'var(--text-primary)' }} /><span>All Journeys</span>
+              </label>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 {journeyCategoriesList.map(cat => (
                   <label key={cat.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500' }}>
@@ -519,6 +642,7 @@ export default function SpotsPage() {
             attribution='Map tiles by <a href="https://stadiamaps.com/">Stadia Maps</a>, <a href="https://openmaptiles.org/">OpenMapTiles</a>, and <a href="http://openstreetmap.org">OpenStreetMap</a> contributors' />
           <MapViewportLoader onViewportChange={loadMapViewport} onMapReady={(map) => { mapInstanceRef.current = map }} />
           <MarkerClusterGroup spots={visibleMapSpots} createIcon={createMarkerIcon} />
+          <JourneyMarkerLayer journeys={filteredJourneys} />
           {lat && lng && radius && (
             <Circle center={[parseFloat(lat), parseFloat(lng)]} radius={parseFloat(radius) * 1000}
               pathOptions={{ color: 'var(--border-color)', fillColor: 'var(--border-color)', fillOpacity: 0.08, weight: 2 }} />
@@ -546,7 +670,30 @@ export default function SpotsPage() {
         </div>
         <p className="spots-status" style={{ textAlign: 'center', marginBottom: '0.25rem' }}>{statusText}</p>
         <div className="spots-list">
-          {pagedSpots.length === 0 && !status.includes('Loading') ? (
+          {journeysLoading && (
+            <div style={{ textAlign: 'center', padding: '1rem', color: 'var(--text-muted)', fontSize: '0.9rem' }}>Loading journeys...</div>
+          )}
+          {filteredJourneys.length > 0 && filteredJourneys.map(j => (
+            <div key={j.id} className="glass" style={{ padding: '1rem', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', cursor: 'pointer', transition: 'border-color 0.2s', marginBottom: '0.5rem' }}
+              onClick={() => window.location.href = `/journey/${j.id}`}
+              onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--primary)'}
+              onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', color: j.upvoteCount > 0 ? 'var(--primary)' : 'var(--text-muted)' }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill={j.upvoteCount > 0 ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path></svg>
+                  {j.upvoteCount || 0}
+                </div>
+              </div>
+              <h3 style={{ margin: '0 0 0.25rem', fontSize: '0.95rem', fontWeight: 600 }}>{j.name}</h3>
+              {j.description && <p style={{ margin: '0 0 0.25rem', fontSize: '0.8rem', color: 'var(--text-secondary)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{j.description}</p>}
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                {j.journeyCategoryName && <span>🏷️ {j.journeyCategoryName}</span>}
+                {j.difficulty && <span>• {j.difficulty}</span>}
+                {j.distanceMeters && <span>• {j.distanceMeters >= 1000 ? `${(j.distanceMeters / 1000).toFixed(1)} km` : `${j.distanceMeters} m`}</span>}
+              </div>
+            </div>
+          ))}
+          {pagedSpots.length === 0 && journeys.length === 0 && !journeysLoading && !status.includes('Loading') ? (
             <div className="empty-state">Uh oh!</div>
           ) : (
             pagedSpots.map(s => <SpotCard key={s.id} spot={s} />)

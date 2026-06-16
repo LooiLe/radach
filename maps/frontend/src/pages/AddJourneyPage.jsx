@@ -118,12 +118,14 @@ function FitToPoints({ points, spotCenter }) {
 }
 
 export default function SubmitJourneyPage() {
-  const { id: spotId } = useParams()
+  const { id: paramId } = useParams()
   const navigate = useNavigate()
   const { apiFetch } = useApi()
+  const isEdit = window.location.pathname.endsWith('/edit')
 
   const [spot, setSpot] = useState(null)
   const [mode, setMode] = useState('draw') // 'draw' or 'gps'
+  const [editingId, setEditingId] = useState(null)
   const [waypoints, setWaypoints] = useState([]) // [[lat, lng], ...]
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
@@ -134,6 +136,10 @@ export default function SubmitJourneyPage() {
   const [uploading, setUploading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [msg, setMsg] = useState({ type: '', text: '' })
+
+  // Categories
+  const [categories, setCategories] = useState([])
+  const [categoryId, setCategoryId] = useState('')
 
   // GPS recording state
   const [isRecording, setIsRecording] = useState(false)
@@ -198,7 +204,45 @@ export default function SubmitJourneyPage() {
     return () => clearTimeout(timeout)
   }, [waypoints, mode])
 
-  // Load spot info
+  // Determine spotId from params (either /spot/:spotId/add-journey or /journey/:id/edit)
+  const spotId = !isEdit ? paramId : null
+
+  // Load existing journey for editing
+  useEffect(() => {
+    if (!isEdit || !paramId) return
+    async function loadJourney() {
+      try {
+        const res = await apiFetch(`/api/v1/journeys/${paramId}`)
+        const data = await res.json()
+        if (res.ok) {
+          setEditingId(data.id)
+          setName(data.name || '')
+          setDescription(data.description || '')
+          setDifficulty(data.difficulty || 'MODERATE')
+          setEstimatedDuration(data.estimatedDurationMin ? String(data.estimatedDurationMin) : '')
+          setIsPrivate(data.isPrivate || false)
+          setPhotos(data.photos || [])
+          setCategoryId(String(data.journeyCategoryId || ''))
+          
+          // Parse geoJson back to waypoints [[lat, lng], ...]
+          if (data.geoJson) {
+            try {
+              const geo = JSON.parse(data.geoJson)
+              if (geo.coordinates && geo.coordinates.length > 0) {
+                const points = geo.coordinates.map(([lng, lat]) => [lat, lng])
+                setWaypoints(points)
+              }
+            } catch { /* ignore */ }
+          }
+        }
+      } catch {
+        setMsg({ type: 'error', text: 'Error loading journey for editing.' })
+      }
+    }
+    loadJourney()
+  }, [isEdit, paramId, apiFetch])
+
+  // Load spot info (for add-journey to spot)
   useEffect(() => {
     if (!spotId) return
     async function loadSpot() {
@@ -214,6 +258,23 @@ export default function SubmitJourneyPage() {
     }
     loadSpot()
   }, [spotId, apiFetch])
+
+  // Load journey categories
+  useEffect(() => {
+    async function loadCategories() {
+      try {
+        const res = await apiFetch('/api/v1/journey-categories')
+        if (res.ok) {
+          const data = await res.json()
+          setCategories(data)
+          if (data.length > 0) setCategoryId(String(data[0].id))
+        }
+      } catch {
+        console.error('Error loading categories')
+      }
+    }
+    loadCategories()
+  }, [apiFetch])
 
   // Current points based on mode
   const currentPoints = mode === 'draw' ? (snappedPoints.length > 1 ? snappedPoints : waypoints) : recordedPoints
@@ -325,8 +386,10 @@ export default function SubmitJourneyPage() {
 
     try {
       const geoJson = pointsToGeoJson(currentPoints)
+      const validSpotId = spotId && !isNaN(parseInt(spotId)) ? parseInt(spotId) : null
+      
       const body = {
-        spotId: parseInt(spotId),
+        journeyCategoryId: parseInt(categoryId),
         name: name.trim(),
         description: description.trim() || null,
         difficulty,
@@ -337,18 +400,39 @@ export default function SubmitJourneyPage() {
         isPrivate,
       }
 
-      const res = await apiFetch(`/api/v1/spots/${spotId}/paths`, {
-        method: 'POST',
-        body: JSON.stringify(body),
-      })
+      // Include spotId only if valid
+      if (validSpotId) {
+        body.spotId = validSpotId
+      }
+
+      let res
+      if (isEdit && editingId) {
+        // Update existing journey – PUT request, sets status to PENDING after admin approval
+        res = await apiFetch(`/api/v1/journeys/${editingId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        })
+      } else {
+        // New journey – POST
+        const endpoint = validSpotId 
+          ? `/api/v1/spots/${validSpotId}/paths`
+          : '/api/v1/journeys'
+        res = await apiFetch(endpoint, {
+          method: 'POST',
+          body: JSON.stringify(body),
+        })
+      }
 
       if (res.ok) {
         setMsg({
           type: 'success',
-          text: '✓ Journey submitted! It will be visible after admin approval.',
+          text: isEdit
+            ? '✓ Journey updated! It will be visible after admin approval.'
+            : '✓ Journey submitted! It will be visible after admin approval.',
         })
-        // Reset form
-        setTimeout(() => navigate(`/spot/${spotId}`), 2000)
+        const redirectPath = editingId ? `/journey/${editingId}` : (validSpotId ? `/spot/${validSpotId}` : '/feed')
+        setTimeout(() => navigate(redirectPath), 2000)
       } else {
         const data = await res.json()
         setMsg({ type: 'error', text: data.error || data.message || 'Failed to submit.' })
@@ -371,7 +455,7 @@ export default function SubmitJourneyPage() {
             <polyline points="12 19 5 12 12 5"></polyline>
           </svg>
         </button>
-        <h2>Add Journey{spot ? ` — ${spot.name}` : ''}</h2>
+        <h2>{isEdit ? 'Edit Journey' : 'Add Journey'}{spot && !isEdit ? ` — ${spot.name}` : ''}</h2>
       </div>
 
       <div className="submit-path-content">
@@ -424,6 +508,16 @@ export default function SubmitJourneyPage() {
               </div>
             </div>
           )}
+
+          {/* Category */}
+          <div className="field">
+            <label className="label">Category *</label>
+            <select className="input" value={categoryId} onChange={e => setCategoryId(e.target.value)}>
+              {categories.map(cat => (
+                <option key={cat.id} value={cat.id}>{cat.name}</option>
+              ))}
+            </select>
+          </div>
 
           {/* Name */}
           <div className="field">

@@ -44,6 +44,7 @@ public class FeedPostService {
         post.setMediaUrls(request.mediaUrls());
         post.setSpotId(request.spotId());
         post.setEventId(request.eventId());
+        post.setJourneyId(request.journeyId());
         return feedPostRepository.save(post);
     }
 
