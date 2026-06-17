@@ -11,7 +11,7 @@ export default function AdminDashboardPage() {
   const { isSuperAdmin } = useAuth()
   const { toast } = useToast()
   const [searchParams, setSearchParams] = useSearchParams()
-  const adminTabs = ['reviews', 'spots', 'events', 'paths', 'reports', 'experts', 'categories', 'users']
+  const adminTabs = ['reviews', 'spots', 'events', 'paths', 'reports', 'experts', 'annotations', 'categories', 'users']
   const initialTab = adminTabs.includes(searchParams.get('tab')) ? searchParams.get('tab') : 'reviews'
   const [tab, setTab] = useState(initialTab)
   const [confirmDialog, setConfirmDialog] = useState(null)
@@ -153,6 +153,90 @@ export default function AdminDashboardPage() {
         setExpertAppsCount(c => c - 1)
       }
     } catch { /* ignore */ }
+  }
+
+  // === AR ANNOTATIONS TAB ===
+  const [annotations, setAnnotations] = useState([])
+  const [pendingAnnotationsCount, setPendingAnnotationsCount] = useState(0)
+  const [annotationStatus, setAnnotationStatus] = useState('PENDING')
+  const [editingAnnotation, setEditingAnnotation] = useState(null)
+
+  const loadPendingAnnotationsCountOnly = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/v1/ar/annotations/pending')
+      const data = await res.json()
+      if (res.ok) { setPendingAnnotationsCount(data.length) }
+    } catch { /* ignore */ }
+  }, [apiFetch])
+
+  const loadAnnotations = useCallback(async (statusVal = annotationStatus) => {
+    try {
+      const url = `/api/v1/admin/annotations?status=${statusVal}`
+      const res = await apiFetch(url)
+      const data = await res.json()
+      if (res.ok) {
+        setAnnotations(data)
+        if (statusVal === 'PENDING') {
+          setPendingAnnotationsCount(data.length)
+        }
+      }
+    } catch { /* ignore */ }
+  }, [apiFetch, annotationStatus])
+
+  const annotationAction = async (id, action) => {
+    try {
+      const res = await apiFetch(`/api/v1/ar/annotations/${id}/review?action=${action}`, { method: 'PATCH' })
+      if (res.ok) {
+        setAnnotations(prev => prev.filter(a => a.id !== id))
+        loadAnnotations(annotationStatus)
+        loadPendingAnnotationsCountOnly()
+      }
+    } catch { /* ignore */ }
+  }
+
+  const handleUpdateAnnotation = async () => {
+    if (!editingAnnotation) return
+    try {
+      const res = await apiFetch(`/api/v1/admin/annotations/${editingAnnotation.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          title: editingAnnotation.title,
+          description: editingAnnotation.description,
+          latitude: parseFloat(editingAnnotation.latitude),
+          longitude: parseFloat(editingAnnotation.longitude),
+          bearing: editingAnnotation.bearing !== null && editingAnnotation.bearing !== '' ? parseFloat(editingAnnotation.bearing) : null,
+          photoUrl: editingAnnotation.photoUrl,
+          radiusMeters: editingAnnotation.radiusMeters !== null && editingAnnotation.radiusMeters !== '' ? parseFloat(editingAnnotation.radiusMeters) : null
+        })
+      })
+      if (res.ok) {
+        toast.success('Annotation updated successfully!')
+        setEditingAnnotation(null)
+        loadAnnotations(annotationStatus)
+        loadPendingAnnotationsCountOnly()
+      } else {
+        toast.error('Failed to update annotation.')
+      }
+    } catch (err) {
+      toast.error('Error updating annotation.')
+    }
+  }
+
+  const handleDeleteAnnotation = async (id) => {
+    try {
+      const res = await apiFetch(`/api/v1/admin/annotations/${id}`, {
+        method: 'DELETE'
+      })
+      if (res.ok) {
+        toast.success('Annotation deleted successfully!')
+        setAnnotations(prev => prev.filter(a => a.id !== id))
+        loadPendingAnnotationsCountOnly()
+      } else {
+        toast.error('Failed to delete annotation.')
+      }
+    } catch {
+      toast.error('Error deleting annotation.')
+    }
   }
 
   // === REPORTS TAB ===
@@ -348,8 +432,16 @@ export default function AdminDashboardPage() {
     loadExpertApps()
     loadCategories()
     loadPendingReports()
+    loadPendingAnnotationsCountOnly()
     if (isSuperAdmin) loadUsers()
-  }, [loadPendingReviews, loadPendingSpots, loadPendingEvents, loadPendingPaths, loadExpertApps, loadCategories, loadPendingReports, loadUsers, isSuperAdmin])
+  }, [loadPendingReviews, loadPendingSpots, loadPendingEvents, loadPendingPaths, loadExpertApps, loadCategories, loadPendingReports, loadPendingAnnotationsCountOnly, loadUsers, isSuperAdmin])
+
+  // Annotations tab listing trigger
+  useEffect(() => {
+    if (tab === 'annotations') {
+      loadAnnotations(annotationStatus)
+    }
+  }, [tab, annotationStatus, loadAnnotations])
 
   useEffect(() => {
     const nextTab = adminTabs.includes(searchParams.get('tab')) ? searchParams.get('tab') : 'reviews'
@@ -385,6 +477,9 @@ export default function AdminDashboardPage() {
         </button>
         <button className={`admin-tab ${tab === 'experts' ? 'active' : ''}`} onClick={() => changeTab('experts')}>
           Expert Applications {expertAppsCount > 0 && <span className="pending-badge">{expertAppsCount}</span>}
+        </button>
+        <button className={`admin-tab ${tab === 'annotations' ? 'active' : ''}`} onClick={() => changeTab('annotations')}>
+          AR Annotations {pendingAnnotationsCount > 0 && <span className="pending-badge">{pendingAnnotationsCount}</span>}
         </button>
         <button className={`admin-tab ${tab === 'categories' ? 'active' : ''}`} onClick={() => changeTab('categories')}>
           Manage Categories
@@ -821,6 +916,231 @@ export default function AdminDashboardPage() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {tab === 'annotations' && (
+        <div className="admin-reviews">
+          {/* Status filter bar */}
+          <div className="admin-sub-tabs" style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', justifyContent: 'center' }}>
+            {['PENDING', 'APPROVED', 'REJECTED'].map(statusVal => (
+              <button
+                key={statusVal}
+                className={`btn btn-sm ${annotationStatus === statusVal ? 'btn-primary' : 'btn-ghost'}`}
+                style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}
+                onClick={() => setAnnotationStatus(statusVal)}
+              >
+                {statusVal} {statusVal === 'PENDING' && pendingAnnotationsCount > 0 && `(${pendingAnnotationsCount})`}
+              </button>
+            ))}
+          </div>
+
+          {annotations.length === 0 && (
+            <p style={{ color: 'var(--success)', fontWeight: 600, textAlign: 'center', marginTop: '2rem' }}>
+              No {annotationStatus.toLowerCase()} AR annotations found.
+            </p>
+          )}
+
+          {annotations.map(ann => (
+            <div key={ann.id} className="pending-review glass">
+              <div className="pending-body">
+                <p className="pending-meta">
+                  Annotation #{ann.id} · {new Date(ann.createdAt).toLocaleDateString()}
+                  <span className={`badge ${ann.status === 'APPROVED' ? 'badge-active' : ann.status === 'REJECTED' ? 'badge-role' : 'badge-pending'}`} style={{ marginLeft: '8px', fontSize: '0.75rem' }}>
+                    {ann.status}
+                  </span>
+                </p>
+                <h3 className="pending-text" style={{ margin: '0 0 0.5rem' }}>
+                  📖 {ann.title}
+                </h3>
+
+                <p className="pending-text" style={{ fontSize: '0.9rem', marginBottom: '0.75rem', borderLeft: '3px solid var(--warning, #f59e0b)', paddingLeft: '0.75rem' }}>
+                  {ann.description}
+                </p>
+
+                {ann.photoUrl && (
+                  <div style={{ marginBottom: '0.75rem' }}>
+                    <a href={ann.photoUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-block' }}>
+                      <img
+                        src={ann.photoUrl}
+                        alt={ann.title}
+                        style={{
+                          maxWidth: '100%',
+                          maxHeight: '160px',
+                          objectFit: 'cover',
+                          borderRadius: 'var(--radius-md)',
+                          border: '1px solid var(--border)'
+                        }}
+                      />
+                    </a>
+                  </div>
+                )}
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem 1.5rem', fontSize: '0.9rem', marginBottom: '0.75rem' }} className="pending-author">
+                  <div>
+                    <strong>Coordinates:</strong> {ann.latitude?.toFixed(5)}, {ann.longitude?.toFixed(5)}
+                    <a
+                      href={`/spots?lat=${ann.latitude}&lng=${ann.longitude}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ color: 'var(--primary)', textDecoration: 'none', marginLeft: '6px', fontSize: '0.8rem' }}
+                    >
+                      🗺️ View Map
+                    </a>
+                  </div>
+                  <div><strong>Radius:</strong> {ann.radiusMeters}m</div>
+                  {ann.bearing != null && <div><strong>Bearing:</strong> {ann.bearing}°</div>}
+                </div>
+
+                <p className="pending-author" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+                  <span>Submitted by: </span>
+                  <strong>
+                    <Link to={`/user/${ann.authorId}`} style={{ color: 'var(--text-primary)', textDecoration: 'none' }} className="hover-link">
+                      {ann.authorName || `User #${ann.authorId}`}
+                    </Link>
+                  </strong>
+                  {ann.authorIsExpert && (
+                    <span className="badge badge-active" style={{ fontSize: '0.75rem', padding: '0.1rem 0.4rem' }}>Expert</span>
+                  )}
+                </p>
+              </div>
+
+              <div className="pending-actions" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', justifyContent: 'center' }}>
+                <div style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
+                  <button className="btn btn-sm btn-ghost" style={{ flex: 1, border: '1px solid var(--border)' }} onClick={() => setEditingAnnotation(ann)}>
+                    ✏️ Edit
+                  </button>
+                  <button className="btn btn-sm btn-danger" style={{ flex: 1 }} onClick={() => setConfirmDialog({
+                    title: 'Delete annotation permanently?',
+                    message: `This will permanently delete "${ann.title}".`,
+                    confirmLabel: 'Delete annotation',
+                    onConfirm: () => handleDeleteAnnotation(ann.id)
+                  })}>
+                    🗑️ Delete
+                  </button>
+                </div>
+
+                {ann.status === 'PENDING' && (
+                  <div style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
+                    <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => annotationAction(ann.id, 'approve')}>Approve</button>
+                    <button className="btn btn-danger btn-sm" style={{ flex: 1 }} onClick={() => annotationAction(ann.id, 'reject')}>Reject</button>
+                  </div>
+                )}
+                {ann.status === 'APPROVED' && (
+                  <button className="btn btn-danger btn-sm" style={{ width: '100%' }} onClick={() => annotationAction(ann.id, 'reject')}>Reject (Revoke)</button>
+                )}
+                {ann.status === 'REJECTED' && (
+                  <button className="btn btn-primary btn-sm" style={{ width: '100%' }} onClick={() => annotationAction(ann.id, 'approve')}>Approve (Reactivate)</button>
+                )}
+              </div>
+            </div>
+          ))}
+
+          {/* Inline Edit Form Overlay Modal */}
+          {editingAnnotation && (
+            <div className="confirm-dialog-overlay" role="dialog" aria-modal="true" style={{ zIndex: 1100 }}>
+              <div className="confirm-dialog-box" style={{ maxWidth: '500px', width: '90%' }}>
+                <h3 style={{ marginTop: 0, marginBottom: '1.5rem', textAlign: 'center' }}>
+                  ✏️ Edit Annotation #{editingAnnotation.id}
+                </h3>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', textAlign: 'left', marginBottom: '1.5rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontWeight: 600, fontSize: '0.85rem', marginBottom: '0.25rem', color: 'var(--text-secondary)' }}>Title</label>
+                    <input
+                      type="text"
+                      className="input"
+                      style={{ width: '100%' }}
+                      value={editingAnnotation.title}
+                      onChange={(e) => setEditingAnnotation(prev => ({ ...prev, title: e.target.value }))}
+                      maxLength={150}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontWeight: 600, fontSize: '0.85rem', marginBottom: '0.25rem', color: 'var(--text-secondary)' }}>Explanation</label>
+                    <textarea
+                      className="input"
+                      style={{ minHeight: '100px', width: '100%', resize: 'vertical' }}
+                      value={editingAnnotation.description}
+                      onChange={(e) => setEditingAnnotation(prev => ({ ...prev, description: e.target.value }))}
+                      maxLength={2000}
+                    />
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div>
+                      <label style={{ display: 'block', fontWeight: 600, fontSize: '0.85rem', marginBottom: '0.25rem', color: 'var(--text-secondary)' }}>Latitude</label>
+                      <input
+                        type="number"
+                        step="any"
+                        className="input"
+                        style={{ width: '100%' }}
+                        value={editingAnnotation.latitude}
+                        onChange={(e) => setEditingAnnotation(prev => ({ ...prev, latitude: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontWeight: 600, fontSize: '0.85rem', marginBottom: '0.25rem', color: 'var(--text-secondary)' }}>Longitude</label>
+                      <input
+                        type="number"
+                        step="any"
+                        className="input"
+                        style={{ width: '100%' }}
+                        value={editingAnnotation.longitude}
+                        onChange={(e) => setEditingAnnotation(prev => ({ ...prev, longitude: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+                    <div>
+                      <label style={{ display: 'block', fontWeight: 600, fontSize: '0.85rem', marginBottom: '0.25rem', color: 'var(--text-secondary)' }}>Bearing (°)</label>
+                      <input
+                        type="number"
+                        className="input"
+                        style={{ width: '100%' }}
+                        placeholder="0-360"
+                        value={editingAnnotation.bearing ?? ''}
+                        onChange={(e) => setEditingAnnotation(prev => ({ ...prev, bearing: e.target.value === '' ? null : e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontWeight: 600, fontSize: '0.85rem', marginBottom: '0.25rem', color: 'var(--text-secondary)' }}>Radius (m)</label>
+                      <input
+                        type="number"
+                        className="input"
+                        style={{ width: '100%' }}
+                        placeholder="e.g. 30"
+                        value={editingAnnotation.radiusMeters ?? ''}
+                        onChange={(e) => setEditingAnnotation(prev => ({ ...prev, radiusMeters: e.target.value === '' ? null : parseFloat(e.target.value) }))}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontWeight: 600, fontSize: '0.85rem', marginBottom: '0.25rem', color: 'var(--text-secondary)' }}>Photo URL</label>
+                      <input
+                        type="text"
+                        className="input"
+                        style={{ width: '100%' }}
+                        placeholder="Optional photo URL"
+                        value={editingAnnotation.photoUrl ?? ''}
+                        onChange={(e) => setEditingAnnotation(prev => ({ ...prev, photoUrl: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="confirm-dialog-actions">
+                  <button className="confirm-dialog-secondary" onClick={() => setEditingAnnotation(null)}>
+                    Cancel
+                  </button>
+                  <button className="confirm-dialog-primary" onClick={handleUpdateAnnotation}>
+                    Save Changes
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
       <ConfirmDialog

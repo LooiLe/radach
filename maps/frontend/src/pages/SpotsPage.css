@@ -483,3 +483,22 @@
     transform: translateY(0);
   }
 }
+
+/* Special target marker for coordinates search */
+.target-map-marker {
+  border: 3px solid #e11d48 !important;
+  box-shadow: 0 0 10px rgba(225, 29, 72, 0.6) !important;
+  animation: floatMarker 2s ease-in-out infinite, pulseTarget 2s infinite !important;
+}
+
+@keyframes pulseTarget {
+  0% {
+    box-shadow: 0 0 0 0 rgba(225, 29, 72, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(225, 29, 72, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(225, 29, 72, 0);
+  }
+}

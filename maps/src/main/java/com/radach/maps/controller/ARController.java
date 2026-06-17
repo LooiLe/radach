@@ -3,12 +3,20 @@ package com.radach.maps.controller;
 import java.util.Arrays;
 import java.util.List;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
+import com.radach.maps.dto.ARAnnotationRequest;
+import com.radach.maps.dto.ARAnnotationResponse;
 import com.radach.maps.dto.SpotExplanation;
 import com.radach.maps.dto.SpotResponse;
 import com.radach.maps.service.ARService;
@@ -54,6 +62,44 @@ public class ARController {
         return arService.buildExplanation(spotId, getUserIdOrNull(auth), itineraryId);
     }
 
+    // ─── Annotation Endpoints ───
+
+    @GetMapping("/annotations")
+    public List<ARAnnotationResponse> nearbyAnnotations(
+            @RequestParam double lat,
+            @RequestParam double lng,
+            @RequestParam(required = false) Integer radiusM
+    ) {
+        return arService.findNearbyAnnotations(lat, lng, radiusM);
+    }
+
+    @PostMapping("/annotations")
+    public ARAnnotationResponse submitAnnotation(
+            @RequestBody ARAnnotationRequest request,
+            Authentication auth
+    ) {
+        Long userId = requireUserId(auth);
+        return arService.submitAnnotation(userId, request);
+    }
+
+    @GetMapping("/annotations/pending")
+    public List<ARAnnotationResponse> pendingAnnotations() {
+        return arService.getPendingAnnotations();
+    }
+
+    @PatchMapping("/annotations/{id}/review")
+    public ARAnnotationResponse reviewAnnotation(
+            @PathVariable Long id,
+            @RequestParam String action,
+            @RequestParam(required = false) String note,
+            Authentication auth
+    ) {
+        Long adminId = requireUserId(auth);
+        return arService.reviewAnnotation(id, action, adminId, note);
+    }
+
+    // ─── Helpers ───
+
     private Long getUserIdOrNull(Authentication auth) {
         if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
             return null;
@@ -63,6 +109,14 @@ public class ARController {
         } catch (Exception ignored) {
             return null;
         }
+    }
+
+    private Long requireUserId(Authentication auth) {
+        Long userId = getUserIdOrNull(auth);
+        if (userId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authentication required");
+        }
+        return userId;
     }
 
     private List<Long> parseIds(String rawIds) {

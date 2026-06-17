@@ -73,6 +73,38 @@ export default function LandingPage() {
         <div className="decorative-pin pin-orange" style={{ top: '65%', left: '10%' }}></div>
       </section>
 
+      <section className="ar-showcase">
+        <div className="ar-showcase-content animate-fade-up">
+          <div className="ar-showcase-badge">✨ New Feature</div>
+          <h2 className="ar-showcase-title">
+            Explore in <span className="highlight-orange">augmented reality</span>
+          </h2>
+          <p className="ar-showcase-desc">
+            Point your phone and see spots come alive around you. Get local insights, navigate your itinerary, and discover hidden gems — all through your camera.
+          </p>
+          <div className="ar-showcase-grid">
+            <div className="ar-showcase-card">
+              <div className="ar-showcase-card-icon">📍</div>
+              <h3>Live Camera Overlay</h3>
+              <p>See restaurants, cafés, and viewpoints pinned to the real world through your phone's camera.</p>
+            </div>
+            <div className="ar-showcase-card">
+              <div className="ar-showcase-card-icon">💡</div>
+              <h3>Smart Insights</h3>
+              <p>Tap any spot for instant context — reviews, vibe tags, visit tips, and friend recommendations.</p>
+            </div>
+            <div className="ar-showcase-card">
+              <div className="ar-showcase-card-icon">🧭</div>
+              <h3>AR Navigation</h3>
+              <p>Follow your itinerary with directional arrows and arrival celebrations as you explore.</p>
+            </div>
+          </div>
+          <Link to="/register" className="btn btn-primary btn-pill btn-lg ar-showcase-cta">
+            Try AR Explorer →
+          </Link>
+        </div>
+      </section>
+
       <footer className="landing-footer" style={{ position: 'relative', zIndex: 10 }}>
         <span> 2026 Radach.</span>
       </footer>

@@ -81,6 +81,26 @@ public class StripeService {
     public int getProGenerationsLimit() { return proGenerationsLimit; }
     public String getUnlimitedPriceId() { return unlimitedPriceId; }
 
+    private String resolveBaseUrl(String cancelUrl) {
+        if (cancelUrl != null && !cancelUrl.isBlank() && (cancelUrl.startsWith("http://") || cancelUrl.startsWith("https://"))) {
+            try {
+                java.net.URI uri = new java.net.URI(cancelUrl);
+                String scheme = uri.getScheme();
+                String authority = uri.getAuthority();
+                if (scheme != null && authority != null) {
+                    return scheme + "://" + authority;
+                }
+            } catch (Exception e) {
+                log.warn("Failed to parse base URL from cancelUrl {}: {}", cancelUrl, e.getMessage());
+            }
+        }
+        String baseUrl = frontendUrl.split(",")[0].trim();
+        if (baseUrl.endsWith("/")) {
+            baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
+        }
+        return baseUrl;
+    }
+
     /**
      * Creates a one-time Stripe Checkout Session for itinerary generation.
      */
@@ -89,7 +109,7 @@ public class StripeService {
     }
 
     public Session createOneTimeCheckoutSession(Long userId, Long generationId, String cancelUrl) throws StripeException {
-        String baseUrl = frontendUrl.split(",")[0].trim();
+        String baseUrl = resolveBaseUrl(cancelUrl);
         String finalCancelUrl = (cancelUrl != null && !cancelUrl.isBlank()) ? cancelUrl : (baseUrl + "/itineraries/plan?canceled=true");
 
         SessionCreateParams params = SessionCreateParams.builder()
@@ -123,7 +143,7 @@ public class StripeService {
     }
 
     public Session createCreditPackCheckoutSession(Long userId, int packSize, String cancelUrl) throws StripeException {
-        String baseUrl = frontendUrl.split(",")[0].trim();
+        String baseUrl = resolveBaseUrl(cancelUrl);
         String finalCancelUrl = (cancelUrl != null && !cancelUrl.isBlank()) ? cancelUrl : (baseUrl + "/itineraries/plan?canceled=true");
         int priceCents;
         int quantity;
@@ -167,7 +187,7 @@ public class StripeService {
     }
 
     public Session createSubscriptionCheckoutSession(Long userId, String tier, String cancelUrl) throws StripeException {
-        String baseUrl = frontendUrl.split(",")[0].trim();
+        String baseUrl = resolveBaseUrl(cancelUrl);
         String finalCancelUrl = (cancelUrl != null && !cancelUrl.isBlank()) ? cancelUrl : (baseUrl + "/itineraries/plan?canceled=true");
         String priceId = tier.equalsIgnoreCase("UNLIMITED") ? unlimitedPriceId : proPriceId;
 

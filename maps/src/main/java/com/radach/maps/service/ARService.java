@@ -1,5 +1,6 @@
 package com.radach.maps.service;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -16,19 +17,25 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.radach.maps.dto.ARAnnotationRequest;
+import com.radach.maps.dto.ARAnnotationResponse;
 import com.radach.maps.dto.SpotExplanation;
 import com.radach.maps.dto.SpotResponse;
 import com.radach.maps.exception.ResourceNotFoundException;
+import com.radach.maps.model.ARAnnotation;
 import com.radach.maps.model.Review;
 import com.radach.maps.model.Review.Status;
 import com.radach.maps.model.Spot;
 import com.radach.maps.model.SpotVibeTag;
+import com.radach.maps.model.User;
 import com.radach.maps.model.VibeTagDefinition;
 import com.radach.maps.model.ItineraryStop;
+import com.radach.maps.repository.ARAnnotationRepository;
 import com.radach.maps.repository.ItineraryStopRepository;
 import com.radach.maps.repository.ReviewRepository;
 import com.radach.maps.repository.SpotRepository;
 import com.radach.maps.repository.SpotVibeTagRepository;
+import com.radach.maps.repository.UserRepository;
 import com.radach.maps.repository.VibeTagDefinitionRepository;
 
 @Service
@@ -45,6 +52,8 @@ public class ARService {
     private final FriendshipService friendshipService;
     private final GeminiClient geminiClient;
     private final ItineraryStopRepository itineraryStopRepository;
+    private final ARAnnotationRepository arAnnotationRepository;
+    private final UserRepository userRepository;
 
     public ARService(
             SpotRepository spotRepository,
@@ -53,7 +62,9 @@ public class ARService {
             VibeTagDefinitionRepository vibeTagDefinitionRepository,
             FriendshipService friendshipService,
             ObjectProvider<GeminiClient> geminiClientProvider,
-            ItineraryStopRepository itineraryStopRepository
+            ItineraryStopRepository itineraryStopRepository,
+            ARAnnotationRepository arAnnotationRepository,
+            UserRepository userRepository
     ) {
         this.spotRepository = spotRepository;
         this.reviewRepository = reviewRepository;
@@ -62,6 +73,8 @@ public class ARService {
         this.friendshipService = friendshipService;
         this.geminiClient = geminiClientProvider.getIfAvailable();
         this.itineraryStopRepository = itineraryStopRepository;
+        this.arAnnotationRepository = arAnnotationRepository;
+        this.userRepository = userRepository;
     }
 
     @Transactional(readOnly = true)
@@ -496,5 +509,137 @@ public class ARService {
         }
         int wordEnd = normalized.substring(0, maxLength).lastIndexOf(' ');
         return normalized.substring(0, Math.max(1, wordEnd)) + "...";
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  AR Annotations — Community "Explain Anything" feature
+    // ═══════════════════════════════════════════════════════════════
+
+    @Transactional(readOnly = true)
+    public List<ARAnnotationResponse> findNearbyAnnotations(double lat, double lng, Integer radiusMeters) {
+        int radius = normalizeRadius(radiusMeters);
+        return arAnnotationRepository.findApprovedWithinRadius(lat, lng, radius).stream()
+                .map(this::toAnnotationResponse)
+                .toList();
+    }
+
+    @Transactional
+    public ARAnnotationResponse submitAnnotation(Long userId, ARAnnotationRequest req) {
+        ARAnnotation annotation = new ARAnnotation();
+        annotation.setLatitude(req.latitude());
+        annotation.setLongitude(req.longitude());
+        annotation.setRadiusMeters(req.radiusMeters() != null ? req.radiusMeters() : 30.0);
+        annotation.setBearing(req.bearing());
+        annotation.setTitle(req.title());
+        annotation.setDescription(req.description());
+        annotation.setPhotoUrl(req.photoUrl());
+        annotation.setAuthorId(userId);
+        annotation.setStatus(ARAnnotation.Status.PENDING);
+
+        ARAnnotation saved = arAnnotationRepository.save(annotation);
+        return toAnnotationResponse(saved);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ARAnnotationResponse> getPendingAnnotations() {
+        return arAnnotationRepository.findByStatus(ARAnnotation.Status.PENDING).stream()
+                .map(this::toAnnotationResponse)
+                .toList();
+    }
+
+    @Transactional
+    public ARAnnotationResponse reviewAnnotation(Long annotationId, String action, Long adminId, String adminNote) {
+        ARAnnotation annotation = arAnnotationRepository.findById(annotationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Annotation not found"));
+
+        if ("approve".equalsIgnoreCase(action)) {
+            annotation.setStatus(ARAnnotation.Status.APPROVED);
+        } else if ("reject".equalsIgnoreCase(action)) {
+            annotation.setStatus(ARAnnotation.Status.REJECTED);
+        } else {
+            throw new IllegalArgumentException("Invalid action: " + action + ". Use 'approve' or 'reject'.");
+        }
+
+        annotation.setApprovedById(adminId);
+        annotation.setApprovedAt(Instant.now());
+        if (adminNote != null && !adminNote.isBlank()) {
+            annotation.setAdminNote(adminNote);
+        }
+
+        return toAnnotationResponse(arAnnotationRepository.save(annotation));
+    }
+
+    @Transactional(readOnly = true)
+    public List<ARAnnotationResponse> getAnnotationsByStatus(String status) {
+        if (status == null || status.isBlank() || "ALL".equalsIgnoreCase(status)) {
+            return arAnnotationRepository.findAll().stream()
+                    .sorted(Comparator.comparing(ARAnnotation::getCreatedAt, Comparator.nullsLast(Comparator.reverseOrder())))
+                    .map(this::toAnnotationResponse)
+                    .toList();
+        }
+        try {
+            ARAnnotation.Status s = ARAnnotation.Status.valueOf(status.toUpperCase(Locale.ROOT));
+            return arAnnotationRepository.findByStatus(s).stream()
+                    .sorted(Comparator.comparing(ARAnnotation::getCreatedAt, Comparator.nullsLast(Comparator.reverseOrder())))
+                    .map(this::toAnnotationResponse)
+                    .toList();
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Invalid status: " + status);
+        }
+    }
+
+    @Transactional
+    public ARAnnotationResponse updateAnnotation(Long id, ARAnnotationRequest req) {
+        ARAnnotation annotation = arAnnotationRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Annotation not found"));
+
+        if (req.latitude() != null) annotation.setLatitude(req.latitude());
+        if (req.longitude() != null) annotation.setLongitude(req.longitude());
+        if (req.radiusMeters() != null) annotation.setRadiusMeters(req.radiusMeters());
+        if (req.bearing() != null) annotation.setBearing(req.bearing());
+        if (req.title() != null) annotation.setTitle(req.title());
+        if (req.description() != null) annotation.setDescription(req.description());
+        if (req.photoUrl() != null) {
+            annotation.setPhotoUrl(req.photoUrl().isBlank() ? null : req.photoUrl());
+        }
+
+        ARAnnotation saved = arAnnotationRepository.save(annotation);
+        return toAnnotationResponse(saved);
+    }
+
+    @Transactional
+    public void deleteAnnotation(Long id) {
+        if (!arAnnotationRepository.existsById(id)) {
+            throw new ResourceNotFoundException("Annotation not found");
+        }
+        arAnnotationRepository.deleteById(id);
+    }
+
+    private ARAnnotationResponse toAnnotationResponse(ARAnnotation annotation) {
+        String authorName = "Unknown";
+        boolean authorIsExpert = false;
+        if (annotation.getAuthorId() != null) {
+            User author = userRepository.findById(annotation.getAuthorId()).orElse(null);
+            if (author != null) {
+                authorName = author.getName();
+                authorIsExpert = author.isExpert();
+            }
+        }
+        return new ARAnnotationResponse(
+                annotation.getId(),
+                annotation.getLatitude(),
+                annotation.getLongitude(),
+                annotation.getRadiusMeters(),
+                annotation.getBearing(),
+                annotation.getTitle(),
+                annotation.getDescription(),
+                annotation.getPhotoUrl(),
+                annotation.getAuthorId(),
+                authorName,
+                authorIsExpert,
+                annotation.getStatus().name(),
+                annotation.getCreatedAt(),
+                annotation.getApprovedAt()
+        );
     }
 }

@@ -23,7 +23,7 @@ export default function SpotDetailPage() {
   const [events, setEvents] = useState([])
   const [trailPaths, setTrailPaths] = useState([])
   const [reviewBody, setReviewBody] = useState('')
-  const [rating, setRating] = useState(0)
+  const [rating, setRating] = useState(5)
   const [saving, setSaving] = useState(false)
   const [reviewMsg, setReviewMsg] = useState({ type: '', text: '' })
   const [reviewFilter, setReviewFilter] = useState('all') // 'all', 'expert', 'user'
@@ -572,6 +572,9 @@ export default function SpotDetailPage() {
                 <button className="btn btn-ghost" style={{ border: '1px solid var(--border-color)' }} onClick={() => navigate(`/directions/${spot.id}`)}>
                   Directions
                 </button>
+                <button className="btn-ar-spot" onClick={() => navigate(`/ar/spot/${spot.id}`)}>
+                  🔮 Explore in AR
+                </button>
               </div>
               <div className="spot-card-actions">
                 <button className={`action-btn ${(spot.isLiked || spot.liked) ? 'active' : ''}`} onClick={async () => {
@@ -688,33 +691,40 @@ export default function SpotDetailPage() {
 
       <h2 className="section-heading"> Reviews</h2>
 
-      <div className="review-form glass">
-        <textarea className="textarea" value={reviewBody} onChange={e => setReviewBody(e.target.value)}
-          placeholder="Write a review." maxLength={2000} />
-        <div className="rating-row">
-          <label className="label" style={{ marginBottom: 0 }}>Rating:</label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <input
-              type="range"
-              min="1"
-              max="5"
-              step="0.1"
-              value={rating || 1}
-              onChange={(e) => setRating(parseFloat(e.target.value))}
-              style={{ width: '200px', color: 'var(--primary)' }}
-            />
-            <span className="rating-display">
-              {rating >= 1 ? `${rating.toFixed(1)}/5` : 'Select a rating'}
-            </span>
+      {isAuthenticated ? (
+        <div className="review-form glass">
+          <textarea className="textarea" value={reviewBody} onChange={e => setReviewBody(e.target.value)}
+            placeholder="Write a review." maxLength={2000} />
+          <div className="rating-row">
+            <label className="label" style={{ marginBottom: 0 }}>Rating:</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <input
+                type="range"
+                min="1"
+                max="5"
+                step="0.1"
+                value={rating || 5}
+                onChange={(e) => setRating(parseFloat(e.target.value))}
+                style={{ width: '200px', color: 'var(--primary)' }}
+              />
+              <span className="rating-display">
+                {rating >= 1 ? `${rating.toFixed(1)}/5` : 'Select a rating'}
+              </span>
+            </div>
+          </div>
+          <div className="review-submit-row">
+            <button className="btn btn-primary" onClick={submitReview} disabled={saving}>
+              {saving ? 'Submitting...' : 'Submit review'}
+            </button>
+            {reviewMsg.text && <div className={`msg msg-${reviewMsg.type}`}>{reviewMsg.text}</div>}
           </div>
         </div>
-        <div className="review-submit-row">
-          <button className="btn btn-primary" onClick={submitReview} disabled={saving}>
-            {saving ? 'Submitting...' : 'Submit review'}
-          </button>
-          {reviewMsg.text && <div className={`msg msg-${reviewMsg.type}`}>{reviewMsg.text}</div>}
+      ) : (
+        <div className="review-form glass" style={{ textAlign: 'center', padding: '2rem' }}>
+          <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem' }}>You must be logged in to write a review.</p>
+          <Link to="/login" className="btn btn-primary">Log In to Review</Link>
         </div>
-      </div>
+      )}
 
       <div className="reviews-list">
         <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '0.75rem 1rem', marginBottom: '1rem' }}>

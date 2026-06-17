@@ -1,5 +1,5 @@
 import { memo, useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { MapContainer, TileLayer, Circle, useMap, useMapEvents } from 'react-leaflet'
+import { MapContainer, TileLayer, Circle, Marker, Popup, useMap, useMapEvents } from 'react-leaflet'
 import { useSearchParams } from 'react-router-dom'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -36,6 +36,14 @@ function createMarkerIcon(type) {
     popupAnchor: [0, -28],
   })
 }
+
+const targetIcon = new L.DivIcon({
+  html: '<div class="custom-map-marker target-map-marker"><img src="/icons/stash--pin-location-light.svg" alt="Target" /></div>',
+  className: 'custom-leaflet-marker target-leaflet-marker',
+  iconSize: [28, 28],
+  iconAnchor: [14, 28],
+  popupAnchor: [0, -28],
+})
 
 import 'leaflet.markercluster/dist/MarkerCluster.css'
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css'
@@ -135,7 +143,30 @@ export default function SpotsPage() {
   const [radius, setRadius] = useState(searchParams.get('radiusKm') || '')
   const [sortBy, setSortBy] = useState(searchParams.get('sortBy') || 'popularity')
   const [suggestions, setSuggestions] = useState([])
-  const [bounds, setBounds] = useState([])
+  const [bounds, setBounds] = useState(() => {
+    const pLat = parseFloat(searchParams.get('lat'))
+    const pLng = parseFloat(searchParams.get('lng'))
+    if (!isNaN(pLat) && !isNaN(pLng)) {
+      return [[pLat, pLng]]
+    }
+    return []
+  })
+
+  useEffect(() => {
+    const queryLat = searchParams.get('lat')
+    const queryLng = searchParams.get('lng')
+    if (queryLat && queryLng) {
+      const parsedLat = parseFloat(queryLat)
+      const parsedLng = parseFloat(queryLng)
+      if (!isNaN(parsedLat) && !isNaN(parsedLng)) {
+        setLat(queryLat)
+        setLng(queryLng)
+        setBounds([[parsedLat, parsedLng]])
+        const queryRadius = searchParams.get('radiusKm') || searchParams.get('radius')
+        if (queryRadius) setRadius(queryRadius)
+      }
+    }
+  }, [searchParams])
   const geocodeTimer = useRef(null)
   const suggestionsAbort = useRef(null)
   const suggestionsRequestId = useRef(0)
@@ -214,7 +245,7 @@ export default function SpotsPage() {
   }, [selectedCategories])
 
   const loadMapViewport = useCallback(async (map) => {
-    if (!map || place || lat || lng) return
+    if (!map || place) return
     const requestId = ++viewportRequestId.current
     const mapBounds = map.getBounds()
     const params = new URLSearchParams({
@@ -408,6 +439,18 @@ export default function SpotsPage() {
             attribution='Map tiles by <a href="https://stadiamaps.com/">Stadia Maps</a>, <a href="https://openmaptiles.org/">OpenMapTiles</a>, and <a href="http://openstreetmap.org">OpenStreetMap</a> contributors' />
           <MapViewportLoader onViewportChange={loadMapViewport} onMapReady={(map) => { mapInstanceRef.current = map }} />
           <MarkerClusterGroup spots={visibleMapSpots} createIcon={createMarkerIcon} />
+          {lat && lng && (
+            <Marker position={[parseFloat(lat), parseFloat(lng)]} icon={targetIcon}>
+              <Popup>
+                <div style={{ textAlign: 'center', padding: '0.2rem' }}>
+                  <strong>Target Location</strong>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                    {parseFloat(lat).toFixed(6)}, {parseFloat(lng).toFixed(6)}
+                  </div>
+                </div>
+              </Popup>
+            </Marker>
+          )}
           {lat && lng && radius && (
             <Circle center={[parseFloat(lat), parseFloat(lng)]} radius={parseFloat(radius) * 1000}
               pathOptions={{ color: 'var(--border-color)', fillColor: 'var(--border-color)', fillOpacity: 0.08, weight: 2 }} />

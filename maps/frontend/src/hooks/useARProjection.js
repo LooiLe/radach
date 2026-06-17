@@ -30,7 +30,7 @@ export function useARProjection({
   return useMemo(() => {
     if (userLat == null || userLng == null || !pois.length) return []
 
-    return pois
+    const projected = pois
       .map((poi) => {
         const lat = poi.latitude ?? poi.lat
         const lng = poi.longitude ?? poi.lng
@@ -77,7 +77,40 @@ export function useARProjection({
         }
       })
       .filter(Boolean)
-      .sort((a, b) => b.distance - a.distance) // Render far ones first (behind close ones)
+
+    // Resolve overlap among visible POIs
+    const visiblePois = projected
+      .filter(poi => poi.isVisible)
+      .sort((a, b) => a.distance - b.distance) // closest first
+
+    const adjustedVisible = []
+    for (const poi of visiblePois) {
+      let screenY = poi.screenY
+      let attempts = 0
+      let collision = true
+
+      while (collision && attempts < 5) {
+        collision = false
+        for (const placed of adjustedVisible) {
+          const dx = Math.abs(poi.screenX - placed.screenX)
+          const dy = Math.abs(screenY - placed.screenY)
+
+          if (dx < 140 && dy < 55) {
+            screenY = placed.screenY - 55
+            collision = true
+            break
+          }
+        }
+        attempts++
+      }
+
+      poi.screenY = Math.max(60, screenY)
+      adjustedVisible.push(poi)
+    }
+
+    // Combine and sort descending by distance so closer ones render on top in DOM
+    const nonVisiblePois = projected.filter(poi => !poi.isVisible)
+    return [...adjustedVisible, ...nonVisiblePois].sort((a, b) => b.distance - a.distance)
   }, [userLat, userLng, heading, tilt, pois, cameraFOV, maxDistance, screenWidth, screenHeight])
 }
 

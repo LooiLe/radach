@@ -95,7 +95,7 @@ export function useDeviceSensors() {
       if (event.webkitCompassHeading != null) {
         compassHeading = event.webkitCompassHeading
       } else if (event.alpha != null) {
-        // Android: alpha is relative to an arbitrary origin
+        // Android/Others: alpha is absolute if using deviceorientationabsolute
         // Convert to compass heading (approximate)
         compassHeading = (360 - event.alpha) % 360
       }
@@ -109,8 +109,12 @@ export function useDeviceSensors() {
       }
     }
 
-    window.addEventListener('deviceorientation', handler, true)
-    return () => window.removeEventListener('deviceorientation', handler, true)
+    const useAbsolute = 'ondeviceorientationabsolute' in window
+    const eventName = useAbsolute ? 'deviceorientationabsolute' : 'deviceorientation'
+    console.log(`[useDeviceSensors] Listening to ${eventName} (absolute: ${useAbsolute})`)
+
+    window.addEventListener(eventName, handler, true)
+    return () => window.removeEventListener(eventName, handler, true)
   }, [smoothHeading])
 
   // Request permissions (especially needed for iOS 13+)
