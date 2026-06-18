@@ -29,6 +29,7 @@ import ItineraryPlannerPage from './pages/ItineraryPlannerPage'
 import ItineraryDetailPage from './pages/ItineraryDetailPage'
 import ItinerarySharePage from './pages/ItinerarySharePage'
 import PaymentSuccessPage from './pages/PaymentSuccessPage'
+import OnboardingPage from './pages/OnboardingPage'
 
 export default function App() {
   return (
@@ -63,8 +64,9 @@ export default function App() {
          <Route path="/itineraries/plan" element={<ProtectedRoute><ItineraryPlannerPage /></ProtectedRoute>} />
          <Route path="/itineraries/:id" element={<ProtectedRoute><ItineraryDetailPage /></ProtectedRoute>} />
          <Route path="/itineraries/share/:shareToken" element={<ItinerarySharePage />} />
-         <Route path="/payment/success" element={<ProtectedRoute><PaymentSuccessPage /></ProtectedRoute>} />
-      </Routes>
+          <Route path="/payment/success" element={<ProtectedRoute><PaymentSuccessPage /></ProtectedRoute>} />
+          <Route path="/onboarding" element={<ProtectedRoute><OnboardingPage /></ProtectedRoute>} />
+       </Routes>
       <FloatingAddButton />
      </BrowserDialogProvider>
     </ToastProvider>

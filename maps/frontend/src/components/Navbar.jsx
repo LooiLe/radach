@@ -82,7 +82,7 @@ export default function Navbar() {
     <>
       <nav className="navbar">
         <div className="navbar-left">
-          {!['/login', '/register'].includes(location.pathname) && (
+          {!['/login', '/register', '/onboarding'].includes(location.pathname) && (
             <button className="hamburger" onClick={() => setMenuOpen(!menuOpen)} aria-label="Menu">
               <span className={`hamburger-icon ${menuOpen ? 'open' : ''}`}>
                 <span /><span /><span />
