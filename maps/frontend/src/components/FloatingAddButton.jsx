@@ -10,7 +10,7 @@ export default function FloatingAddButton() {
   const [isOpen, setIsOpen] = useState(false);
 
   if (!isAuthenticated) return null;
-  if (location.pathname === '/add-spot' || location.pathname === '/add-event') return null;
+  if (['/add-spot', '/add-event', '/onboarding'].includes(location.pathname)) return null;
 
   return (
     <div className={`fab-container ${isOpen ? 'open' : ''}`}>
@@ -27,6 +27,12 @@ export default function FloatingAddButton() {
             onClick={() => { setIsOpen(false); navigate('/add-spot'); }}
           >
             Add Spot 📍
+          </button>
+          <button 
+            className="fab-item" 
+            onClick={() => { setIsOpen(false); navigate('/add-journey'); }}
+          >
+            Add Journey 🥾
           </button>
         </div>
       )}

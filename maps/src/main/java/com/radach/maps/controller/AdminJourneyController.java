@@ -13,34 +13,34 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.radach.maps.dto.TrailPathResponse;
+import com.radach.maps.dto.JourneyResponse;
 import com.radach.maps.model.TrailPathStatus;
-import com.radach.maps.service.TrailPathService;
+import com.radach.maps.service.JourneyService;
 
 @RestController
-@RequestMapping("/api/v1/admin/paths")
+@RequestMapping("/api/v1/admin/journeys")
 @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
-public class AdminTrailPathController {
+public class AdminJourneyController {
 
-    private final TrailPathService trailPathService;
+    private final JourneyService journeyService;
 
-    public AdminTrailPathController(TrailPathService trailPathService) {
-        this.trailPathService = trailPathService;
+    public AdminJourneyController(JourneyService journeyService) {
+        this.journeyService = journeyService;
     }
 
     @GetMapping("/pending")
-    public List<TrailPathResponse> getPendingPaths() {
-        return trailPathService.getPendingPaths();
+    public List<JourneyResponse> getPendingPaths() {
+        return journeyService.getPendingPaths();
     }
 
     @PatchMapping("/{id}/status")
-    public TrailPathResponse updatePathStatus(@PathVariable Long id, @RequestParam TrailPathStatus status) {
-        return trailPathService.updatePathStatus(id, status);
+    public JourneyResponse updatePathStatus(@PathVariable Long id, @RequestParam TrailPathStatus status) {
+        return journeyService.updatePathStatus(id, status);
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deletePath(@PathVariable Long id) {
-        trailPathService.deletePath(id, null, true);
-        return ResponseEntity.ok(Map.of("message", "Trail path deleted successfully"));
+        journeyService.deletePath(id, null, true);
+        return ResponseEntity.ok(Map.of("message", "Journey deleted successfully"));
     }
 }

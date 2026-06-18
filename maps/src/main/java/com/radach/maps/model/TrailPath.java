@@ -23,7 +23,7 @@ public class TrailPath {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "spot_id", nullable = false)
+    @Column(name = "spot_id")
     private Long spotId;
 
     @Column(name = "submitted_by")

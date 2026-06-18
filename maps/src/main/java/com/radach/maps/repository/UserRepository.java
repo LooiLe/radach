@@ -21,4 +21,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     @Query("SELECT u.id FROM User u WHERE u.isExpert = true")
     Set<Long> findExpertIds();
+
+    @Query("SELECT u FROM User u WHERE u.isExpert = true AND u.specializations IS NOT NULL AND u.specializations != ''")
+    List<User> findAllExperts();
 }

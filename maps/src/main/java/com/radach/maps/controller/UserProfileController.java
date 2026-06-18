@@ -1,6 +1,7 @@
 package com.radach.maps.controller;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -20,6 +21,9 @@ import com.radach.maps.dto.UserReviewResponse;
 import com.radach.maps.exception.ResourceNotFoundException;
 import com.radach.maps.model.User;
 import com.radach.maps.repository.UserRepository;
+import com.radach.maps.repository.SpotRepository;
+import com.radach.maps.repository.EventRepository;
+import com.radach.maps.repository.JourneyRepository;
 import com.radach.maps.service.AuthenticatedUserService;
 import com.radach.maps.service.ReviewService;
 import com.radach.maps.service.FeedService;
@@ -40,11 +44,16 @@ public class UserProfileController {
     private final com.radach.maps.service.FriendshipService friendshipService;
     private final AccountDeletionService accountDeletionService;
     private final PasswordEncoder passwordEncoder;
+    private final SpotRepository spotRepository;
+    private final EventRepository eventRepository;
+    private final JourneyRepository journeyRepository;
 
     public UserProfileController(UserRepository userRepository, ReviewService reviewService,
                                  AuthenticatedUserService authenticatedUserService, FeedService feedService,
                                  com.radach.maps.service.FriendshipService friendshipService,
-                                 AccountDeletionService accountDeletionService, PasswordEncoder passwordEncoder) {
+                                 AccountDeletionService accountDeletionService, PasswordEncoder passwordEncoder,
+                                 SpotRepository spotRepository, EventRepository eventRepository,
+                                 JourneyRepository journeyRepository) {
         this.userRepository = userRepository;
         this.reviewService = reviewService;
         this.authenticatedUserService = authenticatedUserService;
@@ -52,6 +61,9 @@ public class UserProfileController {
         this.friendshipService = friendshipService;
         this.accountDeletionService = accountDeletionService;
         this.passwordEncoder = passwordEncoder;
+        this.spotRepository = spotRepository;
+        this.eventRepository = eventRepository;
+        this.journeyRepository = journeyRepository;
     }
 
     @GetMapping("/{id}")
@@ -92,6 +104,50 @@ public class UserProfileController {
             @RequestParam(defaultValue = "20") int size
     ) {
         return reviewService.getUserReviews(id, page, size);
+    }
+
+    @GetMapping("/{id}/submitted-spots")
+    public ResponseEntity<List<Map<String, Object>>> getSubmittedSpots(@PathVariable Long id) {
+        var spots = spotRepository.findBySubmittedByOrderByCreatedAtDesc(id);
+        List<Map<String, Object>> result = spots.stream().map(s -> {
+            Map<String, Object> map = new HashMap<>();
+            map.put("id", s.getId());
+            map.put("name", s.getName());
+            map.put("type", s.getType());
+            map.put("address", s.getAddress());
+            map.put("status", s.getStatus().name());
+            map.put("createdAt", s.getCreatedAt());
+            return map;
+        }).toList();
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/{id}/submitted-events")
+    public ResponseEntity<List<Map<String, Object>>> getSubmittedEvents(@PathVariable Long id) {
+        var events = eventRepository.findBySubmittedByOrderByCreatedAtDesc(id);
+        List<Map<String, Object>> result = events.stream().map(e -> {
+            Map<String, Object> map = new HashMap<>();
+            map.put("id", e.getId());
+            map.put("title", e.getTitle());
+            map.put("status", e.getStatus() != null ? e.getStatus().name() : "PENDING");
+            map.put("createdAt", e.getCreatedAt());
+            return map;
+        }).toList();
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/{id}/submitted-journeys")
+    public ResponseEntity<List<Map<String, Object>>> getSubmittedJourneys(@PathVariable Long id) {
+        var journeys = journeyRepository.findBySubmittedByOrderByCreatedAtDesc(id);
+        List<Map<String, Object>> result = journeys.stream().map(j -> {
+            Map<String, Object> map = new HashMap<>();
+            map.put("id", j.getId());
+            map.put("name", j.getName());
+            map.put("status", j.getStatus().name());
+            map.put("createdAt", j.getCreatedAt());
+            return map;
+        }).toList();
+        return ResponseEntity.ok(result);
     }
 
     @GetMapping("/{id}/feed")

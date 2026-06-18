@@ -72,7 +72,7 @@ export default function RegisterPage() {
         body: JSON.stringify({ email: email.trim(), password, name: name.trim(), otp })
       })
       const data = await res.json()
-      if (res.ok) { login(data); navigate('/spots') }
+      if (res.ok) { login(data); navigate('/') }
       else { setError(data.error || data.message || 'Verification failed.') }
     } catch { setError('Could not reach the server.') }
     finally { setLoading(false) }

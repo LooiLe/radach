@@ -9,7 +9,7 @@ import { useToast } from '../components/ToastProvider'
 import Lightbox from '../components/Lightbox'
 import ReportModal from '../components/ReportModal'
 import ConfirmDialog from '../components/ConfirmDialog'
-import './TrailPathDetailPage.css'
+import './JourneyDetailPage.css'
 
 // Haversine distance in meters
 function haversineDistance(lat1, lng1, lat2, lng2) {
@@ -141,7 +141,7 @@ export default function TrailPathDetailPage() {
   useEffect(() => {
     async function loadPath() {
       try {
-        const res = await apiFetch(`/api/v1/paths/${id}`)
+        const res = await apiFetch(`/api/v1/journeys/${id}`)
         if (res.ok) {
           const data = await res.json()
           setPath(data)
@@ -248,7 +248,7 @@ export default function TrailPathDetailPage() {
   const handleDelete = async () => {
     setDeleting(true)
     try {
-      const res = await apiFetch(`/api/v1/paths/${id}`, { method: 'DELETE' })
+      const res = await apiFetch(`/api/v1/journeys/${id}`, { method: 'DELETE' })
       if (res.ok) {
         navigate(`/spot/${path?.spotId}`)
       }
@@ -266,7 +266,7 @@ export default function TrailPathDetailPage() {
     }
     setUpvoting(true)
     try {
-      const res = await apiFetch(`/api/v1/paths/${id}/upvote`, { method: 'POST' })
+      const res = await apiFetch(`/api/v1/journeys/${id}/upvote`, { method: 'POST' })
       if (res.ok) {
         const data = await res.json()
         setPath(data)
@@ -444,6 +444,11 @@ export default function TrailPathDetailPage() {
               <span className={`difficulty-badge ${path.difficulty?.toLowerCase() || ''}`}>
                 {path.difficulty ? (path.difficulty.charAt(0) + path.difficulty.slice(1).toLowerCase()) : 'Unknown'}
               </span>
+              {path.journeyCategoryName && (
+                <span className="difficulty-badge" style={{ background: 'var(--bg-element)', color: 'var(--text-secondary)' }}>
+                  {path.journeyCategoryName}
+                </span>
+              )}
               {path.isPrivate && (
                 <span className="path-private-badge">
                   <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
@@ -477,7 +482,10 @@ export default function TrailPathDetailPage() {
               </button>
             )}
             {isOwner && (
-              <div className="path-owner-actions">
+              <div className="path-owner-actions" style={{ display: 'flex', gap: '0.5rem' }}>
+                <button className="btn btn-ghost btn-sm" onClick={() => navigate(`/journey/${path.id}/edit`)} style={{ color: 'var(--primary)' }}>
+                  Edit
+                </button>
                 <button className="btn btn-ghost btn-sm" onClick={() => setShowDeleteConfirm(true)} disabled={deleting} style={{ color: 'var(--text-error)' }}>
                   {deleting ? '...' : 'Delete'}
                 </button>
@@ -505,7 +513,7 @@ export default function TrailPathDetailPage() {
         {/* Description */}
         {path.description && (
           <div className="path-description">
-            <h3>About this path</h3>
+            <h3>About this journey:</h3>
             <p>{path.description}</p>
           </div>
         )}

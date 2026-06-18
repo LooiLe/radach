@@ -28,10 +28,16 @@ export default function UserProfilePage() {
   // Personal feed state
   const [personalFeed, setPersonalFeed] = useState([])
   const [feedLoading, setFeedLoading] = useState(false)
-  const profileTabs = ['all', 'posts', 'reviews']
+  const profileTabs = ['all', 'posts', 'reviews', 'spots', 'events', 'journeys']
   const initialFeedTab = profileTabs.includes(searchParams.get('tab')) ? searchParams.get('tab') : 'all'
-  const [feedTab, setFeedTab] = useState(initialFeedTab) // 'all' shows posts + reviews, 'posts' shows only posts, 'reviews' shows only reviews
+  const [feedTab, setFeedTab] = useState(initialFeedTab)
   const [friendCount, setFriendCount] = useState(0)
+  
+  // Submitted items state
+  const [submittedSpots, setSubmittedSpots] = useState([])
+  const [submittedEvents, setSubmittedEvents] = useState([])
+  const [submittedJourneys, setSubmittedJourneys] = useState([])
+  const [submittedLoading, setSubmittedLoading] = useState(false)
   const [isFollowing, setIsFollowing] = useState(false)
   const [followerCount, setFollowerCount] = useState(0)
 
@@ -179,6 +185,21 @@ export default function UserProfilePage() {
     setFeedLoading(false)
   }, [apiFetch, id])
 
+  const loadSubmittedItems = useCallback(async () => {
+    setSubmittedLoading(true)
+    try {
+      const [spotsRes, eventsRes, journeysRes] = await Promise.all([
+        apiFetch(`/api/v1/users/${id}/submitted-spots`),
+        apiFetch(`/api/v1/users/${id}/submitted-events`),
+        apiFetch(`/api/v1/users/${id}/submitted-journeys`)
+      ])
+      if (spotsRes.ok) setSubmittedSpots(await spotsRes.json())
+      if (eventsRes.ok) setSubmittedEvents(await eventsRes.json())
+      if (journeysRes.ok) setSubmittedJourneys(await journeysRes.json())
+    } catch { /* ignore */ }
+    setSubmittedLoading(false)
+  }, [apiFetch, id])
+
   const loadFriendCount = useCallback(async () => {
     try {
       const res = await apiFetch('/api/v1/friends')
@@ -190,7 +211,7 @@ export default function UserProfilePage() {
   }, [apiFetch])
 
   const loadFollowInfo = useCallback(async () => {
-    if (isOwnProfile || !id || !userId) return
+    if (!id || !userId) return
     try {
       const res = await apiFetch(`/api/v1/follows/check/${id}`)
       if (res.ok) {
@@ -225,7 +246,8 @@ export default function UserProfilePage() {
     loadPersonalFeed()
     loadFriendCount()
     loadFollowInfo()
-  }, [loadData, loadMyApplications, loadPersonalFeed, loadFriendCount, loadFollowInfo])
+    loadSubmittedItems()
+  }, [loadData, loadMyApplications, loadPersonalFeed, loadFriendCount, loadFollowInfo, loadSubmittedItems])
 
   useEffect(() => {
     const nextTab = profileTabs.includes(searchParams.get('tab')) ? searchParams.get('tab') : 'all'
@@ -581,13 +603,13 @@ export default function UserProfilePage() {
       <h2 className="section-heading">{isOwnProfile ? 'My Activity' : `${user?.name}'s Activity`}</h2>
 
       <div className="profile-feed-tabs">
-        {['all', 'posts', 'reviews'].map(tab => (
+        {profileTabs.map(tab => (
           <div
             key={tab}
             className={`profile-feed-tab ${feedTab === tab ? 'active' : ''}`}
             onClick={() => changeFeedTab(tab)}
           >
-            {tab.charAt(0).toUpperCase() + tab.slice(1)}
+            {tab === 'spots' ? 'My Spots' : tab === 'events' ? 'Events' : tab === 'journeys' ? 'Journeys' : tab.charAt(0).toUpperCase() + tab.slice(1)}
           </div>
         ))}
       </div>
@@ -607,6 +629,9 @@ export default function UserProfilePage() {
               filteredFeed = filteredFeed.filter(item => item.activityType === 'POST')
             } else if (feedTab === 'reviews') {
               filteredFeed = filteredFeed.filter(item => item.activityType === 'REVIEW')
+            } else if (feedTab === 'spots' || feedTab === 'events' || feedTab === 'journeys') {
+              // These tabs have their own content below
+              return null
             }
             if (filteredFeed.length === 0) {
               return <div className="empty-state">No {feedTab === 'posts' ? 'posts' : feedTab === 'reviews' ? 'reviews' : 'activity'} yet.</div>
@@ -635,12 +660,17 @@ export default function UserProfilePage() {
                         📍 {item.spotName || 'Linked spot'}
                       </Link>
                     )}
-                    {item.eventId && (
-                      <Link to={`/event/${item.eventId}`} className="profile-feed-item-spot-link">
-                        📅 {item.eventName || 'Linked event'}
-                      </Link>
-                    )}
-                    <div className="feed-item-footer">
+                {item.eventId && (
+                  <Link to={`/event/${item.eventId}`} className="profile-feed-item-spot-link">
+                    📅 {item.eventName || 'Linked event'}
+                  </Link>
+                )}
+                {item.journeyId && (
+                  <Link to={`/journey/${item.journeyId}`} className="profile-feed-item-spot-link">
+                    🥾 {item.journeyName || 'Linked journey'}
+                  </Link>
+                )}
+                <div className="feed-item-footer">
                       <span
                         className={`feed-action-btn ${showPostLikes[item.postId] ? 'active' : ''}`}
                         onClick={() => setShowPostLikes({ ...showPostLikes, [item.postId]: !showPostLikes[item.postId] })}
@@ -689,6 +719,65 @@ export default function UserProfilePage() {
               </div>
             ))
           })()
+        )}
+
+        {/* Submitted Items Tabs */}
+        {feedTab === 'spots' && (
+          <div className="profile-submitted-list">
+            {submittedLoading ? (
+              <div className="feed-loading"><div className="spinner" /><p>Loading spots...</p></div>
+            ) : submittedSpots.length === 0 ? (
+              <div className="empty-state">No spots submitted yet.</div>
+            ) : (
+              submittedSpots.map(spot => (
+                <Link key={spot.id} to={`/spot/${spot.id}`} className="profile-submitted-item glass">
+                  <div className="profile-submitted-item-info">
+                    <span className="profile-submitted-item-name">📍 {spot.name}</span>
+                    <span className="profile-submitted-item-meta">{spot.type} {spot.address ? `· ${spot.address}` : ''}</span>
+                  </div>
+                  <span className={`profile-submitted-item-status status-${spot.status?.toLowerCase()}`}>{spot.status}</span>
+                </Link>
+              ))
+            )}
+          </div>
+        )}
+
+        {feedTab === 'events' && (
+          <div className="profile-submitted-list">
+            {submittedLoading ? (
+              <div className="feed-loading"><div className="spinner" /><p>Loading events...</p></div>
+            ) : submittedEvents.length === 0 ? (
+              <div className="empty-state">No events submitted yet.</div>
+            ) : (
+              submittedEvents.map(evt => (
+                <Link key={evt.id} to={`/event/${evt.id}`} className="profile-submitted-item glass">
+                  <div className="profile-submitted-item-info">
+                    <span className="profile-submitted-item-name">📅 {evt.title}</span>
+                  </div>
+                  <span className={`profile-submitted-item-status status-${evt.status?.toLowerCase()}`}>{evt.status}</span>
+                </Link>
+              ))
+            )}
+          </div>
+        )}
+
+        {feedTab === 'journeys' && (
+          <div className="profile-submitted-list">
+            {submittedLoading ? (
+              <div className="feed-loading"><div className="spinner" /><p>Loading journeys...</p></div>
+            ) : submittedJourneys.length === 0 ? (
+              <div className="empty-state">No journeys submitted yet.</div>
+            ) : (
+              submittedJourneys.map(journey => (
+                <Link key={journey.id} to={`/journey/${journey.id}`} className="profile-submitted-item glass">
+                  <div className="profile-submitted-item-info">
+                    <span className="profile-submitted-item-name">🥾 {journey.name}</span>
+                  </div>
+                  <span className={`profile-submitted-item-status status-${journey.status?.toLowerCase()}`}>{journey.status}</span>
+                </Link>
+              ))
+            )}
+          </div>
         )}
       </div>
 

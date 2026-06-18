@@ -18,16 +18,16 @@ public class ReportService {
     private final ReportRepository reportRepository;
     private final SpotService spotService;
     private final EventService eventService;
-    private final TrailPathService trailPathService;
+    private final JourneyService journeyService;
     private final ReviewService reviewService;
 
     public ReportService(ReportRepository reportRepository, SpotService spotService,
-                         EventService eventService, TrailPathService trailPathService,
+                         EventService eventService, JourneyService journeyService,
                          ReviewService reviewService) {
         this.reportRepository = reportRepository;
         this.spotService = spotService;
         this.eventService = eventService;
-        this.trailPathService = trailPathService;
+        this.journeyService = journeyService;
         this.reviewService = reviewService;
     }
 
@@ -81,7 +81,8 @@ public class ReportService {
                     eventService.deleteEvent(contentId);
                     break;
                 case "TRAIL_PATH":
-                    trailPathService.deletePath(contentId, null, true);
+                case "JOURNEY":
+                    journeyService.deletePath(contentId, null, true);
                     break;
                 case "REVIEW":
                     reviewService.deleteReviewByAdmin(contentId);

@@ -6,7 +6,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 public record TrailPathRequest(
-        @NotNull Long spotId,
+        Long spotId,
+        @NotNull Long categoryId,
         @NotBlank String name,
         String description,
         String difficulty,

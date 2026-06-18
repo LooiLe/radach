@@ -20,5 +20,7 @@ public record TrailPathResponse(
         boolean isPrivate,
         int upvoteCount,
         boolean isUpvoted,
-        Instant createdAt
+        Instant createdAt,
+        Long categoryId,
+        String categoryName
 ) {}

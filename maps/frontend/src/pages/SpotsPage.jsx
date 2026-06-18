@@ -11,17 +11,22 @@ import './SpotsPage.css'
 let dynamicIconMap = {
   restaurant: '/icons/material-symbols-light--chef-hat-outline.svg',
   bar: '/icons/guidance--bar.svg',
-  hotel: '/icons/material-symbols-light--hotel-outline-rounded.svg',
+  hotel: '/icons/material-symbols-light--bed-outline-rounded.svg',
+  accommodations: '/icons/material-symbols-light--bed-outline-rounded.svg',
   cafe: '/icons/carbon--cafe.svg',
+  café: '/icons/carbon--cafe.svg',
   'food hall': '/icons/material-symbols-light--chef-hat-outline.svg',
-  beach: '/icons/streamline-plump--beach.svg',
-  market: '/icons/material-symbols-light--attractions-outline-rounded.svg',
+  beach: '/icons/fluent--beach-48-regular.svg',
+  market: '/icons/healthicons--market-stall-outline.svg',
+  activity: '/icons/material-symbols-light--attractions-outline-rounded.svg',
+  activities: '/icons/material-symbols-light--attractions-outline-rounded.svg',
   attraction: '/icons/material-symbols-light--attractions-outline-rounded.svg',
   attractions: '/icons/material-symbols-light--attractions-outline-rounded.svg',
-  viewpoints: '/icons/game-icons--hill-conquest.svg',
-  viewpoint: '/icons/game-icons--hill-conquest.svg',
-  sport: '/icons/solar--football-linear.svg',
-  market: '/icons/healthicons--market-stall-outline.svg',
+  viewpoints: '/icons/material-symbols-light--mountain-flag-outline.svg',
+  viewpoint: '/icons/material-symbols-light--mountain-flag-outline.svg',
+  child: '/icons/material-symbols-light--child-hat-outline.svg',
+  children: '/icons/material-symbols-light--child-hat-outline.svg',
+  others: '/icons/stash--pin-location-light.svg',
   default: '/icons/stash--pin-location-light.svg',
 }
 
@@ -111,6 +116,78 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
 })
 
+const journeyIconMap = {
+  'walks & trails': '/icons/ph--person-simple-hike.svg',
+  'food & drink': '/icons/boxicons--food-menu.svg',
+  'scenic & photography': '/icons/mdi--camera.svg',
+  'culture & history': '/icons/proicons--museum.svg',
+  'local experiences': '/icons/icon-park-solid--local.svg',
+}
+
+function JourneyMarkerLayer({ journeys }) {
+  const map = useMap()
+  const markersRef = useRef([])
+
+  function getFirstCoordinate(geoJson) {
+    if (!geoJson) return null
+    try {
+      const parsed = JSON.parse(geoJson)
+      if (parsed.coordinates && parsed.coordinates.length > 0) {
+        const coord = parsed.coordinates[0]
+        // GeoJSON is [lng, lat]
+        if (Array.isArray(coord) && coord.length >= 2) {
+          return [coord[1], coord[0]]
+        }
+      }
+    } catch {
+      // ignore parse errors
+    }
+    return null
+  }
+
+  function getJourneyIconUrl(categoryName) {
+    const key = (categoryName || '').toLowerCase().trim()
+    return journeyIconMap[key] || '/icons/ph--person-simple-hike.svg'
+  }
+
+  useEffect(() => {
+    // Remove old markers
+    markersRef.current.forEach(m => map.removeLayer(m))
+    markersRef.current = []
+
+    journeys.forEach(j => {
+      const position = getFirstCoordinate(j.geoJson)
+      if (!position) return
+      const iconUrl = getJourneyIconUrl(j.journeyCategoryName)
+      const icon = new L.DivIcon({
+        html: `<div class="custom-map-marker"><img src="${iconUrl}" alt="Journey" /></div>`,
+        className: 'custom-leaflet-marker',
+        iconSize: [28, 28],
+        iconAnchor: [14, 28],
+        popupAnchor: [0, -28],
+      })
+      const marker = L.marker(position, { icon })
+      const popupHtml = document.createElement('div')
+      popupHtml.innerHTML = `
+        <strong>${j.name}</strong><br />
+        <span style="color: var(--text-secondary); font-size: 0.85em;">${j.journeyCategoryName || 'Journey'}</span><br />
+        ${j.difficulty ? `<span style="font-size: 0.85em;">${j.difficulty}</span>` : ''}
+        ${j.distanceMeters ? `<span style="font-size: 0.85em;"> · ${j.distanceMeters >= 1000 ? (j.distanceMeters / 1000).toFixed(1) + ' km' : j.distanceMeters + ' m'}</span>` : ''}
+      `
+      marker.bindPopup(popupHtml)
+      marker.addTo(map)
+      markersRef.current.push(marker)
+    })
+
+    return () => {
+      markersRef.current.forEach(m => map.removeLayer(m))
+      markersRef.current = []
+    }
+  }, [journeys, map])
+
+  return null
+}
+
 function FitBounds({ bounds }) {
   const map = useMap()
   useEffect(() => { if (bounds?.length) map.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 }) }, [bounds, map])
@@ -176,9 +253,28 @@ export default function SpotsPage() {
 
   const [ratingMode, setRatingMode] = useState(() => searchParams.get('mode') || 'global')
   const [categoriesList, setCategoriesList] = useState([])
-  const [selectedCategories, setSelectedCategories] = useState({ all: true })
+  const [selectedCategories, setSelectedCategories] = useState({ all: false })
+  const [journeyCategoriesList, setJourneyCategoriesList] = useState([])
+  const [selectedJourneyCategories, setSelectedJourneyCategories] = useState({})
   const [filterDropdownOpen, setFilterDropdownOpen] = useState(false)
   const [searchModeDropdownOpen, setSearchModeDropdownOpen] = useState(false)
+  const [journeys, setJourneys] = useState([])
+  const [journeysLoading, setJourneysLoading] = useState(false)
+  const [allJourneyCategoriesSelected, setAllJourneyCategoriesSelected] = useState(false)
+  const [mapBounds, setMapBounds] = useState(null)
+
+  function isJourneyInBounds(j, bounds) {
+    if (!bounds || !j.geoJson) return false
+    try {
+      const geo = JSON.parse(j.geoJson)
+      if (geo.coordinates && geo.coordinates.length > 0) {
+        const [lng, lat] = geo.coordinates[0]
+        return lat >= bounds.southWest.lat && lat <= bounds.northEast.lat &&
+               lng >= bounds.southWest.lng && lng <= bounds.northEast.lng
+      }
+    } catch { /* ignore */ }
+    return false
+  }
 
   useEffect(() => {
     async function fetchCatList() {
@@ -187,15 +283,17 @@ export default function SpotsPage() {
         const data = await res.json()
         if (res.ok && data.length > 0) {
           const sorted = data.sort((a, b) => {
-            if (a.name.toLowerCase() === 'other') return 1;
-            if (b.name.toLowerCase() === 'other') return -1;
+            const aIsOther = a.name.toLowerCase() === 'other' || a.name.toLowerCase() === 'others';
+            const bIsOther = b.name.toLowerCase() === 'other' || b.name.toLowerCase() === 'others';
+            if (aIsOther && !bIsOther) return 1;
+            if (!aIsOther && bIsOther) return -1;
             return a.name.localeCompare(b.name);
           })
           setCategoriesList(sorted)
-          const selMap = { all: true }
+          const selMap = { all: false }
           sorted.forEach(c => {
             const norm = c.name.trim().toLowerCase().replace('é', 'e')
-            selMap[norm] = true
+            selMap[norm] = false
             if (c.iconUrl) dynamicIconMap[norm] = c.iconUrl
           })
           setSelectedCategories(selMap)
@@ -203,6 +301,20 @@ export default function SpotsPage() {
       } catch { /* ignore */ }
     }
     fetchCatList()
+
+    async function fetchJourneyCatList() {
+      try {
+        const res = await apiFetch('/api/v1/journey-categories')
+        const data = await res.json()
+        if (res.ok && data.length > 0) {
+          const sorted = data.sort((a, b) => a.name.localeCompare(b.name))
+          setJourneyCategoriesList(sorted)
+          // Default: none selected
+          setSelectedJourneyCategories({})
+        }
+      } catch { /* ignore */ }
+    }
+    fetchJourneyCatList()
   }, [apiFetch])
 
   useEffect(() => {
@@ -220,14 +332,60 @@ export default function SpotsPage() {
     }
   }
 
-  const visibleMapSpots = useMemo(() => {
-    const anySelected = Object.keys(selectedCategories).some(k => k !== 'all' && selectedCategories[k])
+  // Journey → spot type mappings (by category name)
+  const JOURNEY_SPOT_TYPES = {
+    'walks & trails': ['trail'],
+    'food & drink': [],
+    'scenic & photography': [],
+    'culture & history': [],
+    'local experiences': [],
+  }
+
+  const toggleAllJourneyCategories = () => {
+    const allSelected = journeyCategoriesList.every(c => selectedJourneyCategories[c.id])
+    const newState = {}
+    journeyCategoriesList.forEach(c => { newState[c.id] = !allSelected })
+    setSelectedJourneyCategories(newState)
+    setAllJourneyCategoriesSelected(!allSelected)
+  }
+
+  const toggleJourneyCategory = (categoryId) => {
+    setSelectedJourneyCategories(prev => {
+      const next = { ...prev, [categoryId]: !prev[categoryId] }
+      const allNowSelected = journeyCategoriesList.every(c => next[c.id])
+      setAllJourneyCategoriesSelected(allNowSelected)
+      return next
+    })
+  }
+
+  const filteredJourneys = useMemo(() => {
+    if (!journeyCategoriesList.length) return journeys
+    const anySelected = journeyCategoriesList.some(c => selectedJourneyCategories[c.id])
     if (!anySelected) return []
+    const selectedIds = new Set(journeyCategoriesList.filter(c => selectedJourneyCategories[c.id]).map(c => c.id))
+    return journeys.filter(j => selectedIds.has(j.journeyCategoryId) && isJourneyInBounds(j, mapBounds))
+  }, [journeys, journeyCategoriesList, selectedJourneyCategories, mapBounds])
+
+  const visibleMapSpots = useMemo(() => {
+    const spotCategoriesActive = Object.keys(selectedCategories).some(k => k !== 'all' && selectedCategories[k])
+    const journeyCategoriesActive = journeyCategoriesList.some(c => selectedJourneyCategories[c.id])
+    if (!spotCategoriesActive && !journeyCategoriesActive) return []
     return mapSpots.filter(spot => {
       const normalized = (spot.type || '').trim().toLowerCase().replace('é', 'e')
-      return selectedCategories[normalized]
+      // Match if spot category is selected
+      if (spotCategoriesActive && selectedCategories[normalized]) return true
+      // Match if journey type maps to this spot
+      if (journeyCategoriesActive) {
+        for (const cat of journeyCategoriesList) {
+          if (selectedJourneyCategories[cat.id]) {
+            const types = JOURNEY_SPOT_TYPES[cat.name.toLowerCase()] || []
+            if (types.includes(normalized)) return true
+          }
+        }
+      }
+      return false
     })
-  }, [mapSpots, selectedCategories])
+  }, [mapSpots, selectedCategories, selectedJourneyCategories, journeyCategoriesList])
 
   // Pagination: 50 per page
   const pageSize = 50
@@ -239,20 +397,28 @@ export default function SpotsPage() {
   }, [visibleMapSpots, currentPage, pageSize])
 
   const getActiveMapType = useCallback(() => {
+    // When journey categories are active, don't filter API by spot type
+    // because journey types (e.g. "trail") are different spot types that need to be loaded too
+    const journeyActive = journeyCategoriesList.some(c => selectedJourneyCategories[c.id])
+    if (journeyActive) return null
     const selected = Object.keys(selectedCategories).filter(k => k !== 'all' && selectedCategories[k])
     if (selected.length === 1) return selected[0]
     return null
-  }, [selectedCategories])
+  }, [selectedCategories, journeyCategoriesList, selectedJourneyCategories])
 
   const loadMapViewport = useCallback(async (map) => {
     if (!map || place) return
     const requestId = ++viewportRequestId.current
-    const mapBounds = map.getBounds()
+    const bounds = map.getBounds()
+    setMapBounds({
+      southWest: { lat: bounds.getSouth(), lng: bounds.getWest() },
+      northEast: { lat: bounds.getNorth(), lng: bounds.getEast() },
+    })
     const params = new URLSearchParams({
-      swLat: mapBounds.getSouth().toFixed(6),
-      swLng: mapBounds.getWest().toFixed(6),
-      neLat: mapBounds.getNorth().toFixed(6),
-      neLng: mapBounds.getEast().toFixed(6),
+      swLat: bounds.getSouth().toFixed(6),
+      swLng: bounds.getWest().toFixed(6),
+      neLat: bounds.getNorth().toFixed(6),
+      neLng: bounds.getEast().toFixed(6),
       zoom: String(Math.round(map.getZoom())),
     })
     const activeType = getActiveMapType()
@@ -300,7 +466,15 @@ export default function SpotsPage() {
     if (mapInstanceRef.current) loadMapViewport(mapInstanceRef.current)
   }
 
-  useEffect(() => {}, []) // eslint-disable-line react-hooks/exhaustive-deps
+  // Fetch all journeys on mount
+  useEffect(() => {
+    setJourneysLoading(true)
+    apiFetch('/api/v1/journeys')
+      .then(res => res.json())
+      .then(data => setJourneys(data || []))
+      .catch(() => setJourneys([]))
+      .finally(() => setJourneysLoading(false))
+  }, [apiFetch])
 
   const handlePlaceInput = (q) => {
     setPlace(q)
@@ -309,21 +483,56 @@ export default function SpotsPage() {
     if (q.length < 2) { setSuggestions([]); return }
     geocodeTimer.current = setTimeout(async () => {
       const controller = new AbortController(); suggestionsAbort.current = controller
-      try {
-        let combinedSuggestions = []
         try {
-          const res = await apiFetch(`/api/v1/spots/search?q=${encodeURIComponent(q)}&limit=5`, { signal: controller.signal })
-          const data = await res.json()
-          if (res.ok && data?.length > 0) combinedSuggestions = [...data]
-        } catch (e) { if (e.name !== 'AbortError') console.error(e) }
-        if (requestId === suggestionsRequestId.current && !controller.signal.aborted) setSuggestions(combinedSuggestions)
-      } catch (error) { if (error.name !== 'AbortError' && requestId === suggestionsRequestId.current) setSuggestions([]) }
+          let combinedSuggestions = []
+          // 1. Backend spot search
+          try {
+            const res = await apiFetch(`/api/v1/spots/search?q=${encodeURIComponent(q)}&limit=3`, { signal: controller.signal })
+            const data = await res.json()
+            if (res.ok && data?.length > 0) combinedSuggestions = [...data]
+          } catch (e) { if (e.name !== 'AbortError') console.error(e) }
+          // 2. Nominatim city/place search
+          try {
+            const nomRes = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=3`, {
+              headers: { 'Accept-Language': 'en' },
+              signal: controller.signal
+            })
+            const nomData = await nomRes.json()
+            if (nomData?.length > 0) {
+              const formatted = nomData.map(item => ({
+                name: item.display_name.split(',')[0],
+                type: 'Place',
+                address: item.display_name,
+                latitude: parseFloat(item.lat),
+                longitude: parseFloat(item.lon),
+                isPlace: true,
+              }))
+              const existingNames = new Set(combinedSuggestions.map(s => s.name))
+              combinedSuggestions.push(...formatted.filter(f => !existingNames.has(f.name)))
+            }
+          } catch (e) { if (e.name !== 'AbortError') console.error(e) }
+          if (requestId === suggestionsRequestId.current && !controller.signal.aborted) setSuggestions(combinedSuggestions)
+        } catch (error) { if (error.name !== 'AbortError' && requestId === suggestionsRequestId.current) setSuggestions([]) }
     }, 250)
   }
 
   const selectSuggestion = (spot) => {
     setPlace(spot.name); setLat(spot.latitude); setLng(spot.longitude); setSuggestions([]); setPage(0)
-    if (spot.isCityDestination) {
+    if (spot.isPlace) {
+      // City/place from Nominatim — fly map to that location
+      setRadius('')
+      setMapSpots([])
+      setMapTotal(0)
+      setPage(0)
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.flyTo([spot.latitude, spot.longitude], 12, { duration: 1.5 })
+      }
+      setStatus(`Viewing ${spot.name}`)
+      // Trigger a viewport load after fly animation
+      setTimeout(() => {
+        if (mapInstanceRef.current) loadMapViewport(mapInstanceRef.current)
+      }, 1600)
+    } else if (spot.isCityDestination) {
       setRadius(radius || '50')
     } else if (searchMode === 'nearby' && radius) {
       // keep radius
@@ -342,28 +551,40 @@ export default function SpotsPage() {
     }
   }
 
-  // Status text shows page info when paginating
+  // Status text
   const statusText = useMemo(() => {
     if (status.includes('Loading')) return status
-    if (totalPages > 1) {
-      const start = currentPage * pageSize + 1
-      const end = Math.min((currentPage + 1) * pageSize, visibleMapSpots.length)
-      return `Showing page ${currentPage + 1} of ${totalPages} (spots ${start.toLocaleString()}-${end.toLocaleString()} of ${mapTotal.toLocaleString()})`
+    const spotActive = Object.keys(selectedCategories).some(k => k !== 'all' && selectedCategories[k])
+    const journeyActive = journeyCategoriesList.some(c => selectedJourneyCategories[c.id])
+    if (!spotActive && !journeyActive) return 'Select a category!'
+    if (visibleMapSpots.length === 0 && !status.includes('spots in view') && !journeyActive) return status
+    const spotCount = visibleMapSpots.length
+    const journeyCount = filteredJourneys.length
+    if (spotActive && journeyActive) {
+      const total = spotCount + journeyCount
+      if (total > 1000) return `More than 1000 spots and journeys found.`
+      return `${total.toLocaleString()} spots and journeys found.`
+    } else if (journeyActive) {
+      if (journeyCount > 1000) return `More than 1000 journeys found.`
+      return `${journeyCount.toLocaleString()} journeys found.`
     }
-    if (visibleMapSpots.length === 0 && !status.includes('spots in view')) return status
-    return `Showing ${visibleMapSpots.length.toLocaleString()} of ${mapTotal.toLocaleString()} spots in view${mapLimited ? '' : '.'}`
-  }, [status, visibleMapSpots.length, mapTotal, mapLimited, totalPages, currentPage, pageSize])
+    if (spotCount > 1000) return `More than 1000 spots found.`
+    return `${spotCount.toLocaleString()} spots found.`
+  }, [status, visibleMapSpots.length, filteredJourneys.length, mapTotal, mapLimited, totalPages, currentPage, pageSize, selectedCategories, selectedJourneyCategories, journeyCategoriesList])
 
-  // Page numbers for pagination — max 5 pages
+  // Page numbers for pagination — show current group of 5, can shift groups with arrows
   const pageNumbers = useMemo(() => {
     if (totalPages <= 1) return []
     const maxVisible = 5
     const pages = []
-    let start = Math.max(0, currentPage - Math.floor(maxVisible / 2))
+    // Shift the 5-page window by 5 each time, centered on current page
+    let start = Math.floor(currentPage / maxVisible) * maxVisible
     let end = Math.min(totalPages, start + maxVisible)
-    if (end - start < maxVisible) start = Math.max(0, end - maxVisible)
+    if (end - start < maxVisible && start > 0) {
+      start = Math.max(0, end - maxVisible)
+    }
     for (let i = start; i < end; i++) pages.push(i)
-    return pages
+    return { pages, groupStart: start, groupEnd: end }
   }, [totalPages, currentPage])
 
   return (
@@ -371,7 +592,7 @@ export default function SpotsPage() {
       <div className="spots-map">
         <div className="map-search-container">
           <div className="map-search-bar-wrapper">
-            <input className="input map-search-input" value={place} onChange={e => handlePlaceInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') handleSearch() }} placeholder="Search spots or cities..." autoComplete="off" />
+            <input className="input map-search-input" value={place} onChange={e => handlePlaceInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') handleSearch() }} placeholder="Search spots, journeys or cities..." autoComplete="off" />
             <button type="button" className={`map-search-icon-btn clear-btn${(place || lat || lng) ? ' active' : ''}`} onClick={handleClearSearch} title="Clear search & location" aria-label="Clear search">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
             </button>
@@ -413,13 +634,14 @@ export default function SpotsPage() {
         </div>
 
         <div className="map-filter-container" style={{ position: 'absolute', top: '1rem', right: '1rem', zIndex: 500 }}>
-          <button className="btn btn-primary" onClick={() => setFilterDropdownOpen(!filterDropdownOpen)} style={{ whiteSpace: 'nowrap', padding: '0.5rem 1rem' }}>Categories</button>
+          <button className="btn btn-primary" onClick={() => setFilterDropdownOpen(!filterDropdownOpen)} style={{ whiteSpace: 'nowrap', padding: '0.5rem 1rem' }}>Discover</button>
           {filterDropdownOpen && (
             <div className="map-filter-dropdown" style={{ position: 'absolute', top: '100%', right: 0, marginTop: '0.5rem', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '1rem', minWidth: '200px', zIndex: 1000 }}>
+              <div style={{ fontWeight: 600, fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem', paddingBottom: '0.25rem', borderBottom: '1px solid var(--border)' }}>Spots</div>
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500', marginBottom: '0.5rem', paddingBottom: '0.5rem', borderBottom: '1px solid var(--border)' }}>
-                <input type="checkbox" checked={selectedCategories.all} onChange={() => toggleCategory('all')} style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: 'var(--text-primary)' }} /><span>All</span>
+                <input type="checkbox" checked={selectedCategories.all} onChange={() => toggleCategory('all')} style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: 'var(--text-primary)' }} /><span>All Spots</span>
               </label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', maxHeight: '300px', overflowY: 'auto' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', maxHeight: '300px', overflowY: 'auto', marginBottom: '0.75rem' }}>
                 {categoriesList.map(cat => {
                   const norm = cat.name.trim().toLowerCase().replace('é', 'e')
                   return (
@@ -429,6 +651,18 @@ export default function SpotsPage() {
                     </label>
                   )
                 })}
+              </div>
+              <div style={{ fontWeight: 600, fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem', paddingBottom: '0.25rem', borderBottom: '1px solid var(--border)', marginTop: '0.5rem' }}>Journeys</div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500', marginBottom: '0.5rem', paddingBottom: '0.5rem', borderBottom: '1px solid var(--border)' }}>
+                <input type="checkbox" checked={allJourneyCategoriesSelected} onChange={toggleAllJourneyCategories} style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: 'var(--text-primary)' }} /><span>All Journeys</span>
+              </label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {journeyCategoriesList.map(cat => (
+                  <label key={cat.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500' }}>
+                    <input type="checkbox" checked={!!selectedJourneyCategories[cat.id]} onChange={() => toggleJourneyCategory(cat.id)} style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: 'var(--text-primary)' }} />
+                    <img src={cat.iconUrl || '/icons/stash--pin-location-light.svg'} alt="" style={{ width: 16, height: 16, objectFit: 'contain' }} /><span>{cat.name}</span>
+                  </label>
+                ))}
               </div>
             </div>
           )}
@@ -451,6 +685,7 @@ export default function SpotsPage() {
               </Popup>
             </Marker>
           )}
+          <JourneyMarkerLayer journeys={filteredJourneys} />
           {lat && lng && radius && (
             <Circle center={[parseFloat(lat), parseFloat(lng)]} radius={parseFloat(radius) * 1000}
               pathOptions={{ color: 'var(--border-color)', fillColor: 'var(--border-color)', fillOpacity: 0.08, weight: 2 }} />
@@ -461,7 +696,7 @@ export default function SpotsPage() {
       </div>
 
       <div className="spots-sidebar">
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '0.75rem', alignItems: 'center', marginTop: '1.5rem', marginBottom: '0.5rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '0.75rem', alignItems: 'center', marginTop: '0.25rem', marginBottom: '0.5rem' }}>
           <RatingModeSelector mode={ratingMode} onChange={(m) => {
             setRatingMode(m)
             // Re-fetch map with new mode
@@ -477,26 +712,54 @@ export default function SpotsPage() {
           </select>
         </div>
         <p className="spots-status" style={{ textAlign: 'center', marginBottom: '0.25rem' }}>{statusText}</p>
-        {totalPages > 1 && (
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '0.2rem', padding: '0.2rem 0 0.4rem', whiteSpace: 'nowrap', overflowX: 'visible', borderBottom: '1px solid var(--border)', marginBottom: '0.5rem' }}>
+        <div className="spots-list">
+          {journeysLoading && (
+            <div style={{ textAlign: 'center', padding: '1rem', color: 'var(--text-muted)', fontSize: '0.9rem' }}>Loading journeys...</div>
+          )}
+          {filteredJourneys.length > 0 && filteredJourneys.map(j => (
+            <div key={j.id} className="glass" style={{ padding: '1rem', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', cursor: 'pointer', transition: 'border-color 0.2s', marginBottom: '0.5rem' }}
+              onClick={() => window.location.href = `/journey/${j.id}`}
+              onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--primary)'}
+              onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', color: j.upvoteCount > 0 ? 'var(--primary)' : 'var(--text-muted)' }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill={j.upvoteCount > 0 ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path></svg>
+                  {j.upvoteCount || 0}
+                </div>
+              </div>
+              <h3 style={{ margin: '0 0 0.25rem', fontSize: '0.95rem', fontWeight: 600 }}>{j.name}</h3>
+              {j.description && <p style={{ margin: '0 0 0.25rem', fontSize: '0.8rem', color: 'var(--text-secondary)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{j.description}</p>}
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                {j.journeyCategoryName && <span>🏷️ {j.journeyCategoryName}</span>}
+                {j.difficulty && <span>• {j.difficulty}</span>}
+                {j.distanceMeters && <span>• {j.distanceMeters >= 1000 ? `${(j.distanceMeters / 1000).toFixed(1)} km` : `${j.distanceMeters} m`}</span>}
+              </div>
+            </div>
+          ))}
+          {pagedSpots.length === 0 && journeys.length === 0 && !journeysLoading && !status.includes('Loading') ? (
+            <div className="empty-state">Uh oh!</div>
+          ) : (
+            pagedSpots.map(s => <SpotCard key={s.id} spot={s} />)
+          )}
+          {totalPages > 1 && (
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '0.2rem', padding: '0.4rem 0', whiteSpace: 'nowrap', overflowX: 'visible', alignItems: 'center' }}>
+            {/* First page */}
             <button className="btn btn-ghost" onClick={() => setPage(0)} disabled={currentPage === 0} style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem', flexShrink: 0 }}>«</button>
-            <button className="btn btn-ghost" onClick={() => setPage(currentPage - 1)} disabled={currentPage === 0} style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem', flexShrink: 0 }}>‹</button>
-            {pageNumbers.map(p => (
+            {/* Previous group (shift 5 back) */}
+            <button className="btn btn-ghost" onClick={() => setPage(Math.max(0, pageNumbers.groupStart - 5))} disabled={pageNumbers.groupStart === 0} style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem', flexShrink: 0 }}>‹</button>
+            {/* Page numbers in current group */}
+            {pageNumbers.pages.map(p => (
               <button key={p}
                 className={`btn ${p === currentPage ? 'btn-primary' : 'btn-ghost'}`}
                 onClick={() => setPage(p)}
                 style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem', minWidth: '24px', flexShrink: 0 }}
               >{p + 1}</button>
             ))}
-            <button className="btn btn-ghost" onClick={() => setPage(currentPage + 1)} disabled={currentPage >= totalPages - 1} style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem', flexShrink: 0 }}>›</button>
+            {/* Next group (shift 5 forward) */}
+            <button className="btn btn-ghost" onClick={() => setPage(Math.min(totalPages - 1, pageNumbers.groupEnd))} disabled={pageNumbers.groupEnd >= totalPages - 1} style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem', flexShrink: 0 }}>›</button>
+            {/* Last page */}
             <button className="btn btn-ghost" onClick={() => setPage(totalPages - 1)} disabled={currentPage >= totalPages - 1} style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem', flexShrink: 0 }}>»</button>
           </div>
-        )}
-        <div className="spots-list">
-          {pagedSpots.length === 0 && !status.includes('Loading') ? (
-            <div className="empty-state">No spots in this area.</div>
-          ) : (
-            pagedSpots.map(s => <SpotCard key={s.id} spot={s} />)
           )}
         </div>
       </div>

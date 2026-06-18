@@ -22,14 +22,15 @@ import DirectionsPage from './pages/DirectionsPage'
 import EventsPage from './pages/EventsPage'
 import AddEventPage from './pages/AddEventPage'
 import EventDetailPage from './pages/EventDetailPage'
-import SubmitTrailPathPage from './pages/SubmitTrailPathPage'
-import TrailPathDetailPage from './pages/TrailPathDetailPage'
+import AddJourneyPage from './pages/AddJourneyPage'
+import JourneyDetailPage from './pages/JourneyDetailPage'
 import MyItinerariesPage from './pages/MyItinerariesPage'
 import ItineraryPlannerPage from './pages/ItineraryPlannerPage'
 import ItineraryDetailPage from './pages/ItineraryDetailPage'
 import ItinerarySharePage from './pages/ItinerarySharePage'
 import PaymentSuccessPage from './pages/PaymentSuccessPage'
 import ARViewPage from './pages/ARViewPage'
+import OnboardingPage from './pages/OnboardingPage'
 
 export default function App() {
   return (
@@ -38,10 +39,10 @@ export default function App() {
         <Navbar />
 
        <Routes>
-         <Route path="/" element={<LandingPage />} />
+         <Route path="/" element={<ProtectedRoute><SpotsPage /></ProtectedRoute>} />
          <Route path="/login" element={<LoginPage />} />
          <Route path="/register" element={<RegisterPage />} />
-         <Route path="/spots" element={<ProtectedRoute><SpotsPage /></ProtectedRoute>} />
+          <Route path="/discover" element={<ProtectedRoute><SpotsPage /></ProtectedRoute>} />
          <Route path="/search" element={<ProtectedRoute><SearchPage /></ProtectedRoute>} />
           <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
           <Route path="/friends" element={<ProtectedRoute><FriendsPage /></ProtectedRoute>} />
@@ -51,8 +52,10 @@ export default function App() {
          <Route path="/spot/:id" element={<ProtectedRoute><SpotDetailPage /></ProtectedRoute>} />
          <Route path="/directions" element={<ProtectedRoute><DirectionsPage /></ProtectedRoute>} />
          <Route path="/directions/:id" element={<ProtectedRoute><DirectionsPage /></ProtectedRoute>} />
-         <Route path="/spot/:id/submit-path" element={<ProtectedRoute><SubmitTrailPathPage /></ProtectedRoute>} />
-         <Route path="/path/:id" element={<ProtectedRoute><TrailPathDetailPage /></ProtectedRoute>} />
+          <Route path="/spot/:id/add-journey" element={<ProtectedRoute><AddJourneyPage /></ProtectedRoute>} />
+          <Route path="/add-journey" element={<ProtectedRoute><AddJourneyPage /></ProtectedRoute>} />
+          <Route path="/journey/:id/edit" element={<ProtectedRoute><AddJourneyPage /></ProtectedRoute>} />
+          <Route path="/journey/:id" element={<ProtectedRoute><JourneyDetailPage /></ProtectedRoute>} />
          <Route path="/events" element={<ProtectedRoute><EventsPage /></ProtectedRoute>} />
          <Route path="/event/:id" element={<ProtectedRoute><EventDetailPage /></ProtectedRoute>} />
          <Route path="/add-spot" element={<ProtectedRoute><AddSpotPage /></ProtectedRoute>} />
@@ -62,10 +65,11 @@ export default function App() {
          <Route path="/itineraries/plan" element={<ProtectedRoute><ItineraryPlannerPage /></ProtectedRoute>} />
          <Route path="/itineraries/:id" element={<ProtectedRoute><ItineraryDetailPage /></ProtectedRoute>} />
          <Route path="/itineraries/share/:shareToken" element={<ItinerarySharePage />} />
-         <Route path="/payment/success" element={<ProtectedRoute><PaymentSuccessPage /></ProtectedRoute>} />
+          <Route path="/payment/success" element={<ProtectedRoute><PaymentSuccessPage /></ProtectedRoute>} />
          <Route path="/ar/:itineraryId" element={<ProtectedRoute><ARViewPage /></ProtectedRoute>} />
          <Route path="/ar/spot/:spotId" element={<ProtectedRoute><ARViewPage /></ProtectedRoute>} />
-      </Routes>
+          <Route path="/onboarding" element={<ProtectedRoute><OnboardingPage /></ProtectedRoute>} />
+       </Routes>
       <FloatingAddButton />
      </BrowserDialogProvider>
     </ToastProvider>

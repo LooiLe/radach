@@ -56,6 +56,12 @@ public class User {
     @Column(length = 255)
     private String profilePicture;
 
+    @Column(nullable = false)
+    private boolean onboardingCompleted = false;
+
+    @Column(length = 255)
+    private String interests;
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public String getName() { return name; }
@@ -96,5 +102,11 @@ public class User {
 
     public String getProfilePicture() { return profilePicture; }
     public void setProfilePicture(String profilePicture) { this.profilePicture = profilePicture; }
+
+    public boolean isOnboardingCompleted() { return onboardingCompleted; }
+    public void setOnboardingCompleted(boolean onboardingCompleted) { this.onboardingCompleted = onboardingCompleted; }
+
+    public String getInterests() { return interests; }
+    public void setInterests(String interests) { this.interests = interests; }
     
 }

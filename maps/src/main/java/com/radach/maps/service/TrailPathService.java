@@ -48,7 +48,7 @@ public class TrailPathService {
 
         if (currentUserId != null) {
             List<TrailPath> allPathsForSpot = trailPathRepository.findAll().stream()
-                    .filter(p -> p.getSpotId().equals(spotId))
+                    .filter(p -> spotId.equals(p.getSpotId()))
                     .toList();
 
             List<TrailPath> merged = allPathsForSpot.stream()
@@ -95,16 +95,20 @@ public class TrailPathService {
      */
     @Transactional
     public TrailPathResponse submitPath(TrailPathRequest request, Long userId, boolean isAdmin) {
-        Spot spot = spotRepository.findById(request.spotId())
-                .orElseThrow(() -> new ResourceNotFoundException("Spot not found"));
-
-        // Validate this is a trail-type spot
-        if (!isTrailSpot(spot)) {
-            throw new IllegalArgumentException("Trail paths can only be submitted for trail-type spots");
-        }
-
         TrailPath path = new TrailPath();
-        path.setSpotId(request.spotId());
+        
+        // Handle optional spotId
+        if (request.spotId() != null) {
+            Spot spot = spotRepository.findById(request.spotId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Spot not found"));
+            
+            // Validate this is a trail-type spot
+            if (!isTrailSpot(spot)) {
+                throw new IllegalArgumentException("Trail paths can only be submitted for trail-type spots");
+            }
+            path.setSpotId(request.spotId());
+        }
+        
         path.setSubmittedBy(userId);
         path.setName(request.name());
         path.setDescription(request.description());
@@ -283,8 +287,11 @@ public class TrailPathService {
     }
 
     private TrailPathResponse toResponse(TrailPath path, Long currentUserId) {
-        String spotName = spotRepository.findById(path.getSpotId())
-                .map(Spot::getName).orElse(null);
+        String spotName = null;
+        if (path.getSpotId() != null) {
+            spotName = spotRepository.findById(path.getSpotId())
+                    .map(Spot::getName).orElse(null);
+        }
 
         String submitterName = null;
         if (path.getSubmittedBy() != null) {
@@ -314,7 +321,9 @@ public class TrailPathService {
                 path.isPrivate(),
                 path.getUpvoteCount(),
                 isUpvoted,
-                path.getCreatedAt()
+                path.getCreatedAt(),
+                null,
+                null
         );
     }
 }

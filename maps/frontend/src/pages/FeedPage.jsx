@@ -12,7 +12,7 @@ export default function FeedPage() {
   const [feed, setFeed] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchParams, setSearchParams] = useSearchParams()
-  const feedTabs = ['friends', 'global', 'experts']
+  const feedTabs = ['trusted', 'global', 'experts']
   const initialTab = feedTabs.includes(searchParams.get('tab')) ? searchParams.get('tab') : 'global'
   const [activeTab, setActiveTab] = useState(initialTab)
   const navigate = useNavigate()
@@ -27,17 +27,22 @@ export default function FeedPage() {
   const [showLikes, setShowLikes] = useState({})
   const [newComment, setNewComment] = useState({})
 
-  // Spot/Event attachment state
+  // Spot/Event/Journey attachment state
   const [attachedSpot, setAttachedSpot] = useState(null)
   const [attachedEvent, setAttachedEvent] = useState(null)
+  const [attachedJourney, setAttachedJourney] = useState(null)
   const [showSpotSearch, setShowSpotSearch] = useState(false)
   const [showEventSearch, setShowEventSearch] = useState(false)
+  const [showJourneySearch, setShowJourneySearch] = useState(false)
   const [spotSearchQuery, setSpotSearchQuery] = useState('')
   const [eventSearchQuery, setEventSearchQuery] = useState('')
+  const [journeySearchQuery, setJourneySearchQuery] = useState('')
   const [spotSearchResults, setSpotSearchResults] = useState([])
   const [eventSearchResults, setEventSearchResults] = useState([])
+  const [journeySearchResults, setJourneySearchResults] = useState([])
   const [searchingSpot, setSearchingSpot] = useState(false)
   const [searchingEvent, setSearchingEvent] = useState(false)
+  const [searchingJourney, setSearchingJourney] = useState(false)
 
   const loadFeed = async (filter) => {
     setLoading(true)
@@ -148,6 +153,36 @@ export default function FeedPage() {
     setEventSearchResults([])
   }
 
+  // Journey search with debounce
+  useEffect(() => {
+    if (!journeySearchQuery || journeySearchQuery.length < 2) {
+      setJourneySearchResults([])
+      return
+    }
+    const timer = setTimeout(async () => {
+      setSearchingJourney(true)
+      try {
+        const res = await apiFetch(`/api/v1/journeys?limit=20`)
+        if (res.ok) {
+          const allJourneys = await res.json()
+          const q = journeySearchQuery.toLowerCase()
+          setJourneySearchResults(allJourneys.filter(j => j.name?.toLowerCase().includes(q)))
+        }
+      } catch { /* ignore */ }
+      setSearchingJourney(false)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [journeySearchQuery, apiFetch])
+
+  const selectJourney = (journey) => {
+    setAttachedJourney(journey)
+    setAttachedSpot(null)
+    setAttachedEvent(null)
+    setShowJourneySearch(false)
+    setJourneySearchQuery('')
+    setJourneySearchResults([])
+  }
+
   const submitPost = async () => {
     if (!postContent.trim() && mediaUrls.length === 0) return
     try {
@@ -157,6 +192,7 @@ export default function FeedPage() {
       }
       if (attachedSpot) body.spotId = attachedSpot.id
       if (attachedEvent) body.eventId = attachedEvent.id
+      if (attachedJourney) body.journeyId = attachedJourney.id
 
       const res = await apiFetch('/api/v1/posts', {
         method: 'POST',
@@ -175,6 +211,8 @@ export default function FeedPage() {
           spotId: attachedSpot?.id || null,
           spotName: attachedSpot?.name || null,
           spotAddress: attachedSpot?.address || null,
+          journeyId: attachedJourney?.id || null,
+          journeyName: attachedJourney?.name || null,
           description: postContent,
           timestamp: new Date().toISOString(),
           mediaUrls: mediaUrls,
@@ -188,6 +226,7 @@ export default function FeedPage() {
         setMediaUrls([])
         setAttachedSpot(null)
         setAttachedEvent(null)
+        setAttachedJourney(null)
       }
     } catch { toast.error('Failed to create post') }
   }
@@ -261,7 +300,7 @@ export default function FeedPage() {
       </div>
 
       <div className="feed-tabs">
-        {['friends', 'global', 'experts'].map(tab => (
+        {['trusted', 'global', 'experts'].map(tab => (
           <div 
             key={tab} 
             className={`feed-tab ${activeTab === tab ? 'active' : ''}`}
@@ -303,6 +342,12 @@ export default function FeedPage() {
             <button className="remove-attachment-btn" onClick={() => setAttachedEvent(null)}>✕</button>
           </div>
         )}
+        {attachedJourney && (
+          <div className="attached-reference">
+            <span>🥾 {attachedJourney.name}</span>
+            <button className="remove-attachment-btn" onClick={() => setAttachedJourney(null)}>✕</button>
+          </div>
+        )}
 
         <div className="create-post-actions">
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -334,7 +379,7 @@ export default function FeedPage() {
               )}
             </div>
             <div className="attach-wrapper" style={{ position: 'relative' }}>
-              <button className="btn btn-ghost" onClick={() => { setShowEventSearch(!showEventSearch); setShowSpotSearch(false) }}>📅 Event</button>
+              <button className="btn btn-ghost" onClick={() => { setShowEventSearch(!showEventSearch); setShowSpotSearch(false); setShowJourneySearch(false) }}>📅 Event</button>
               {showEventSearch && (
                 <div className="attach-dropdown" style={{ zIndex: 999 }}>
                   <input
@@ -352,6 +397,29 @@ export default function FeedPage() {
                   ))}
                   {eventSearchQuery.length >= 2 && !searchingEvent && eventSearchResults.length === 0 && (
                     <div className="attach-no-results">No events found</div>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="attach-wrapper" style={{ position: 'relative' }}>
+              <button className="btn btn-ghost" onClick={() => { setShowJourneySearch(!showJourneySearch); setShowSpotSearch(false); setShowEventSearch(false) }}>🥾 Journey</button>
+              {showJourneySearch && (
+                <div className="attach-dropdown" style={{ zIndex: 999 }}>
+                  <input
+                    type="text"
+                    placeholder="Search journeys..."
+                    value={journeySearchQuery}
+                    onChange={e => setJourneySearchQuery(e.target.value)}
+                    autoFocus
+                  />
+                  {searchingJourney && <div className="attach-searching">Searching...</div>}
+                  {journeySearchResults.map(j => (
+                    <div key={j.id} className="attach-result" onClick={() => selectJourney(j)}>
+                      {j.name}
+                    </div>
+                  ))}
+                  {journeySearchQuery.length >= 2 && !searchingJourney && journeySearchResults.length === 0 && (
+                    <div className="attach-no-results">No journeys found</div>
                   )}
                 </div>
               )}
@@ -375,8 +443,25 @@ export default function FeedPage() {
       ) : feed.length === 0 ? (
         <div className="feed-empty glass">
           <span className="feed-empty-icon"></span>
-          <h2>Nothing to see here yet</h2>
-          <p>Try following more friends or checking the Global feed.</p>
+          {activeTab === 'trusted' && (
+            <>
+
+              <h2>Your trusted feed is empty</h2>
+              <p>Follow people you trust to see their activity here.</p>
+            </>
+          )}
+          {activeTab === 'global' && (
+            <>
+              <h2>Nothing happening yet</h2>
+              <p>Check back later to see what's trending around you.</p>
+            </>
+          )}
+          {activeTab === 'experts' && (
+            <>
+              <h2>No expert activity</h2>
+              <p>Follow experts to see their reviews and recommendations.</p>
+            </>
+          )}
         </div>
       ) : (
         <div className="feed-timeline">
@@ -427,6 +512,12 @@ export default function FeedPage() {
                   {item.eventId && (
                     <Link to={`/event/${item.eventId}`} className="feed-item-spot-link">
                       📅 {item.eventName || 'Linked event'}
+                    </Link>
+                  )}
+                  {/* Show attached journey if post has a journeyId */}
+                  {item.journeyId && (
+                    <Link to={`/journey/${item.journeyId}`} className="feed-item-spot-link">
+                      🥾 {item.journeyName || 'Linked journey'}
                     </Link>
                   )}
                   <div className="feed-item-footer">
