@@ -44,6 +44,22 @@ public class FollowController {
         return ResponseEntity.ok(Map.of("following", following, "followerCount", followerCount));
     }
 
+    @GetMapping("/experts")
+    public ResponseEntity<?> getFollowedExperts(Authentication auth) {
+        Long userId = getUserIdOrThrow(auth);
+        java.util.List<Map<String, Object>> experts = followService.getFollowedExperts(userId).stream()
+                .map(u -> {
+                    java.util.Map<String, Object> map = new java.util.HashMap<>();
+                    map.put("id", u.getId());
+                    map.put("name", u.getName());
+                    map.put("profilePicture", u.getProfilePicture() != null ? u.getProfilePicture() : "");
+                    map.put("professionalTitle", u.getProfessionalTitle() != null ? u.getProfessionalTitle() : "");
+                    return map;
+                })
+                .toList();
+        return ResponseEntity.ok(experts);
+    }
+
     private Long getUserIdOrThrow(Authentication auth) {
         Long userId = getUserIdOrNull(auth);
         if (userId == null) {

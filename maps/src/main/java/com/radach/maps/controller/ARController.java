@@ -17,20 +17,28 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.radach.maps.dto.ARAnnotationRequest;
 import com.radach.maps.dto.ARAnnotationResponse;
+import com.radach.maps.dto.NearbyFeedPostResponse;
 import com.radach.maps.dto.SpotExplanation;
 import com.radach.maps.dto.SpotResponse;
 import com.radach.maps.service.ARService;
 import com.radach.maps.service.AuthenticatedUserService;
+import com.radach.maps.service.FeedPostService;
+import com.radach.maps.service.FriendshipService;
 
 @RestController
 @RequestMapping("/api/v1/ar")
 public class ARController {
     private final ARService arService;
     private final AuthenticatedUserService authenticatedUserService;
+    private final FriendshipService friendshipService;
+    private final FeedPostService feedPostService;
 
-    public ARController(ARService arService, AuthenticatedUserService authenticatedUserService) {
+    public ARController(ARService arService, AuthenticatedUserService authenticatedUserService,
+                        FriendshipService friendshipService, FeedPostService feedPostService) {
         this.arService = arService;
         this.authenticatedUserService = authenticatedUserService;
+        this.friendshipService = friendshipService;
+        this.feedPostService = feedPostService;
     }
 
     @GetMapping("/nearby")
@@ -38,8 +46,12 @@ public class ARController {
             @RequestParam double lat,
             @RequestParam double lng,
             @RequestParam(required = false) Integer radiusM,
-            @RequestParam(required = false) String excludeIds
+            @RequestParam(required = false) String excludeIds,
+            @RequestParam(required = false) Long expertId
     ) {
+        if (expertId != null) {
+            return arService.findNearbySpotsByExpert(lat, lng, expertId, radiusM, parseIds(excludeIds));
+        }
         return arService.findNearbySpots(lat, lng, radiusM, parseIds(excludeIds));
     }
 
@@ -96,6 +108,19 @@ public class ARController {
     ) {
         Long adminId = requireUserId(auth);
         return arService.reviewAnnotation(id, action, adminId, note);
+    }
+
+    @GetMapping("/feed/nearby")
+    public List<NearbyFeedPostResponse> nearbyFriendPosts(
+            @RequestParam double lat,
+            @RequestParam double lng,
+            @RequestParam(required = false) Integer radiusM,
+            Authentication auth
+    ) {
+        Long userId = requireUserId(auth);
+        java.util.Set<Long> friendIds = friendshipService.getFirstDegreeConnections(userId);
+        double radiusKm = radiusM != null ? radiusM / 1000.0 : 0.5; // default 500m
+        return feedPostService.findNearbyFriendPosts(friendIds, lat, lng, radiusKm);
     }
 
     // ─── Helpers ───

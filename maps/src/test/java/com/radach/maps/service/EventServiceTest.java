@@ -280,18 +280,23 @@ public class EventServiceTest {
 
     @Test
     public void testUpcomingEventsMonthOnlyFilter() {
-        int currentYear = java.time.LocalDate.now(java.time.ZoneOffset.UTC).getYear();
-        // Create an event in June of current year
-        Instant juneStart = Instant.parse(currentYear + "-06-15T12:00:00Z");
-        Instant juneEnd = Instant.parse(currentYear + "-06-15T14:00:00Z");
+        java.time.ZonedDateTime now = java.time.ZonedDateTime.now(java.time.ZoneOffset.UTC);
+        java.time.ZonedDateTime target = now.plusDays(2);
+        if (target.getYear() != now.getYear()) {
+            target = now.plusHours(2);
+        }
+        int targetMonth = target.getMonthValue();
+        Instant eventStart = target.toInstant();
+        Instant eventEnd = target.plusHours(2).toInstant();
+
         EventResponse eventA = eventService.submitEvent(new EventRequest(
-            spot.id(), "June Event", "Desc", juneStart, juneEnd, null, null
+            spot.id(), "Upcoming Month Event", "Desc", eventStart, eventEnd, null, null
         ), admin.getId(), true);
 
-        // Fetch events for Month 6 (June), year = null
-        List<EventResponse> events = eventService.getUpcomingEvents(null, 6, null, "date", null);
+        // Fetch events for targetMonth, year = null (defaults to current year)
+        List<EventResponse> events = eventService.getUpcomingEvents(null, targetMonth, null, "date", null);
         
-        // Assert we got our June Event
+        // Assert we got our Upcoming Month Event
         assertThat(events).hasSize(1);
         assertThat(events.get(0).id()).isEqualTo(eventA.id());
     }

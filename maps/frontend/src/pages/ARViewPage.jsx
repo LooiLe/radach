@@ -115,6 +115,11 @@ export default function ARViewPage() {
   const [capturedPhotoUrl, setCapturedPhotoUrl] = useState('')
   const [capturedPhotoPreview, setCapturedPhotoPreview] = useState('')
   const [pinnedLocation, setPinnedLocation] = useState(null)
+  const [nearbyFriendPosts, setNearbyFriendPosts] = useState([])
+  const [subscription, setSubscription] = useState({ tier: 'NONE' })
+  const [followedExperts, setFollowedExperts] = useState([])
+  const [selectedExpertId, setSelectedExpertId] = useState(null)
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false)
 
   const isAnnotationCancelledRef = useRef(false)
   const activePhotoUrlRef = useRef(null)
@@ -245,13 +250,14 @@ export default function ARViewPage() {
       ...s.spot,
       isItineraryStop: true,
       isAnnotation: false,
+      isFriendPost: false,
       stopNumber: idx + 1,
       notes: s.notes,
       startTime: s.startTime,
     })),
     ...nearbySpots.filter(ns =>
       !excludeIds.includes(ns.id)
-    ).map(s => ({ ...s, isItineraryStop: false, isAnnotation: false })),
+    ).map(s => ({ ...s, isItineraryStop: false, isAnnotation: false, isFriendPost: false })),
     ...nearbyAnnotations.map(ann => ({
       id: `ann-${ann.id}`,
       annotationId: ann.id,
@@ -261,9 +267,22 @@ export default function ARViewPage() {
       type: 'annotation',
       isItineraryStop: false,
       isAnnotation: true,
+      isFriendPost: false,
       annotationData: ann
+    })),
+    ...nearbyFriendPosts.map(post => ({
+      id: `post-${post.id}`,
+      postId: post.id,
+      name: `${post.authorName}'s tip`,
+      latitude: post.latitude,
+      longitude: post.longitude,
+      type: 'friendPost',
+      isItineraryStop: false,
+      isAnnotation: false,
+      isFriendPost: true,
+      postData: post
     }))
-  ], [itineraryStops, nearbySpots, excludeIds, nearbyAnnotations])
+  ], [itineraryStops, nearbySpots, excludeIds, nearbyAnnotations, nearbyFriendPosts])
 
   const positionLatitude = position?.latitude
   const positionLongitude = position?.longitude
@@ -458,6 +477,26 @@ export default function ARViewPage() {
     loadData()
   }, [itineraryId, spotId, apiFetch])
 
+  // ─── Fetch followed experts and subscription info on mount ───
+  useEffect(() => {
+    async function initDiffFeatures() {
+      try {
+        const subRes = await apiFetch('/api/v1/stripe/my-subscription')
+        if (subRes.ok) {
+          setSubscription(await subRes.json())
+        }
+
+        const expRes = await apiFetch('/api/v1/follows/experts')
+        if (expRes.ok) {
+          setFollowedExperts(await expRes.json())
+        }
+      } catch (err) {
+        console.error('Failed to initialize differentiation features:', err)
+      }
+    }
+    initDiffFeatures()
+  }, [apiFetch])
+
   // ─── Fetch nearby spots when position changes ───
   useEffect(() => {
     if (positionLatitude == null || positionLongitude == null) return
@@ -467,8 +506,9 @@ export default function ARViewPage() {
 
     async function fetchNearby() {
       try {
+        const expertQueryParam = selectedExpertId ? `&expertId=${selectedExpertId}` : ''
         const res = await apiFetch(
-          `/api/v1/ar/nearby?lat=${positionLatitude}&lng=${positionLongitude}&radiusM=${maxRange}&excludeIds=${excludedSpotIds}`,
+          `/api/v1/ar/nearby?lat=${positionLatitude}&lng=${positionLongitude}&radiusM=${maxRange}&excludeIds=${excludedSpotIds}${expertQueryParam}`,
           { signal: controller.signal }
         )
         if (res.ok) {
@@ -481,13 +521,41 @@ export default function ARViewPage() {
       }
     }
 
-    // Debounce — only fetch when position changes significantly
     const timer = setTimeout(fetchNearby, 1500)
     return () => {
       clearTimeout(timer)
       controller.abort()
     }
-  }, [positionLatitude, positionLongitude, maxRange, excludeIds, apiFetch])
+  }, [positionLatitude, positionLongitude, maxRange, excludeIds, selectedExpertId, apiFetch])
+
+  // ─── Fetch nearby friend posts when position changes ───
+  useEffect(() => {
+    if (positionLatitude == null || positionLongitude == null) return
+
+    const controller = new AbortController()
+
+    async function fetchFriendPosts() {
+      try {
+        const res = await apiFetch(
+          `/api/v1/ar/feed/nearby?lat=${positionLatitude}&lng=${positionLongitude}&radiusM=${maxRange}`,
+          { signal: controller.signal }
+        )
+        if (res.ok) {
+          setNearbyFriendPosts(await res.json())
+        }
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          console.error('Failed to fetch friend posts:', err)
+        }
+      }
+    }
+
+    const timer = setTimeout(fetchFriendPosts, 2000)
+    return () => {
+      clearTimeout(timer)
+      controller.abort()
+    }
+  }, [positionLatitude, positionLongitude, maxRange, apiFetch])
 
   // ─── Fetch nearby annotations ───
   useEffect(() => {
@@ -539,8 +607,8 @@ export default function ARViewPage() {
     setExplanationError(null)
     setAlternatives([])
 
-    // If it's an annotation, don't fetch spot explanation
-    if (poi.isAnnotation) return
+    // If it's an annotation or a friend post, don't fetch spot explanation
+    if (poi.isAnnotation || poi.isFriendPost) return
 
     // Fetch explanation
     try {
@@ -1017,6 +1085,35 @@ export default function ARViewPage() {
                 />
               </div>
             )}
+
+            {/* Expert Spotlight filter */}
+            <div className="ar-settings-expert-spotlight">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <span className="ar-settings-label" style={{ margin: 0 }}>🌟 Expert Spotlight</span>
+                {subscription?.tier !== 'PRO' && subscription?.tier !== 'UNLIMITED' && (
+                  <span className="ar-pro-badge" style={{ fontSize: '0.65rem', background: '#a78bfa', color: '#1e1b4b', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold' }}>PRO</span>
+                )}
+              </div>
+              <select
+                className="ar-expert-select"
+                value={selectedExpertId || ''}
+                onChange={(e) => {
+                  const val = e.target.value
+                  if (val && subscription?.tier !== 'PRO' && subscription?.tier !== 'UNLIMITED') {
+                    setShowUpgradeModal(true)
+                  } else {
+                    setSelectedExpertId(val ? Number(val) : null)
+                  }
+                }}
+              >
+                <option value="">Show All Spots</option>
+                {followedExperts.map(exp => (
+                  <option key={`opt-expert-${exp.id}`} value={exp.id}>
+                    {exp.name} ({exp.professionalTitle || 'Local Expert'})
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         )}
 
@@ -1091,9 +1188,11 @@ export default function ARViewPage() {
             const isFar = poi.distance > 300
             const markerClass = poi.isAnnotation
               ? 'ar-marker--annotation'
-              : poi.isItineraryStop
-                ? 'ar-marker--current'
-                : 'ar-marker--nearby'
+              : poi.isFriendPost
+                ? 'ar-marker--friend-post'
+                : poi.isItineraryStop
+                  ? 'ar-marker--current'
+                  : 'ar-marker--nearby'
 
             // Check if this stop has a photo
             const spotPhoto = poi.isItineraryStop && poi.photos?.length > 0 ? poi.photos[0] : null
@@ -1124,6 +1223,17 @@ export default function ARViewPage() {
                       />
                     ) : poi.isAnnotation ? (
                       <div className="ar-marker-icon" style={{ filter: 'none' }}>📖</div>
+                    ) : poi.isFriendPost ? (
+                      poi.postData.authorProfilePicture ? (
+                        <img
+                          src={poi.postData.authorProfilePicture}
+                          alt={poi.postData.authorName}
+                          className="ar-marker-photo"
+                          style={{ borderRadius: '50%' }}
+                        />
+                      ) : (
+                        <div className="ar-marker-icon" style={{ filter: 'none' }}>💬</div>
+                      )
                     ) : (
                       <img
                         src={getIconUrl(poi.type)}
@@ -1135,6 +1245,7 @@ export default function ARViewPage() {
                       <div className="ar-marker-name">{poi.name}</div>
                       <div className="ar-marker-distance">
                         {formatDistance(poi.distance)}
+                        {poi.isFriendPost && <span style={{ color: '#60a5fa' }}> · 💬 tip</span>}
                         {poi.averageRating > 0 && <span className="ar-marker-rating"> · ⭐{poi.averageRating?.toFixed?.(1)}</span>}
                       </div>
                     </div>
@@ -1255,6 +1366,11 @@ export default function ARViewPage() {
             <div className="ar-info-drag-handle" />
             <div className="ar-annotation-modal-title">
               📖 Submit an Explanation
+            </div>
+
+            <div className="ar-earn-badge">
+              <span>💎</span>
+              <span>Pin & Earn: Approved explanations reward you with 1 free AI itinerary generation credit!</span>
             </div>
 
             {pinnedLocation && (
@@ -1402,7 +1518,7 @@ export default function ARViewPage() {
             {selectedPOI && (
               <>
                 {/* Photo strip */}
-                {!selectedPOI.isAnnotation && selectedPOI.photos?.length > 0 && (
+                {!selectedPOI.isAnnotation && !selectedPOI.isFriendPost && selectedPOI.photos?.length > 0 && (
                   <div className="ar-info-photos">
                     {selectedPOI.photos.slice(0, 5).map((url, idx) => (
                       <img
@@ -1427,7 +1543,7 @@ export default function ARViewPage() {
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    {!selectedPOI.isAnnotation && (
+                    {!selectedPOI.isAnnotation && !selectedPOI.isFriendPost && (
                       <span className="ar-info-spot-type">
                         <img src={getIconUrl(selectedPOI.type)} alt="" style={{ width: '14px', height: '14px', opacity: 0.7 }} />
                         {selectedPOI.type}
@@ -1438,18 +1554,23 @@ export default function ARViewPage() {
                         📖 Annotation
                       </span>
                     )}
+                    {selectedPOI.isFriendPost && (
+                      <span className="ar-info-spot-type" style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#60a5fa', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
+                        💬 Friend's Note
+                      </span>
+                    )}
                     <button className="ar-info-close-btn" onClick={handleCloseSheet}>✕</button>
                   </div>
                 </div>
 
                 <div className="ar-info-meta">
                   <span>📍 {formatDistance(selectedPOI.distance)}</span>
-                  {!selectedPOI.isAnnotation && selectedPOI.averageRating > 0 && (
+                  {!selectedPOI.isAnnotation && !selectedPOI.isFriendPost && selectedPOI.averageRating > 0 && (
                     <span>
                       ⭐ <span className="ar-info-rating">{selectedPOI.averageRating?.toFixed?.(1) || selectedPOI.averageRating}</span>
                     </span>
                   )}
-                  {!selectedPOI.isAnnotation && selectedPOI.address && (
+                  {!selectedPOI.isAnnotation && !selectedPOI.isFriendPost && selectedPOI.address && (
                     <span style={{ fontSize: '0.75rem', opacity: 0.7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '160px' }}>
                       {selectedPOI.address}
                     </span>
@@ -1478,8 +1599,46 @@ export default function ARViewPage() {
                   </div>
                 )}
 
+                {/* ─── Friend Post detail ─── */}
+                {selectedPOI.isFriendPost && selectedPOI.postData && (
+                  <div className="ar-friend-post-detail" style={{ padding: '12px 0' }}>
+                    <div className="ar-friend-post-author" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                      {selectedPOI.postData.authorProfilePicture ? (
+                        <img
+                          src={selectedPOI.postData.authorProfilePicture}
+                          alt={selectedPOI.postData.authorName}
+                          style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover' }}
+                        />
+                      ) : (
+                        <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem' }}>👤</div>
+                      )}
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-primary)' }}>{selectedPOI.postData.authorName}</div>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                          Shared a tip about {selectedPOI.postData.spotName} · {new Date(selectedPOI.postData.createdAt).toLocaleDateString()}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="ar-friend-post-text" style={{ fontSize: '0.8rem', lineHeight: '1.5', color: 'var(--text-secondary)', marginBottom: '12px', whiteSpace: 'pre-wrap' }}>
+                      {selectedPOI.postData.content}
+                    </div>
+                    {selectedPOI.postData.mediaUrls?.length > 0 && (
+                      <div className="ar-friend-post-photos" style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
+                        {selectedPOI.postData.mediaUrls.map((url, idx) => (
+                          <img
+                            key={`post-img-${idx}`}
+                            src={url}
+                            alt="attachment"
+                            style={{ width: '120px', height: '120px', objectFit: 'cover', borderRadius: '8px', border: '1px solid var(--border)' }}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* ─── Spot Explanation ─── */}
-                {!selectedPOI.isAnnotation && (
+                {!selectedPOI.isAnnotation && !selectedPOI.isFriendPost && (
                   <>
                     {explanation ? (
                       <div className="ar-explanation ar-explanation--animated">
@@ -1563,7 +1722,7 @@ export default function ARViewPage() {
                 {!selectedPOI.isAnnotation && (
                   <div className="ar-info-actions">
                     <Link
-                      to={`/spot/${selectedPOI.id}`}
+                      to={`/spot/${selectedPOI.isFriendPost ? selectedPOI.postData.spotId : selectedPOI.id}`}
                       className="ar-action-btn ar-action-btn--primary"
                       style={{ textDecoration: 'none' }}
                       onClick={() => stopCamera(true)}
@@ -1571,7 +1730,7 @@ export default function ARViewPage() {
                       📄 Details
                     </Link>
                     <Link
-                      to={`/directions/${selectedPOI.id}`}
+                      to={`/directions/${selectedPOI.isFriendPost ? selectedPOI.postData.spotId : selectedPOI.id}`}
                       className="ar-action-btn"
                       style={{ textDecoration: 'none' }}
                       onClick={() => stopCamera(true)}
@@ -1620,6 +1779,61 @@ export default function ARViewPage() {
             )}
           </div>
         </div>
+
+        {/* Upgrade Promotion Modal */}
+        {showUpgradeModal && (
+          <div className="ar-upgrade-modal-overlay">
+            <div className="ar-upgrade-modal-content glass">
+              <div style={{ fontSize: '2.5rem', marginBottom: '16px' }}>👑</div>
+              <h3 style={{ margin: '0 0 8px 0', fontSize: '1.25rem', color: '#fff', fontWeight: 700 }}>Unlock Expert Spotlight Walks</h3>
+              <p style={{ margin: '0 0 16px 0', fontSize: '0.85rem', color: 'rgba(255, 255, 255, 0.7)', lineHeight: 1.5 }}>
+                Filter your AR view to show only spots hand-picked and reviewed by VIP food writers and local guides you follow.
+              </p>
+              <div className="ar-upgrade-bullets" style={{ textAlign: 'left', margin: '16px 0', fontSize: '0.8rem', color: 'rgba(255, 255, 255, 0.9)' }}>
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                  <span style={{ color: '#a78bfa', fontWeight: 'bold' }}>✓</span> <span>Spotlight specific guides & critics in real-time</span>
+                </div>
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                  <span style={{ color: '#a78bfa', fontWeight: 'bold' }}>✓</span> <span>Spatial audio commentary paths</span>
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <span style={{ color: '#a78bfa', fontWeight: 'bold' }}>✓</span> <span>Unlock exclusive offline discount keys</span>
+                </div>
+              </div>
+              <div className="ar-upgrade-actions" style={{ display: 'flex', gap: '12px', marginTop: '20px' }}>
+                <button className="ar-back-btn" onClick={() => setShowUpgradeModal(false)} style={{ flex: 1, justifyContent: 'center' }}>
+                  Maybe Later
+                </button>
+                <button
+                  className="ar-action-btn ar-action-btn--primary"
+                  style={{ flex: 1, background: 'linear-gradient(135deg, #a78bfa 0%, #7c3aed 100%)', border: 'none', color: '#fff', fontWeight: 700, borderRadius: '20px' }}
+                  onClick={async () => {
+                    try {
+                      const res = await apiFetch('/api/v1/stripe/subscribe', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                          tier: 'PRO',
+                          cancelUrl: window.location.href
+                        })
+                      })
+                      if (res.ok) {
+                        const data = await res.json()
+                        if (data.checkoutUrl) {
+                          stopCamera(true)
+                          window.location.href = data.checkoutUrl
+                        }
+                      }
+                    } catch (err) {
+                      console.error('Failed to start subscription checkout:', err)
+                    }
+                  }}
+                >
+                  Upgrade to Pro
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

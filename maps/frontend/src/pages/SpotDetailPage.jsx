@@ -572,8 +572,8 @@ export default function SpotDetailPage() {
                 <button className="btn btn-ghost" style={{ border: '1px solid var(--border-color)' }} onClick={() => navigate(`/directions/${spot.id}`)}>
                   Directions
                 </button>
-                <button className="btn-ar-spot" onClick={() => navigate(`/ar/spot/${spot.id}`)}>
-                  🔮 Explore in AR
+                <button className="btn btn-ghost" style={{ border: '1px solid var(--border-color)' }} onClick={() => navigate(`/ar/spot/${spot.id}`)}>
+                  Explore in AR
                 </button>
               </div>
               <div className="spot-card-actions">

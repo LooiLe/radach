@@ -57,6 +57,11 @@ public class FollowService {
         return followRepo.findExpertIdsByFollowerId(followerId);
     }
 
+    public java.util.List<User> getFollowedExperts(Long followerId) {
+        Set<Long> expertIds = getFollowedExpertIds(followerId);
+        return userRepo.findAllById(expertIds);
+    }
+
     public Set<Long> getFollowerIds(Long expertId) {
         return followRepo.findFollowerIdsByExpertId(expertId);
     }

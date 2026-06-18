@@ -221,6 +221,31 @@ public interface SpotRepository extends JpaRepository<Spot, Long> {
             """, nativeQuery = true)
     List<Spot> findPersonalizedTrendingWithinRadius(@Param("lat") double lat, @Param("lng") double lng, @Param("radiusKm") double radiusKm, @Param("firstDegree") java.util.Collection<Long> firstDegree, @Param("secondDegree") java.util.Collection<Long> secondDegree, @Param("since") Instant since);
 
+    @Query(value = """
+            SELECT DISTINCT s.*
+            FROM spots s
+            JOIN reviews r ON r.spot_id = s.id
+            WHERE r.author_id = :expertId
+              AND r.status = 'APPROVED'
+              AND s.status = 'ACTIVE'
+              AND (
+                  6371.0 * 2.0 * asin(
+                      sqrt(
+                          power(sin(radians(latitude - :lat) / 2.0), 2.0)
+                          + cos(radians(:lat)) * cos(radians(latitude))
+                          * power(sin(radians(longitude - :lng) / 2.0), 2.0)
+                      )
+                  )
+              ) <= :radiusKm
+            ORDER BY s.rank_score DESC
+            """, nativeQuery = true)
+    List<Spot> findSpotsReviewedByExpert(
+            @Param("expertId") Long expertId,
+            @Param("lat") double lat,
+            @Param("lng") double lng,
+            @Param("radiusKm") double radiusKm
+    );
+
     /**
      * Single SQL to recompute all rank scores with weighted formula.
      * Reviews are weighted by their average rating (1-5).

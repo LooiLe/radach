@@ -11,6 +11,7 @@ import com.radach.maps.repository.FeedPostRepository;
 import com.radach.maps.repository.PostCommentRepository;
 import com.radach.maps.repository.PostLikeRepository;
 import com.radach.maps.repository.UserRepository;
+import com.radach.maps.repository.SpotRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,15 +26,17 @@ public class FeedPostService {
     private final PostCommentRepository postCommentRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
+    private final SpotRepository spotRepository;
 
     public FeedPostService(FeedPostRepository feedPostRepository, PostLikeRepository postLikeRepository,
                            PostCommentRepository postCommentRepository, UserRepository userRepository,
-                           NotificationService notificationService) {
+                           NotificationService notificationService, SpotRepository spotRepository) {
         this.feedPostRepository = feedPostRepository;
         this.postLikeRepository = postLikeRepository;
         this.postCommentRepository = postCommentRepository;
         this.userRepository = userRepository;
         this.notificationService = notificationService;
+        this.spotRepository = spotRepository;
     }
 
     @Transactional
@@ -112,5 +115,38 @@ public class FeedPostService {
             );
         }
         return saved;
+    }
+
+    @Transactional(readOnly = true)
+    public List<com.radach.maps.dto.NearbyFeedPostResponse> findNearbyFriendPosts(
+            java.util.Collection<Long> friendIds, double lat, double lng, double radiusKm) {
+        if (friendIds == null || friendIds.isEmpty()) {
+            return List.of();
+        }
+        List<FeedPost> posts = feedPostRepository.findNearbyPostsByAuthorIds(friendIds, lat, lng, radiusKm);
+        return posts.stream().map(post -> {
+            User author = userRepository.findById(post.getAuthorId()).orElse(null);
+            String authorName = author != null ? author.getName() : "Unknown";
+            String authorPic = author != null ? author.getProfilePicture() : null;
+
+            com.radach.maps.model.Spot spot = spotRepository.findById(post.getSpotId()).orElse(null);
+            String spotName = spot != null ? spot.getName() : "Unknown Spot";
+            double spotLat = spot != null ? spot.getLatitude() : 0.0;
+            double spotLng = spot != null ? spot.getLongitude() : 0.0;
+
+            return new com.radach.maps.dto.NearbyFeedPostResponse(
+                post.getId(),
+                post.getAuthorId(),
+                authorName,
+                authorPic,
+                post.getContent(),
+                post.getMediaUrls(),
+                post.getSpotId(),
+                spotName,
+                spotLat,
+                spotLng,
+                post.getCreatedAt()
+            );
+        }).toList();
     }
 }

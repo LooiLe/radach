@@ -54,6 +54,7 @@ public class ARService {
     private final ItineraryStopRepository itineraryStopRepository;
     private final ARAnnotationRepository arAnnotationRepository;
     private final UserRepository userRepository;
+    private final CreditService creditService;
 
     public ARService(
             SpotRepository spotRepository,
@@ -64,7 +65,8 @@ public class ARService {
             ObjectProvider<GeminiClient> geminiClientProvider,
             ItineraryStopRepository itineraryStopRepository,
             ARAnnotationRepository arAnnotationRepository,
-            UserRepository userRepository
+            UserRepository userRepository,
+            CreditService creditService
     ) {
         this.spotRepository = spotRepository;
         this.reviewRepository = reviewRepository;
@@ -75,6 +77,7 @@ public class ARService {
         this.itineraryStopRepository = itineraryStopRepository;
         this.arAnnotationRepository = arAnnotationRepository;
         this.userRepository = userRepository;
+        this.creditService = creditService;
     }
 
     @Transactional(readOnly = true)
@@ -83,6 +86,18 @@ public class ARService {
         Set<Long> excluded = excludeIds == null ? Set.of() : new HashSet<>(excludeIds);
 
         return spotRepository.findWithinRadiusOrderByRankScoreDesc(lat, lng, radius / 1000.0).stream()
+                .filter(spot -> !excluded.contains(spot.getId()))
+                .limit(NEARBY_LIMIT)
+                .map(this::toSpotResponse)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<SpotResponse> findNearbySpotsByExpert(double lat, double lng, Long expertId, Integer radiusMeters, List<Long> excludeIds) {
+        int radius = normalizeRadius(radiusMeters);
+        Set<Long> excluded = excludeIds == null ? Set.of() : new HashSet<>(excludeIds);
+
+        return spotRepository.findSpotsReviewedByExpert(expertId, lat, lng, radius / 1000.0).stream()
                 .filter(spot -> !excluded.contains(spot.getId()))
                 .limit(NEARBY_LIMIT)
                 .map(this::toSpotResponse)
@@ -553,6 +568,9 @@ public class ARService {
                 .orElseThrow(() -> new ResourceNotFoundException("Annotation not found"));
 
         if ("approve".equalsIgnoreCase(action)) {
+            if (annotation.getStatus() == ARAnnotation.Status.PENDING) {
+                creditService.addCredits(annotation.getAuthorId(), 1);
+            }
             annotation.setStatus(ARAnnotation.Status.APPROVED);
         } else if ("reject".equalsIgnoreCase(action)) {
             annotation.setStatus(ARAnnotation.Status.REJECTED);
