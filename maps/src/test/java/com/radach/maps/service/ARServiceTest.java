@@ -91,6 +91,7 @@ public class ARServiceTest {
             13.756,
             100.501,
             90.0, // bearing
+            null, // pitch
             "Historical Mural", // title
             "This is a detailed historical wall mural.", // description
             "http://example.com/mural.jpg", // photoUrl

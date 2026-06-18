@@ -30,10 +30,18 @@ export function useDeviceSensors() {
       return
     }
 
+    const userAgent = navigator.userAgent || ''
+    const isIOSIPadOnDesktopUA = /Macintosh/i.test(userAgent) && navigator.maxTouchPoints > 1
+    const isMobileDevice = /Android|iPhone|iPad|iPod|Mobile/i.test(userAgent) || isIOSIPadOnDesktopUA
+
+    if (!isMobileDevice) {
+      setIsSupported(false)
+      setError('Open AR Explorer on your phone to use camera, GPS, and compass tracking.')
+      return
+    }
+
     const hasCamera = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
     const hasGeo = !!navigator.geolocation
-    // Orientation events exist on mobile browsers
-    const hasOrientation = 'DeviceOrientationEvent' in window
 
     if (!hasCamera || !hasGeo) {
       setIsSupported(false)
@@ -152,7 +160,7 @@ export function useDeviceSensors() {
       typeof DeviceOrientationEvent.requestPermission === 'function'
 
     if (!needsIOSPermission) {
-      // Android / desktop — start automatically
+      // Android browsers can start after the page is active.
       startGPS()
       const cleanup = startOrientation()
       setHasPermission(true)
