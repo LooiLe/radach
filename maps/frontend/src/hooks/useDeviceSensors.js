@@ -36,7 +36,7 @@ export function useDeviceSensors() {
 
     if (!isMobileDevice) {
       setIsSupported(false)
-      setError('Open AR Explorer on your phone to use camera, GPS, and compass tracking.')
+      setError('This experience is available on mobile devices with camera, location, and compass support.')
       return
     }
 

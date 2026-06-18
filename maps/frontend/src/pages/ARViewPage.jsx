@@ -735,10 +735,10 @@ export default function ARViewPage() {
 
   // ─── Render: Desktop fallback ───
   if (!isSupported) {
-    const fallbackTitle = requiresSecureContext ? 'Secure Connection Required' : 'AR Explorer'
+    const fallbackTitle = requiresSecureContext ? 'Secure Connection Required' : 'Open AR Explorer on Mobile'
     const fallbackDescription = requiresSecureContext
-      ? 'Your phone browser blocks camera, GPS, and motion sensors on plain HTTP. Open the app through HTTPS, or use a secure tunnel to this dev server.'
-      : 'Open this page on your phone to explore spots in augmented reality.'
+      ? 'AR Explorer needs a secure connection before it can use your camera, location, and motion sensors.'
+      : 'AR Explorer is designed for phones with camera, location, and compass support. Send this page to your phone to continue.'
 
     return (
       <div className="ar-page ar-page--fallback">
@@ -771,11 +771,11 @@ export default function ARViewPage() {
 
             {requiresSecureContext && (
               <div className="ar-fallback-help">
-                <div>For local phone testing, use an HTTPS tunnel URL such as ngrok or Cloudflare Tunnel.</div>
+                <div>Open this page using HTTPS, then continue from your mobile browser.</div>
               </div>
             )}
             <div className="ar-fallback-url-section">
-              <div className="ar-fallback-url-label">Scan or copy this URL on your phone</div>
+              <div className="ar-fallback-url-label">Copy this link to your phone</div>
               <div className="ar-fallback-url">{window.location.href}</div>
             </div>
             <button
