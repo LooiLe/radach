@@ -55,10 +55,11 @@ export function useARProjection({
         const screenX = (angleDiff / cameraFOV) * screenWidth + screenWidth / 2
 
         // Screen Y: based on distance (farther = higher on screen) and tilt
-        // Base Y at 60% of screen height, adjust up for far objects
+        // Base Y at 35% of screen height, adjust up for far objects
         const distanceFactor = 1 - Math.min(distance / maxDistance, 1)
         const baseY = screenHeight * 0.35
-        const tiltOffset = tilt != null ? ((tilt - 90) / 90) * screenHeight * 0.3 : 0
+        const targetPitch = poi.pitch ?? 90
+        const tiltOffset = tilt != null ? ((tilt - targetPitch) / 90) * screenHeight * 0.3 : 0
         const distanceOffset = (1 - distanceFactor) * screenHeight * 0.2
         const screenY = baseY + distanceOffset + tiltOffset
 

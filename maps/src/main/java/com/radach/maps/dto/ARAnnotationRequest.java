@@ -7,6 +7,7 @@ public record ARAnnotationRequest(
         Double latitude,
         Double longitude,
         Double bearing,      // optional: compass direction to look
+        Double pitch,        // optional: sensor pitch angle
         String title,
         String description,
         String photoUrl,     // optional: reference photo

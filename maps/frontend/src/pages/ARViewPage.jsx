@@ -1,11 +1,18 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import { useApi } from '../hooks/useApi'
 import { useDeviceSensors } from '../hooks/useDeviceSensors'
 import { useARProjection } from '../hooks/useARProjection'
 import { useARNavigation } from '../hooks/useARNavigation'
 import { useToast } from '../components/ToastProvider'
 import './ARViewPage.css'
+
+// Modularized Sub-Components
+import RadarMinimap from '../components/RadarMinimap'
+import AROnboarding from '../components/AROnboarding'
+import ARSettingsPanel from '../components/ARSettingsPanel'
+import ARAnnotationModal from '../components/ARAnnotationModal'
+import ARInfoSheet from '../components/ARInfoSheet'
 
 // Reuse icon mapping from ItineraryDetailPage
 const iconMap = {
@@ -125,7 +132,6 @@ export default function ARViewPage() {
   const activePhotoUrlRef = useRef(null)
 
   const videoRef = useRef(null)
-  const radarRef = useRef(null)
   const cameraStreamRef = useRef(null)
   const activeCameraStreamsRef = useRef(new Set())
   const cameraStoppedRef = useRef(true)
@@ -362,8 +368,6 @@ export default function ARViewPage() {
     }
     return null
   }, [pinnedLocation, positionLatitude, positionLongitude, heading, allPOIs])
-
-
 
   // ─── Camera initialization ───
   useEffect(() => {
@@ -646,34 +650,13 @@ export default function ARViewPage() {
     }, 350)
   }, [])
 
-  const handlePhotoUpload = async (e) => {
-    const file = e.target.files[0]
-    if (!file) return
-    setUploadingPhoto(true)
-    try {
-      const formData = new FormData()
-      formData.append('file', file)
-      const res = await apiFetch('/api/v1/upload', { method: 'POST', body: formData })
-      if (res.ok) {
-        const data = await res.json()
-        setAnnotationForm(prev => ({ ...prev, photoUrl: data.url }))
-        toast.success('Photo uploaded successfully!')
-      } else {
-        toast.error('Failed to upload photo.')
-      }
-    } catch {
-      toast.error('Error uploading photo.')
-    } finally {
-      setUploadingPhoto(false)
-    }
-  }
-
   // ─── Submit annotation ───
   const handleSubmitAnnotation = useCallback(async () => {
     const activeLoc = pinnedLocation || {
       latitude: position?.latitude,
       longitude: position?.longitude,
-      heading: heading || 0
+      heading: heading || 0,
+      pitch: tilt || 90
     }
     if (!activeLoc.latitude || !activeLoc.longitude) {
       toast.error('GPS position not available yet.')
@@ -697,21 +680,13 @@ export default function ARViewPage() {
       const targetLat = activeLoc.latitude + dLat
       const targetLng = activeLoc.longitude + dLng
 
-      console.log('Submitting annotation at pinned location:', {
-        userLat: activeLoc.latitude,
-        userLng: activeLoc.longitude,
-        heading: currentHeading,
-        targetDistance,
-        targetLat,
-        targetLng
-      });
-
       const res = await apiFetch('/api/v1/ar/annotations', {
         method: 'POST',
         body: JSON.stringify({
           latitude: targetLat,
           longitude: targetLng,
           bearing: Math.round(currentHeading),
+          pitch: Math.round(activeLoc.pitch || 90),
           title: annotationForm.title.trim(),
           description: annotationForm.description.trim(),
           photoUrl: capturedPhotoUrl || null,
@@ -737,88 +712,6 @@ export default function ARViewPage() {
     }
   }, [annotationForm, pinnedLocation, position, heading, apiFetch, toast, annotationDistance, capturedPhotoUrl])
 
-  // ─── Draw Radar Minimap ───
-  useEffect(() => {
-    const canvas = radarRef.current
-    if (!canvas || !position) return
-
-    const ctx = canvas.getContext('2d')
-    const size = 120 * (window.devicePixelRatio || 1)
-    canvas.width = size
-    canvas.height = size
-    const center = size / 2
-    const radius = center - 8
-
-    // Clear
-    ctx.clearRect(0, 0, size, size)
-
-    // Background circle (since the CSS provides backdrop filter, let's keep it clean and semi-transparent white)
-    ctx.beginPath()
-    ctx.arc(center, center, radius, 0, Math.PI * 2)
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.75)'
-    ctx.fill()
-    ctx.strokeStyle = 'rgba(18, 24, 38, 0.08)'
-    ctx.lineWidth = 1.5
-    ctx.stroke()
-
-    // Distance rings
-    const rings = [0.33, 0.66, 1.0]
-    rings.forEach(r => {
-      ctx.beginPath()
-      ctx.arc(center, center, radius * r, 0, Math.PI * 2)
-      ctx.strokeStyle = 'rgba(18, 24, 38, 0.05)'
-      ctx.lineWidth = 0.5
-      ctx.stroke()
-    })
-
-    // Heading wedge (field of view)
-    const fovRad = (60 / 2) * Math.PI / 180
-    const headingRad = -(heading * Math.PI / 180) + Math.PI / 2
-    ctx.beginPath()
-    ctx.moveTo(center, center)
-    ctx.arc(center, center, radius, -headingRad - fovRad - Math.PI / 2, -headingRad + fovRad - Math.PI / 2)
-    ctx.closePath()
-    ctx.fillStyle = 'rgba(18, 24, 38, 0.06)'
-    ctx.fill()
-
-    // POI dots
-    allPOIs.forEach(poi => {
-      const lat = poi.latitude ?? poi.lat
-      const lng = poi.longitude ?? poi.lng
-      if (lat == null || lng == null) return
-
-      const dLat = lat - position.latitude
-      const dLng = (lng - position.longitude) * Math.cos(position.latitude * Math.PI / 180)
-      const dist = Math.sqrt(dLat * dLat + dLng * dLng)
-      const maxDeg = maxRange / 111320 // approximate degrees for maxRange meters
-
-      if (dist > maxDeg) return
-
-      const scale = (dist / maxDeg) * radius
-      const angle = Math.atan2(dLng, dLat) - (heading * Math.PI / 180)
-
-      const dotX = center + scale * Math.sin(angle)
-      const dotY = center - scale * Math.cos(angle)
-
-      ctx.beginPath()
-      ctx.arc(dotX, dotY, poi.isItineraryStop ? 4 : poi.isAnnotation ? 3 : 2.5, 0, Math.PI * 2)
-      ctx.fillStyle = poi.isItineraryStop ? '#121826' : poi.isAnnotation ? '#d97706' : '#6b7280'
-      ctx.fill()
-    })
-
-    // User dot (center)
-    ctx.beginPath()
-    ctx.arc(center, center, 4, 0, Math.PI * 2)
-    ctx.fillStyle = '#121826'
-    ctx.fill()
-    ctx.beginPath()
-    ctx.arc(center, center, 7, 0, Math.PI * 2)
-    ctx.strokeStyle = 'rgba(18, 24, 38, 0.2)'
-    ctx.lineWidth = 2
-    ctx.stroke()
-
-  }, [position, heading, allPOIs, maxRange])
-
   // ─── Ground path dots for navigation ───
   const groundDots = useMemo(() => {
     if (!showNavigation || !arNav.nextStop || !arNav.enabled || arNav.isOnScreen === false) return []
@@ -826,7 +719,6 @@ export default function ARViewPage() {
     const count = 6
     for (let i = 0; i < count; i++) {
       const t = (i + 1) / (count + 1)
-      // Project dots from bottom-center toward the next stop's screen angle
       const angle = (arNav.angleDiffToNext * Math.PI / 180)
       const startX = screenDimensions.width / 2
       const startY = screenDimensions.height - 60
@@ -982,35 +874,18 @@ export default function ARViewPage() {
       <div className="ar-overlay">
 
         {/* Onboarding overlay — 3-step tutorial */}
-        {showOnboarding && (
-          <div
-            className={`ar-onboarding ${onboardingExit ? 'ar-onboarding--exit' : ''}`}
-            onClick={() => {
-              setOnboardingExit(true)
-              setTimeout(() => {
-                setShowOnboarding(false)
-                setOnboardingExit(false)
-                localStorage.setItem('ar_onboarding_seen', '1')
-              }, 300)
-            }}
-          >
-            <div className="ar-onboarding-steps">
-              <div className="ar-onboarding-step" style={{ animationDelay: '0s' }}>
-                <div className="ar-onboarding-step-icon">📷</div>
-                <div className="ar-onboarding-step-text">Point your phone to see spots</div>
-              </div>
-              <div className="ar-onboarding-step" style={{ animationDelay: '0.15s' }}>
-                <div className="ar-onboarding-step-icon">👆</div>
-                <div className="ar-onboarding-step-text">Tap a marker for details</div>
-              </div>
-              <div className="ar-onboarding-step" style={{ animationDelay: '0.3s' }}>
-                <div className="ar-onboarding-step-icon">📖</div>
-                <div className="ar-onboarding-step-text">Add your own insights</div>
-              </div>
-            </div>
-            <div className="ar-onboarding-hint">Tap anywhere to start</div>
-          </div>
-        )}
+        <AROnboarding
+          showOnboarding={showOnboarding}
+          onboardingExit={onboardingExit}
+          onClick={() => {
+            setOnboardingExit(true)
+            setTimeout(() => {
+              setShowOnboarding(false)
+              setOnboardingExit(false)
+              localStorage.setItem('ar_onboarding_seen', '1')
+            }, 300)
+          }}
+        />
 
         {/* Top Bar */}
         <div className="ar-top-bar">
@@ -1050,77 +925,25 @@ export default function ARViewPage() {
         </div>
 
         {/* Settings Panel */}
-        {showSettings && (
-          <div className="ar-settings-panel">
-            <div className="ar-settings-label">Detection Range</div>
-            <div className="ar-settings-value">{maxRange}m</div>
-            <input
-              type="range"
-              className="ar-range-slider"
-              min={100}
-              max={1000}
-              step={50}
-              value={maxRange}
-              onChange={(e) => setMaxRange(Number(e.target.value))}
-            />
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-              <span>100m</span>
-              <span>1km</span>
-            </div>
-
-            {position && (
-              <div style={{ marginTop: '12px', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                GPS: {position.latitude.toFixed(5)}, {position.longitude.toFixed(5)}
-                <br />Accuracy: ±{Math.round(position.accuracy)}m
-              </div>
-            )}
-
-            {/* Navigation toggle — only show in itinerary mode */}
-            {itineraryId && (
-              <div className="ar-settings-toggle">
-                <span className="ar-settings-toggle-label">🧭 Navigation arrows</span>
-                <button
-                  className={`ar-toggle-switch ${showNavigation ? 'ar-toggle-switch--on' : ''}`}
-                  onClick={() => setShowNavigation(prev => !prev)}
-                />
-              </div>
-            )}
-
-            {/* Expert Spotlight filter */}
-            <div className="ar-settings-expert-spotlight">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <span className="ar-settings-label" style={{ margin: 0 }}>🌟 Expert Spotlight</span>
-                {subscription?.tier !== 'PRO' && subscription?.tier !== 'UNLIMITED' && (
-                  <span className="ar-pro-badge" style={{ fontSize: '0.65rem', background: '#a78bfa', color: '#1e1b4b', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold' }}>PRO</span>
-                )}
-              </div>
-              <select
-                className="ar-expert-select"
-                value={selectedExpertId || ''}
-                onChange={(e) => {
-                  const val = e.target.value
-                  if (val && subscription?.tier !== 'PRO' && subscription?.tier !== 'UNLIMITED') {
-                    setShowUpgradeModal(true)
-                  } else {
-                    setSelectedExpertId(val ? Number(val) : null)
-                  }
-                }}
-              >
-                <option value="">Show All Spots</option>
-                {followedExperts.map(exp => (
-                  <option key={`opt-expert-${exp.id}`} value={exp.id}>
-                    {exp.name} ({exp.professionalTitle || 'Local Expert'})
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        )}
+        <ARSettingsPanel
+          showSettings={showSettings}
+          maxRange={maxRange}
+          setMaxRange={setMaxRange}
+          position={position}
+          itineraryId={itineraryId}
+          showNavigation={showNavigation}
+          setShowNavigation={setShowNavigation}
+          subscription={subscription}
+          followedExperts={followedExperts}
+          selectedExpertId={selectedExpertId}
+          setSelectedExpertId={setSelectedExpertId}
+          setShowUpgradeModal={setShowUpgradeModal}
+        />
 
         {/* ─── Navigation Arrow (Area 3) ─── */}
         {showNavigation && arNav.nextStop && arNav.distanceToNext != null && !arNav.isArrived && (
           <>
-            {/* Direction arrow — fades when next stop is in view */}
+            {/* Direction arrow ─── */}
             <div
               className={`ar-nav-arrow ${arNav.isOnScreen ? 'ar-nav-arrow--hidden' : ''}`}
               style={{ transform: `translate(-50%, -50%) rotate(${arNav.angleDiffToNext}deg)` }}
@@ -1194,7 +1017,6 @@ export default function ARViewPage() {
                   ? 'ar-marker--current'
                   : 'ar-marker--nearby'
 
-            // Check if this stop has a photo
             const spotPhoto = poi.isItineraryStop && poi.photos?.length > 0 ? poi.photos[0] : null
 
             return (
@@ -1282,20 +1104,20 @@ export default function ARViewPage() {
               return
             }
 
-            // Lock in current coordinates & heading immediately so user can relax
             isAnnotationCancelledRef.current = false
             const frozenHeading = heading || 0
+            const frozenTilt = tilt || 90
             setPinnedLocation({
               latitude: position.latitude,
               longitude: position.longitude,
-              heading: frozenHeading
+              heading: frozenHeading,
+              pitch: frozenTilt
             })
             setAnnotationDistance(3)
             setCapturedPhotoUrl('')
             setCapturedPhotoPreview('')
             setUploadingPhoto(true)
 
-            // Instantly snap current camera view
             if (videoRef.current) {
               try {
                 const canvas = document.createElement('canvas')
@@ -1356,429 +1178,43 @@ export default function ARViewPage() {
         </button>
 
         {/* Radar Minimap */}
-        <div className="ar-radar">
-          <canvas ref={radarRef} className="ar-radar-canvas" />
-        </div>
+        <RadarMinimap
+          position={position}
+          heading={heading}
+          allPOIs={allPOIs}
+          maxRange={maxRange}
+        />
 
-        {/* ─── Annotation Submission Modal ─── */}
-        <div className={`ar-annotation-modal ${showAnnotationModal ? 'ar-annotation-modal--open' : ''}`}>
-          <div className="ar-annotation-modal-content">
-            <div className="ar-info-drag-handle" />
-            <div className="ar-annotation-modal-title">
-              📖 Submit an Explanation
-            </div>
-
-            <div className="ar-earn-badge">
-              <span>💎</span>
-              <span>Pin & Earn: Approved explanations reward you with 1 free AI itinerary generation credit!</span>
-            </div>
-
-            {pinnedLocation && (
-              <div className="ar-annotation-gps-info">
-                📍 Locked Location: {pinnedLocation.latitude.toFixed(5)}, {pinnedLocation.longitude.toFixed(5)} · Facing {Math.round(pinnedLocation.heading)}° {getCompassLabel(pinnedLocation.heading)}
-              </div>
-            )}
-
-            {capturedPhotoPreview && (
-              <div className="ar-annotation-field" style={{ marginBottom: '16px' }}>
-                <label style={{ display: 'block', marginBottom: '6px' }}>Captured Reference Photo</label>
-                <div style={{ position: 'relative', display: 'inline-block', width: '100%' }}>
-                  <img
-                    src={capturedPhotoPreview}
-                    alt="Captured View"
-                    style={{ width: '100%', maxHeight: '160px', objectFit: 'cover', borderRadius: '10px', border: '1px solid var(--border)' }}
-                  />
-                  {uploadingPhoto && (
-                    <div style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      background: 'rgba(0,0,0,0.6)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      borderRadius: '10px',
-                      fontSize: '0.8rem',
-                      color: '#fff',
-                      fontWeight: 600
-                    }}>
-                      Uploading camera snapshot...
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            <div className="ar-annotation-field" style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
-                <span>Distance to Object:</span>
-                <strong style={{ color: 'var(--warning)' }}>{annotationDistance} meters</strong>
-              </label>
-              <input
-                type="range"
-                min="1"
-                max="50"
-                step="1"
-                value={annotationDistance}
-                onChange={(e) => setAnnotationDistance(Number(e.target.value))}
-                style={{ width: '100%', accentColor: 'var(--text-primary)', marginTop: '8px' }}
-              />
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', opacity: 0.5, marginTop: '2px' }}>
-                <span>1m (Right in front)</span>
-                <span>50m (Far away)</span>
-              </div>
-
-              <div className="ar-annotation-presets">
-                <button
-                  type="button"
-                  className={`ar-preset-btn ${annotationDistance === 3 ? 'active' : ''}`}
-                  onClick={() => setAnnotationDistance(3)}
-                >
-                  Wall (3m)
-                </button>
-                <button
-                  type="button"
-                  className={`ar-preset-btn ${annotationDistance === 5 ? 'active' : ''}`}
-                  onClick={() => setAnnotationDistance(5)}
-                >
-                  Close (5m)
-                </button>
-                <button
-                  type="button"
-                  className={`ar-preset-btn ${annotationDistance === 15 ? 'active' : ''}`}
-                  onClick={() => setAnnotationDistance(15)}
-                >
-                  Medium (15m)
-                </button>
-                <button
-                  type="button"
-                  className={`ar-preset-btn ${annotationDistance === 30 ? 'active' : ''}`}
-                  onClick={() => setAnnotationDistance(30)}
-                >
-                  Far (30m)
-                </button>
-                {closestSpotPreset && (
-                  <button
-                    type="button"
-                    className={`ar-preset-btn ${annotationDistance === closestSpotPreset.distance ? 'active' : ''}`}
-                    onClick={() => setAnnotationDistance(closestSpotPreset.distance)}
-                  >
-                    📍 Snap to {closestSpotPreset.name.length > 18 ? closestSpotPreset.name.substring(0, 16) + '..' : closestSpotPreset.name} ({closestSpotPreset.distance}m)
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <div className="ar-annotation-field">
-              <label>What is it?</label>
-              <input
-                type="text"
-                placeholder="e.g. Temple mural on the east wall"
-                value={annotationForm.title}
-                onChange={(e) => setAnnotationForm(prev => ({ ...prev, title: e.target.value }))}
-                maxLength={150}
-              />
-            </div>
-
-            <div className="ar-annotation-field">
-              <label>Explanation</label>
-              <textarea
-                placeholder="Describe what this is and why it's interesting..."
-                value={annotationForm.description}
-                onChange={(e) => setAnnotationForm(prev => ({ ...prev, description: e.target.value }))}
-                maxLength={2000}
-              />
-            </div>
-
-            <div className="ar-annotation-actions">
-              <button
-                className="ar-annotation-cancel-btn"
-                onClick={handleCancelAnnotation}
-              >
-                Cancel
-              </button>
-              <button
-                className="ar-annotation-submit-btn"
-                disabled={!annotationForm.title.trim() || !annotationForm.description.trim() || !pinnedLocation || annotationSubmitting || uploadingPhoto}
-                onClick={handleSubmitAnnotation}
-              >
-                {uploadingPhoto ? 'Uploading snapshot...' : annotationSubmitting ? 'Submitting...' : 'Submit for Review'}
-              </button>
-            </div>
-          </div>
-        </div>
+        {/* Annotation Submission Modal */}
+        <ARAnnotationModal
+          showAnnotationModal={showAnnotationModal}
+          pinnedLocation={pinnedLocation}
+          capturedPhotoPreview={capturedPhotoPreview}
+          uploadingPhoto={uploadingPhoto}
+          annotationDistance={annotationDistance}
+          setAnnotationDistance={setAnnotationDistance}
+          annotationForm={annotationForm}
+          setAnnotationForm={setAnnotationForm}
+          closestSpotPreset={closestSpotPreset}
+          annotationSubmitting={annotationSubmitting}
+          handleCancelAnnotation={handleCancelAnnotation}
+          handleSubmitAnnotation={handleSubmitAnnotation}
+          getCompassLabel={getCompassLabel}
+        />
 
         {/* Info Sheet */}
-        <div className={`ar-info-sheet ${showInfoSheet ? 'ar-info-sheet--open' : ''}`}>
-          <div className="ar-info-sheet-content">
-            <div className="ar-info-drag-handle" />
-
-            {selectedPOI && (
-              <>
-                {/* Photo strip */}
-                {!selectedPOI.isAnnotation && !selectedPOI.isFriendPost && selectedPOI.photos?.length > 0 && (
-                  <div className="ar-info-photos">
-                    {selectedPOI.photos.slice(0, 5).map((url, idx) => (
-                      <img
-                        key={`info-photo-${idx}`}
-                        src={url}
-                        alt={`${selectedPOI.name} photo ${idx + 1}`}
-                        className="ar-info-photo"
-                      />
-                    ))}
-                  </div>
-                )}
-
-                <div className="ar-info-header">
-                  <div>
-                    <div className="ar-info-spot-name">
-                      {selectedPOI.isItineraryStop && (
-                        <span style={{ color: 'var(--text-primary)', marginRight: '6px' }}>
-                          #{selectedPOI.stopNumber}
-                        </span>
-                      )}
-                      {selectedPOI.name}
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    {!selectedPOI.isAnnotation && !selectedPOI.isFriendPost && (
-                      <span className="ar-info-spot-type">
-                        <img src={getIconUrl(selectedPOI.type)} alt="" style={{ width: '14px', height: '14px', opacity: 0.7 }} />
-                        {selectedPOI.type}
-                      </span>
-                    )}
-                    {selectedPOI.isAnnotation && (
-                      <span className="ar-info-spot-type" style={{ background: 'var(--warning-bg)', color: 'var(--warning)' }}>
-                        📖 Annotation
-                      </span>
-                    )}
-                    {selectedPOI.isFriendPost && (
-                      <span className="ar-info-spot-type" style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#60a5fa', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
-                        💬 Friend's Note
-                      </span>
-                    )}
-                    <button className="ar-info-close-btn" onClick={handleCloseSheet}>✕</button>
-                  </div>
-                </div>
-
-                <div className="ar-info-meta">
-                  <span>📍 {formatDistance(selectedPOI.distance)}</span>
-                  {!selectedPOI.isAnnotation && !selectedPOI.isFriendPost && selectedPOI.averageRating > 0 && (
-                    <span>
-                      ⭐ <span className="ar-info-rating">{selectedPOI.averageRating?.toFixed?.(1) || selectedPOI.averageRating}</span>
-                    </span>
-                  )}
-                  {!selectedPOI.isAnnotation && !selectedPOI.isFriendPost && selectedPOI.address && (
-                    <span style={{ fontSize: '0.75rem', opacity: 0.7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '160px' }}>
-                      {selectedPOI.address}
-                    </span>
-                  )}
-                </div>
-
-                {/* ─── Annotation detail ─── */}
-                {selectedPOI.isAnnotation && selectedPOI.annotationData && (
-                  <div className="ar-annotation-detail">
-                    <div className="ar-annotation-detail-author">
-                      👤 {selectedPOI.annotationData.authorName}
-                      {selectedPOI.annotationData.authorIsExpert && (
-                        <span className="badge-expert">Expert</span>
-                      )}
-                    </div>
-                    <div className="ar-annotation-detail-text">
-                      {selectedPOI.annotationData.description}
-                    </div>
-                    {selectedPOI.annotationData.photoUrl && (
-                      <img
-                        src={selectedPOI.annotationData.photoUrl}
-                        alt={selectedPOI.annotationData.title}
-                        className="ar-annotation-detail-photo"
-                      />
-                    )}
-                  </div>
-                )}
-
-                {/* ─── Friend Post detail ─── */}
-                {selectedPOI.isFriendPost && selectedPOI.postData && (
-                  <div className="ar-friend-post-detail" style={{ padding: '12px 0' }}>
-                    <div className="ar-friend-post-author" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                      {selectedPOI.postData.authorProfilePicture ? (
-                        <img
-                          src={selectedPOI.postData.authorProfilePicture}
-                          alt={selectedPOI.postData.authorName}
-                          style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover' }}
-                        />
-                      ) : (
-                        <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem' }}>👤</div>
-                      )}
-                      <div>
-                        <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-primary)' }}>{selectedPOI.postData.authorName}</div>
-                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                          Shared a tip about {selectedPOI.postData.spotName} · {new Date(selectedPOI.postData.createdAt).toLocaleDateString()}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="ar-friend-post-text" style={{ fontSize: '0.8rem', lineHeight: '1.5', color: 'var(--text-secondary)', marginBottom: '12px', whiteSpace: 'pre-wrap' }}>
-                      {selectedPOI.postData.content}
-                    </div>
-                    {selectedPOI.postData.mediaUrls?.length > 0 && (
-                      <div className="ar-friend-post-photos" style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
-                        {selectedPOI.postData.mediaUrls.map((url, idx) => (
-                          <img
-                            key={`post-img-${idx}`}
-                            src={url}
-                            alt="attachment"
-                            style={{ width: '120px', height: '120px', objectFit: 'cover', borderRadius: '8px', border: '1px solid var(--border)' }}
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* ─── Spot Explanation ─── */}
-                {!selectedPOI.isAnnotation && !selectedPOI.isFriendPost && (
-                  <>
-                    {explanation ? (
-                      <div className="ar-explanation ar-explanation--animated">
-                        <div className="ar-explanation-heading">
-                          <div className="ar-explanation-label">About this spot</div>
-                          <div className={`ar-explanation-source ${explanation.aiEnhanced ? 'ar-explanation-source--ai' : ''}`}>
-                            {explanation.aiEnhanced ? 'AI enhanced' : 'Local guide'}
-                          </div>
-                        </div>
-                        <div className="ar-explanation-text">
-                          {explanation.whatIsThis && (
-                            <div className="ar-explanation-desc ar-stagger-1">
-                              {explanation.whatIsThis}
-                            </div>
-                          )}
-
-                          {explanation.highlights?.length > 0 && (
-                            <div className="ar-explanation-highlights ar-stagger-2">
-                              {explanation.highlights.slice(0, 5).map((highlight, idx) => (
-                                <div key={`ar-highlight-${idx}`} className="ar-explanation-highlight" style={{ animationDelay: `${0.1 + idx * 0.06}s` }}>
-                                  {highlight}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                          
-                          {explanation.whoIsThisFor && (
-                            <div className="ar-explanation-audience ar-stagger-3">
-                              <span>👥</span> <span>{explanation.whoIsThisFor}</span>
-                            </div>
-                          )}
-
-                          {explanation.quickFact && (
-                            <div className="ar-explanation-fact ar-stagger-4">
-                              💡 {explanation.quickFact}
-                            </div>
-                          )}
-                          {explanation.visitTip && (
-                            <div className="ar-explanation-tip ar-stagger-5">
-                              <span className="ar-explanation-kicker">AR tip</span>
-                              <span>{explanation.visitTip}</span>
-                            </div>
-                          )}
-                        </div>
-
-                        {explanation.shouldYouSwitch && (
-                          <div className="ar-explanation-switch ar-stagger-5">
-                            <div className="ar-explanation-switch-title">
-                              <span>🔄</span> Should you switch?
-                            </div>
-                            <div className="ar-explanation-switch-content">
-                              {explanation.shouldYouSwitch}
-                            </div>
-                          </div>
-                        )}
-
-                        {explanation.friendSays && (
-                          <div className="ar-explanation-friend ar-stagger-6">
-                            👤 A friend says: "{explanation.friendSays}"
-                          </div>
-                        )}
-                      </div>
-                    ) : explanationError ? (
-                      <div className="ar-explanation ar-explanation--muted">
-                        <div className="ar-explanation-label">About this spot</div>
-                        <div className="ar-explanation-text">{explanationError}</div>
-                      </div>
-                    ) : selectedPOI && (
-                      <div className="ar-skeleton">
-                        <div className="ar-skeleton-line ar-skeleton-line--title" />
-                        <div className="ar-skeleton-line ar-skeleton-line--long" />
-                        <div className="ar-skeleton-line ar-skeleton-line--medium" />
-                        <div className="ar-skeleton-line ar-skeleton-line--short" />
-                        <div className="ar-skeleton-line ar-skeleton-line--medium" />
-                      </div>
-                    )}
-                  </>
-                )}
-
-                {/* Actions */}
-                {!selectedPOI.isAnnotation && (
-                  <div className="ar-info-actions">
-                    <Link
-                      to={`/spot/${selectedPOI.isFriendPost ? selectedPOI.postData.spotId : selectedPOI.id}`}
-                      className="ar-action-btn ar-action-btn--primary"
-                      style={{ textDecoration: 'none' }}
-                      onClick={() => stopCamera(true)}
-                    >
-                      📄 Details
-                    </Link>
-                    <Link
-                      to={`/directions/${selectedPOI.isFriendPost ? selectedPOI.postData.spotId : selectedPOI.id}`}
-                      className="ar-action-btn"
-                      style={{ textDecoration: 'none' }}
-                      onClick={() => stopCamera(true)}
-                    >
-                      📍 Directions
-                    </Link>
-                  </div>
-                )}
-
-                {/* Alternatives */}
-                {alternatives.length > 0 && (
-                  <div className="ar-alternatives">
-                    <div className="ar-alternatives-label">
-                      Similar spots nearby
-                    </div>
-                    <div className="ar-alt-list">
-                      {alternatives.map(alt => (
-                        <div
-                          key={`alt-${alt.id}`}
-                          className="ar-alt-card"
-                          onClick={() => handleSelectPOI({
-                            ...alt,
-                            isItineraryStop: false,
-                            isAnnotation: false,
-                            distance: selectedPOI.distance // rough — will recalculate
-                          })}
-                        >
-                          <img
-                            src={getIconUrl(alt.type)}
-                            alt={alt.type}
-                            className="ar-alt-icon"
-                          />
-                          <div className="ar-alt-info">
-                            <div className="ar-alt-name">{alt.name}</div>
-                            <div className="ar-alt-meta">
-                              {alt.type}
-                              {alt.averageRating > 0 && ` · ⭐${alt.averageRating.toFixed?.(1) || alt.averageRating}`}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        </div>
+        <ARInfoSheet
+          showInfoSheet={showInfoSheet}
+          selectedPOI={selectedPOI}
+          handleCloseSheet={handleCloseSheet}
+          explanation={explanation}
+          explanationError={explanationError}
+          alternatives={alternatives}
+          handleSelectPOI={handleSelectPOI}
+          stopCamera={stopCamera}
+          getIconUrl={getIconUrl}
+          formatDistance={formatDistance}
+        />
 
         {/* Upgrade Promotion Modal */}
         {showUpgradeModal && (

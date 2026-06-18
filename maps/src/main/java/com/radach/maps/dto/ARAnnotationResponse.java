@@ -11,6 +11,7 @@ public record ARAnnotationResponse(
         Double longitude,
         Double radiusMeters,
         Double bearing,
+        Double pitch,
         String title,
         String description,
         String photoUrl,

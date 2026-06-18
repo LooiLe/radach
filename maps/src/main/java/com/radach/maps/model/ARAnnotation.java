@@ -37,6 +37,9 @@ public class ARAnnotation {
     /** Optional: compass direction to look at (0-360°). */
     private Double bearing;
 
+    /** Optional: sensor pitch angle. */
+    private Double pitch;
+
     @Column(nullable = false, length = 150)
     private String title;
 
@@ -87,6 +90,9 @@ public class ARAnnotation {
 
     public Double getBearing() { return bearing; }
     public void setBearing(Double bearing) { this.bearing = bearing; }
+
+    public Double getPitch() { return pitch; }
+    public void setPitch(Double pitch) { this.pitch = pitch; }
 
     public String getTitle() { return title; }
     public void setTitle(String title) { this.title = title; }

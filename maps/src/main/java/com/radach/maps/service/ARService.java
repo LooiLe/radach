@@ -545,6 +545,11 @@ public class ARService {
         annotation.setLongitude(req.longitude());
         annotation.setRadiusMeters(req.radiusMeters() != null ? req.radiusMeters() : 30.0);
         annotation.setBearing(req.bearing());
+        Double pitch = req.pitch();
+        if (pitch != null && (pitch < 30.0 || pitch > 150.0)) {
+            pitch = 90.0;
+        }
+        annotation.setPitch(pitch);
         annotation.setTitle(req.title());
         annotation.setDescription(req.description());
         annotation.setPhotoUrl(req.photoUrl());
@@ -615,6 +620,13 @@ public class ARService {
         if (req.longitude() != null) annotation.setLongitude(req.longitude());
         if (req.radiusMeters() != null) annotation.setRadiusMeters(req.radiusMeters());
         if (req.bearing() != null) annotation.setBearing(req.bearing());
+        if (req.pitch() != null) {
+            Double pitch = req.pitch();
+            if (pitch < 30.0 || pitch > 150.0) {
+                pitch = 90.0;
+            }
+            annotation.setPitch(pitch);
+        }
         if (req.title() != null) annotation.setTitle(req.title());
         if (req.description() != null) annotation.setDescription(req.description());
         if (req.photoUrl() != null) {
@@ -649,6 +661,7 @@ public class ARService {
                 annotation.getLongitude(),
                 annotation.getRadiusMeters(),
                 annotation.getBearing(),
+                annotation.getPitch(),
                 annotation.getTitle(),
                 annotation.getDescription(),
                 annotation.getPhotoUrl(),
