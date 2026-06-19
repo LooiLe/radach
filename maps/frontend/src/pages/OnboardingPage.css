@@ -85,25 +85,25 @@
 
 .interest-chip {
   padding: 10px 20px;
-  border: 2px solid var(--border-color);
-  border-radius: 24px;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  font-size: 0.9rem;
+  border-radius: 20px;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.2s;
+  font-weight: 500;
+  font-size: 0.9rem;
   user-select: none;
 }
 
 .interest-chip:hover {
-  border-color: var(--accent);
-  background: var(--accent-light, rgba(99, 102, 241, 0.05));
+  background: #f8f9fa;
 }
 
 .interest-chip.selected {
-  border-color: var(--border-color);
-  background: var(--bg-tertiary);
+  background: #f1f5f9;
   color: var(--text-primary);
+  border-color: var(--border-color);
 }
 
 /* Expert cards */

@@ -114,6 +114,8 @@ export default function OnboardingPage() {
         body: JSON.stringify({ interests: selectedInterests }),
       })
       if (res.ok) {
+        // Store interests in localStorage for the discover page to use
+        localStorage.setItem('interests', selectedInterests.join(','))
         // Update auth context to reflect onboarding completed
         const token = localStorage.getItem('token')
         const userId = localStorage.getItem('userId')
