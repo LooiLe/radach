@@ -262,6 +262,40 @@ export default function SpotsPage() {
   const [journeysLoading, setJourneysLoading] = useState(false)
   const [allJourneyCategoriesSelected, setAllJourneyCategoriesSelected] = useState(false)
   const [mapBounds, setMapBounds] = useState(null)
+  const [categoriesReady, setCategoriesReady] = useState(false)
+  const initialCatLoadRef = useRef({ categories: false, journeyCategories: false })
+
+  // Interest → spot category mapping
+  const INTEREST_SPOT_MAP = {
+    coffee: ['café', 'cafe'],
+    photography: [],
+    food: ['restaurant', 'food hall'],
+    alcohol: ['bar'],
+    'exquisite food': ['restaurant', 'food hall'],
+    travelling: [],
+    hiking: [],
+    beach: ['beach'],
+    museum: [],
+    nightlife: ['bar'],
+    shopping: [],
+    fitness: [],
+  }
+
+  // Interest → journey category name mapping
+  const INTEREST_JOURNEY_MAP = {
+    coffee: ['food & drink'],
+    photography: ['scenic & photography'],
+    food: ['food & drink'],
+    alcohol: ['food & drink'],
+    'exquisite food': ['food & drink'],
+    travelling: ['local experiences'],
+    hiking: ['walks & trails'],
+    beach: ['walks & trails'],
+    museum: ['culture & history'],
+    nightlife: ['food & drink'],
+    shopping: ['local experiences'],
+    fitness: ['walks & trails'],
+  }
 
   function isJourneyInBounds(j, bounds) {
     if (!bounds || !j.geoJson) return false
@@ -296,7 +330,19 @@ export default function SpotsPage() {
             selMap[norm] = false
             if (c.iconUrl) dynamicIconMap[norm] = c.iconUrl
           })
+          // Auto-select categories based on user interests
+          const stored = localStorage.getItem('interests')
+          if (stored) {
+            const userInterests = stored.split(',').filter(Boolean)
+            userInterests.forEach(interest => {
+              const mapped = INTEREST_SPOT_MAP[interest] || []
+              mapped.forEach(catName => { if (selMap[catName] !== undefined) selMap[catName] = true })
+            })
+          }
           setSelectedCategories(selMap)
+          // Check if both are loaded
+          if (initialCatLoadRef.current.journeyCategories) setCategoriesReady(true)
+          initialCatLoadRef.current.categories = true
         }
       } catch { /* ignore */ }
     }
@@ -309,8 +355,28 @@ export default function SpotsPage() {
         if (res.ok && data.length > 0) {
           const sorted = data.sort((a, b) => a.name.localeCompare(b.name))
           setJourneyCategoriesList(sorted)
-          // Default: none selected
-          setSelectedJourneyCategories({})
+          // Auto-select journey categories based on user interests
+          const stored = localStorage.getItem('interests')
+          if (stored) {
+            const userInterests = stored.split(',').filter(Boolean)
+            const journeyNamesToSelect = new Set()
+            userInterests.forEach(interest => {
+              const mapped = INTEREST_JOURNEY_MAP[interest] || []
+              mapped.forEach(catName => journeyNamesToSelect.add(catName))
+            })
+            const next = {}
+            sorted.forEach(cat => {
+              if (journeyNamesToSelect.has(cat.name.toLowerCase())) {
+                next[cat.id] = true
+              }
+            })
+            setSelectedJourneyCategories(next)
+          } else {
+            setSelectedJourneyCategories({})
+          }
+          // Check if both are loaded
+          if (initialCatLoadRef.current.categories) setCategoriesReady(true)
+          initialCatLoadRef.current.journeyCategories = true
         }
       } catch { /* ignore */ }
     }
@@ -458,7 +524,7 @@ export default function SpotsPage() {
       setPage(0)
       loadMapViewport(mapInstanceRef.current)
     }
-  }, [selectedCategories, loadMapViewport, place, lat, lng])
+  }, [selectedCategories, loadMapViewport, place, lat, lng, categoriesReady])
 
   const handleClearSearch = () => {
     setPlace(''); setLat(''); setLng(''); setRadius(''); setSuggestions([]); setBounds([]); setMapSpots([]); setPage(0)

@@ -23,6 +23,10 @@ export function AuthProvider({ children }) {
   })
   const [isExpert, setIsExpert] = useState(() => localStorage.getItem('isExpert') === 'true')
   const [onboardingCompleted, setOnboardingCompleted] = useState(() => localStorage.getItem('onboardingCompleted') === 'true')
+  const [interests, setInterests] = useState(() => {
+    const stored = localStorage.getItem('interests')
+    return stored ? stored.split(',') : []
+  })
   const refreshTimer = useRef(null)
 
   const login = useCallback((data) => {
