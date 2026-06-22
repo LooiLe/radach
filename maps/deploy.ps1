@@ -56,4 +56,4 @@ if ($backend) {
 }
 
 Write-Host "`n=== Deploy finished! ===" -ForegroundColor Cyan
-Write-Host "Site: http://93.127.194.132`n"
+Write-Host "Site: https://unlike.asia`n"

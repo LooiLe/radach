@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.*;
 
 import com.radach.maps.dto.ItineraryRequest;
 import com.radach.maps.dto.ItineraryResponse;
+import com.radach.maps.dto.ItinerarySpotActionRequest;
 import com.radach.maps.dto.StopRequest;
 import com.radach.maps.service.AuthenticatedUserService;
 import com.radach.maps.service.ItineraryGenerationService;
@@ -79,6 +80,29 @@ public class ItineraryController {
                                                       @RequestBody StopRequest request) {
         Long userId = authenticatedUserService.getUserId(auth);
         return ResponseEntity.ok(itineraryService.addStop(userId, id, request));
+    }
+
+    @PostMapping("/{id}/stops/after/{afterStopId}")
+    public ResponseEntity<ItineraryResponse> addSpotAfterStop(Authentication auth, @PathVariable Long id,
+                                                               @PathVariable Long afterStopId,
+                                                               @RequestBody ItinerarySpotActionRequest request) {
+        Long userId = authenticatedUserService.getUserId(auth);
+        return ResponseEntity.ok(itineraryService.addSpotAfterStop(userId, id, afterStopId, request.spotId()));
+    }
+
+    @PatchMapping("/{id}/stops/{stopId}/spot")
+    public ResponseEntity<ItineraryResponse> replaceStopSpot(Authentication auth, @PathVariable Long id,
+                                                              @PathVariable Long stopId,
+                                                              @RequestBody ItinerarySpotActionRequest request) {
+        Long userId = authenticatedUserService.getUserId(auth);
+        return ResponseEntity.ok(itineraryService.replaceStopSpot(userId, id, stopId, request.spotId()));
+    }
+
+    @PostMapping("/{id}/stops/{stopId}/optimize-remaining")
+    public ResponseEntity<ItineraryResponse> optimizeRemainingStops(Authentication auth, @PathVariable Long id,
+                                                                     @PathVariable Long stopId) {
+        Long userId = authenticatedUserService.getUserId(auth);
+        return ResponseEntity.ok(itineraryService.optimizeRemainingStops(userId, id, stopId));
     }
 
     @DeleteMapping("/{id}/stops/{stopId}")

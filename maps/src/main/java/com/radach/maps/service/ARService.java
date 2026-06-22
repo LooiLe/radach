@@ -21,6 +21,7 @@ import com.radach.maps.dto.ARAnnotationRequest;
 import com.radach.maps.dto.ARAnnotationResponse;
 import com.radach.maps.dto.SpotExplanation;
 import com.radach.maps.dto.SpotResponse;
+import com.radach.maps.dto.VibeTagDTO;
 import com.radach.maps.exception.ResourceNotFoundException;
 import com.radach.maps.model.ARAnnotation;
 import com.radach.maps.model.Review;
@@ -35,6 +36,7 @@ import com.radach.maps.repository.ItineraryStopRepository;
 import com.radach.maps.repository.ReviewRepository;
 import com.radach.maps.repository.SpotRepository;
 import com.radach.maps.repository.SpotVibeTagRepository;
+import com.radach.maps.repository.UserSpotInteractionRepository;
 import com.radach.maps.repository.UserRepository;
 import com.radach.maps.repository.VibeTagDefinitionRepository;
 
@@ -54,6 +56,7 @@ public class ARService {
     private final ItineraryStopRepository itineraryStopRepository;
     private final ARAnnotationRepository arAnnotationRepository;
     private final UserRepository userRepository;
+    private final UserSpotInteractionRepository interactionRepository;
     private final CreditService creditService;
 
     public ARService(
@@ -66,6 +69,7 @@ public class ARService {
             ItineraryStopRepository itineraryStopRepository,
             ARAnnotationRepository arAnnotationRepository,
             UserRepository userRepository,
+            UserSpotInteractionRepository interactionRepository,
             CreditService creditService
     ) {
         this.spotRepository = spotRepository;
@@ -77,31 +81,42 @@ public class ARService {
         this.itineraryStopRepository = itineraryStopRepository;
         this.arAnnotationRepository = arAnnotationRepository;
         this.userRepository = userRepository;
+        this.interactionRepository = interactionRepository;
         this.creditService = creditService;
     }
 
     @Transactional(readOnly = true)
     public List<SpotResponse> findNearbySpots(double lat, double lng, Integer radiusMeters, List<Long> excludeIds) {
+        return findNearbySpots(lat, lng, radiusMeters, excludeIds, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<SpotResponse> findNearbySpots(double lat, double lng, Integer radiusMeters, List<Long> excludeIds, Long userId) {
         int radius = normalizeRadius(radiusMeters);
         Set<Long> excluded = excludeIds == null ? Set.of() : new HashSet<>(excludeIds);
 
-        return spotRepository.findWithinRadiusOrderByRankScoreDesc(lat, lng, radius / 1000.0).stream()
+        List<Spot> spots = spotRepository.findWithinRadiusOrderByRankScoreDesc(lat, lng, radius / 1000.0).stream()
                 .filter(spot -> !excluded.contains(spot.getId()))
                 .limit(NEARBY_LIMIT)
-                .map(this::toSpotResponse)
                 .toList();
+        return toSpotResponses(spots, userId);
     }
 
     @Transactional(readOnly = true)
     public List<SpotResponse> findNearbySpotsByExpert(double lat, double lng, Long expertId, Integer radiusMeters, List<Long> excludeIds) {
+        return findNearbySpotsByExpert(lat, lng, expertId, radiusMeters, excludeIds, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<SpotResponse> findNearbySpotsByExpert(double lat, double lng, Long expertId, Integer radiusMeters, List<Long> excludeIds, Long userId) {
         int radius = normalizeRadius(radiusMeters);
         Set<Long> excluded = excludeIds == null ? Set.of() : new HashSet<>(excludeIds);
 
-        return spotRepository.findSpotsReviewedByExpert(expertId, lat, lng, radius / 1000.0).stream()
+        List<Spot> spots = spotRepository.findSpotsReviewedByExpert(expertId, lat, lng, radius / 1000.0).stream()
                 .filter(spot -> !excluded.contains(spot.getId()))
                 .limit(NEARBY_LIMIT)
-                .map(this::toSpotResponse)
                 .toList();
+        return toSpotResponses(spots, userId);
     }
 
     @Transactional(readOnly = true)
@@ -384,6 +399,91 @@ public class ARService {
     private SpotResponse toSpotResponse(Spot spot) {
         Double averageRating = reviewRepository.findAverageRatingBySpotId(spot.getId());
         return new SpotResponse(spot, averageRating == null ? 0.0 : averageRating);
+    }
+
+    private List<SpotResponse> toSpotResponses(List<Spot> spots, Long userId) {
+        if (spots == null || spots.isEmpty()) {
+            return List.of();
+        }
+
+        List<Long> spotIds = spots.stream().map(Spot::getId).toList();
+        Map<Long, Double> globalRatings = reviewRepository.findAverageRatingsBySpotIds(spotIds).stream()
+                .collect(Collectors.toMap(
+                        row -> ((Number) row[0]).longValue(),
+                        row -> ((Number) row[1]).doubleValue()
+                ));
+        Map<Long, Double> expertRatings = reviewRepository.findAverageExpertRatingsBySpotIds(spotIds).stream()
+                .collect(Collectors.toMap(
+                        row -> ((Number) row[0]).longValue(),
+                        row -> ((Number) row[1]).doubleValue()
+                ));
+
+        Set<Long> friendIds = userId == null ? Set.of() : friendshipService.getFirstDegreeConnections(userId);
+        Map<Long, Double> friendRatings = friendIds.isEmpty() ? Map.of() :
+                reviewRepository.findAverageFriendsRatingsBySpotIds(spotIds, friendIds).stream()
+                        .collect(Collectors.toMap(
+                                row -> ((Number) row[0]).longValue(),
+                                row -> ((Number) row[1]).doubleValue()
+                        ));
+        Map<Long, Integer> friendLikeCounts = friendIds.isEmpty() ? Map.of() :
+                interactionRepository.countFriendLikesBySpotIds(spotIds, friendIds).stream()
+                        .collect(Collectors.toMap(
+                                row -> ((Number) row[0]).longValue(),
+                                row -> ((Number) row[1]).intValue()
+                        ));
+
+        Set<Long> likedSpotIds = userId == null ? Set.of() : interactionRepository.findLikedSpotIdsByUserId(userId);
+        Set<Long> savedSpotIds = userId == null ? Set.of() : interactionRepository.findSavedSpotIdsByUserId(userId);
+
+        Set<Long> submitterIds = spots.stream()
+                .map(Spot::getSubmittedBy)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, User> submitters = submitterIds.isEmpty() ? Map.of() :
+                userRepository.findAllById(submitterIds).stream()
+                        .collect(Collectors.toMap(User::getId, Function.identity()));
+
+        Map<Long, List<VibeTagDTO>> vibeTagsBySpot = spotIds.stream()
+                .collect(Collectors.toMap(Function.identity(), this::vibeTagsForSpot));
+
+        return spots.stream()
+                .map(spot -> {
+                    Long spotId = spot.getId();
+                    User submitter = spot.getSubmittedBy() == null ? null : submitters.get(spot.getSubmittedBy());
+                    Double globalRating = globalRatings.getOrDefault(spotId, 0.0);
+                    return new SpotResponse(
+                            spot,
+                            globalRating,
+                            globalRating,
+                            expertRatings.getOrDefault(spotId, 0.0),
+                            friendRatings.getOrDefault(spotId, 0.0),
+                            likedSpotIds.contains(spotId),
+                            savedSpotIds.contains(spotId),
+                            submitter == null ? null : submitter.getId(),
+                            submitter == null ? null : submitter.getName(),
+                            submitter != null && submitter.isExpert(),
+                            vibeTagsBySpot.getOrDefault(spotId, List.of()),
+                            friendLikeCounts.getOrDefault(spotId, 0),
+                            "global"
+                    );
+                })
+                .toList();
+    }
+
+    private List<VibeTagDTO> vibeTagsForSpot(Long spotId) {
+        return spotVibeTagRepository.findBySpotId(spotId).stream()
+                .map(spotVibe -> vibeTagDefinitionRepository.findById(spotVibe.getVibeTagId())
+                        .map(definition -> new VibeTagDTO(
+                                definition.getId(),
+                                definition.getName(),
+                                definition.getEmoji(),
+                                definition.getCategory(),
+                                spotVibe.getConfidence(),
+                                spotVibe.getSource()
+                        ))
+                        .orElse(null))
+                .filter(Objects::nonNull)
+                .toList();
     }
 
     private List<Review> sortedApprovedReviews(Long spotId) {

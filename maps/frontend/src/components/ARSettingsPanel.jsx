@@ -12,7 +12,12 @@ export default function ARSettingsPanel({
   followedExperts,
   selectedExpertId,
   setSelectedExpertId,
-  setShowUpgradeModal
+  setShowUpgradeModal,
+  showFriendTips,
+  setShowFriendTips,
+  categoriesList,
+  selectedCategories,
+  toggleCategory
 }) {
   if (!showSettings) return null
 
@@ -37,25 +42,63 @@ export default function ARSettingsPanel({
       {position && (
         <div style={{ marginTop: '12px', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
           GPS: {position.latitude.toFixed(5)}, {position.longitude.toFixed(5)}
-          <br />Accuracy: ±{Math.round(position.accuracy)}m
+          <br />Accuracy: +/-{Math.round(position.accuracy)}m
         </div>
       )}
 
-      {/* Navigation toggle — only show in itinerary mode */}
       {itineraryId && (
         <div className="ar-settings-toggle">
-          <span className="ar-settings-toggle-label">🧭 Navigation arrows</span>
+          <span className="ar-settings-toggle-label">Navigation arrows</span>
           <button
             className={`ar-toggle-switch ${showNavigation ? 'ar-toggle-switch--on' : ''}`}
             onClick={() => setShowNavigation(prev => !prev)}
+            aria-pressed={showNavigation}
           />
         </div>
       )}
 
-      {/* Expert Spotlight filter */}
+      <div className="ar-settings-toggle">
+        <span className="ar-settings-toggle-label">Friend tips</span>
+        <button
+          className={`ar-toggle-switch ${showFriendTips ? 'ar-toggle-switch--on' : ''}`}
+          onClick={() => setShowFriendTips(prev => !prev)}
+          aria-pressed={showFriendTips}
+        />
+      </div>
+
+      {categoriesList.length > 0 && (
+        <div className="ar-settings-category-filter">
+          <div className="ar-settings-label" style={{ marginBottom: '10px' }}>Nearby categories</div>
+          <label className="ar-category-option ar-category-option--all">
+            <input
+              type="checkbox"
+              checked={!!selectedCategories.all}
+              onChange={() => toggleCategory('all')}
+            />
+            <span>All nearby spots</span>
+          </label>
+          <div className="ar-category-grid">
+            {categoriesList.map(cat => {
+              const norm = cat.name.trim().toLowerCase().replace('é', 'e')
+              return (
+                <label className="ar-category-option" key={cat.id}>
+                  <input
+                    type="checkbox"
+                    checked={!!selectedCategories[norm]}
+                    onChange={() => toggleCategory(norm)}
+                  />
+                  <img src={cat.iconUrl || '/icons/stash--pin-location-light.svg'} alt="" />
+                  <span>{cat.name}</span>
+                </label>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       <div className="ar-settings-expert-spotlight">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-          <span className="ar-settings-label" style={{ margin: 0 }}>🌟 Expert Spotlight</span>
+          <span className="ar-settings-label" style={{ margin: 0 }}>Expert lens</span>
           {subscription?.tier !== 'PRO' && subscription?.tier !== 'UNLIMITED' && (
             <span className="ar-pro-badge" style={{ fontSize: '0.65rem', background: '#a78bfa', color: '#1e1b4b', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold' }}>PRO</span>
           )}
@@ -72,7 +115,7 @@ export default function ARSettingsPanel({
             }
           }}
         >
-          <option value="">Show All Spots</option>
+          <option value="">All experts</option>
           {followedExperts.map(exp => (
             <option key={`opt-expert-${exp.id}`} value={exp.id}>
               {exp.name} ({exp.professionalTitle || 'Local Expert'})

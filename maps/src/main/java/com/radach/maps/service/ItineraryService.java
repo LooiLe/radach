@@ -149,6 +149,262 @@ public class ItineraryService {
     }
 
     @Transactional
+    public ItineraryResponse addSpotAfterStop(Long userId, Long itineraryId, Long afterStopId, Long spotId) {
+        Itinerary itinerary = itineraryRepository.findByIdAndUserId(itineraryId, userId)
+                .orElseThrow(() -> new IllegalArgumentException("Itinerary not found"));
+
+        if (spotId == null) {
+            throw new IllegalArgumentException("Spot is required");
+        }
+        spotRepository.findById(spotId)
+                .orElseThrow(() -> new IllegalArgumentException("Spot not found"));
+
+        List<ItineraryStop> stops = stopRepository.findByItineraryIdOrderByStopOrderAsc(itineraryId);
+        ItineraryStop anchor = null;
+        if (afterStopId != null) {
+            anchor = stops.stream()
+                    .filter(stop -> stop.getId().equals(afterStopId))
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalArgumentException("Stop does not belong to this itinerary"));
+        }
+
+        int insertOrder = anchor != null ? anchor.getStopOrder() + 1 : stops.size() + 1;
+        int dayNumber = anchor != null ? anchor.getDayNumber() : 1;
+        int durationMinutes = 60;
+        LocalTime newStartTime = anchor != null && anchor.getEndTime() != null ? anchor.getEndTime() : null;
+
+        for (ItineraryStop stop : stops) {
+            if (stop.getStopOrder() >= insertOrder) {
+                stop.setStopOrder(-stop.getStopOrder());
+            }
+        }
+        stopRepository.saveAll(stops);
+        stopRepository.flush();
+
+        for (ItineraryStop stop : stops) {
+            if (stop.getStopOrder() < 0) {
+                stop.setStopOrder(Math.abs(stop.getStopOrder()) + 1);
+                shiftStopTime(stop, dayNumber, durationMinutes);
+            }
+        }
+        stopRepository.saveAll(stops);
+
+        ItineraryStop newStop = new ItineraryStop();
+        newStop.setItineraryId(itineraryId);
+        newStop.setSpotId(spotId);
+        newStop.setStopOrder(insertOrder);
+        newStop.setDayNumber(dayNumber);
+        newStop.setStartTime(newStartTime);
+        newStop.setEndTime(newStartTime != null ? newStartTime.plusMinutes(durationMinutes) : null);
+        newStop.setDurationMinutes(durationMinutes);
+        newStop.setNotes("Added from AR");
+        stopRepository.save(newStop);
+
+        return toResponse(itinerary, true);
+    }
+
+    @Transactional
+    public ItineraryResponse replaceStopSpot(Long userId, Long itineraryId, Long stopId, Long spotId) {
+        Itinerary itinerary = itineraryRepository.findByIdAndUserId(itineraryId, userId)
+                .orElseThrow(() -> new IllegalArgumentException("Itinerary not found"));
+
+        if (spotId == null) {
+            throw new IllegalArgumentException("Spot is required");
+        }
+        spotRepository.findById(spotId)
+                .orElseThrow(() -> new IllegalArgumentException("Spot not found"));
+
+        ItineraryStop stop = stopRepository.findById(stopId)
+                .orElseThrow(() -> new IllegalArgumentException("Stop not found"));
+
+        if (!stop.getItineraryId().equals(itineraryId)) {
+            throw new IllegalArgumentException("Stop does not belong to this itinerary");
+        }
+
+        stop.setSpotId(spotId);
+        stop.setNotes(mergeArNote(stop.getNotes(), "Replaced from AR"));
+        stopRepository.save(stop);
+
+        return toResponse(itinerary, true);
+    }
+
+    @Transactional
+    public ItineraryResponse optimizeRemainingStops(Long userId, Long itineraryId, Long anchorStopId) {
+        Itinerary itinerary = itineraryRepository.findByIdAndUserId(itineraryId, userId)
+                .orElseThrow(() -> new IllegalArgumentException("Itinerary not found"));
+
+        List<ItineraryStop> stops = stopRepository.findByItineraryIdOrderByStopOrderAsc(itineraryId);
+        ItineraryStop anchor = stops.stream()
+                .filter(stop -> stop.getId().equals(anchorStopId))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Stop does not belong to this itinerary"));
+
+        List<ItineraryStop> remainingSameDay = stops.stream()
+                .filter(stop -> stop.getDayNumber() == anchor.getDayNumber())
+                .filter(stop -> stop.getStopOrder() > anchor.getStopOrder())
+                .toList();
+
+        if (remainingSameDay.size() < 2) {
+            return toResponse(itinerary, true);
+        }
+
+        List<Long> spotIds = new ArrayList<>();
+        spotIds.add(anchor.getSpotId());
+        remainingSameDay.forEach(stop -> spotIds.add(stop.getSpotId()));
+        Map<Long, Spot> spotMap = spotRepository.findAllById(spotIds).stream()
+                .collect(Collectors.toMap(Spot::getId, spot -> spot));
+
+        List<ItineraryStop> optimizedStops = optimizeStopOrderByDistance(
+                remainingSameDay,
+                spotMap.get(anchor.getSpotId()),
+                spotMap
+        );
+        List<Integer> originalStopOrders = remainingSameDay.stream()
+                .map(ItineraryStop::getStopOrder)
+                .toList();
+
+        for (ItineraryStop stop : remainingSameDay) {
+            stop.setStopOrder(-100_000 - stop.getStopOrder());
+        }
+        stopRepository.saveAll(remainingSameDay);
+        stopRepository.flush();
+
+        for (int i = 0; i < remainingSameDay.size(); i++) {
+            ItineraryStop optimizedStop = optimizedStops.get(i);
+            optimizedStop.setStopOrder(originalStopOrders.get(i));
+        }
+
+        recalculateRemainingTimes(anchor, optimizedStops, spotMap);
+        stopRepository.saveAll(optimizedStops);
+
+        return toResponse(itinerary, true);
+    }
+
+    private void shiftStopTime(ItineraryStop stop, int dayNumber, int durationMinutes) {
+        if (stop.getDayNumber() != dayNumber) {
+            return;
+        }
+        if (stop.getStartTime() != null) {
+            stop.setStartTime(stop.getStartTime().plusMinutes(durationMinutes));
+        }
+        if (stop.getEndTime() != null) {
+            stop.setEndTime(stop.getEndTime().plusMinutes(durationMinutes));
+        }
+    }
+
+    private List<ItineraryStop> optimizeStopOrderByDistance(List<ItineraryStop> stops, Spot startSpot, Map<Long, Spot> spotMap) {
+        if (startSpot == null || startSpot.getLatitude() == null || startSpot.getLongitude() == null) {
+            return new ArrayList<>(stops);
+        }
+
+        List<ItineraryStop> ordered = new ArrayList<>();
+        List<ItineraryStop> remaining = new ArrayList<>(stops);
+        double currentLat = startSpot.getLatitude();
+        double currentLng = startSpot.getLongitude();
+
+        while (!remaining.isEmpty()) {
+            ItineraryStop nearest = null;
+            double minDistance = Double.MAX_VALUE;
+
+            for (ItineraryStop stop : remaining) {
+                Spot spot = spotMap.get(stop.getSpotId());
+                if (spot == null || spot.getLatitude() == null || spot.getLongitude() == null) {
+                    continue;
+                }
+                double distance = haversineDistance(currentLat, currentLng, spot.getLatitude(), spot.getLongitude());
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    nearest = stop;
+                }
+            }
+
+            if (nearest == null) {
+                ordered.addAll(remaining);
+                break;
+            }
+
+            ordered.add(nearest);
+            Spot nearestSpot = spotMap.get(nearest.getSpotId());
+            currentLat = nearestSpot.getLatitude();
+            currentLng = nearestSpot.getLongitude();
+            remaining.remove(nearest);
+        }
+
+        return ordered;
+    }
+
+    private void recalculateRemainingTimes(ItineraryStop anchor, List<ItineraryStop> orderedStops, Map<Long, Spot> spotMap) {
+        LocalTime cursor = anchor.getEndTime();
+        if (cursor == null && anchor.getStartTime() != null) {
+            cursor = anchor.getStartTime().plusMinutes(resolveDurationMinutes(anchor, spotMap.get(anchor.getSpotId())));
+        }
+        if (cursor == null) {
+            cursor = LocalTime.of(9, 0);
+        }
+
+        Spot previousSpot = spotMap.get(anchor.getSpotId());
+        for (ItineraryStop stop : orderedStops) {
+            Spot currentSpot = spotMap.get(stop.getSpotId());
+            int travelMinutes = estimateTravelTimeMinutes(previousSpot, currentSpot);
+            LocalTime start = cursor.plusMinutes(travelMinutes);
+            int duration = resolveDurationMinutes(stop, currentSpot);
+
+            stop.setStartTime(start);
+            stop.setDurationMinutes(duration);
+            stop.setEndTime(start.plusMinutes(duration));
+
+            cursor = stop.getEndTime();
+            previousSpot = currentSpot;
+        }
+    }
+
+    private int resolveDurationMinutes(ItineraryStop stop, Spot spot) {
+        if (stop.getDurationMinutes() != null && stop.getDurationMinutes() > 0) {
+            return stop.getDurationMinutes();
+        }
+        if (spot == null || spot.getType() == null) {
+            return 60;
+        }
+        String type = spot.getType().trim().toLowerCase();
+        if (type.contains("restaurant") || type.contains("bar") || type.contains("cafe")) {
+            return 75;
+        }
+        if (type.contains("museum") || type.contains("attraction") || type.contains("gallery")) {
+            return 90;
+        }
+        if (type.contains("market") || type.contains("shopping")) {
+            return 60;
+        }
+        if (type.contains("viewpoint") || type.contains("beach") || type.contains("park")) {
+            return 45;
+        }
+        return 60;
+    }
+
+    private int estimateTravelTimeMinutes(Spot from, Spot to) {
+        if (from == null || to == null
+                || from.getLatitude() == null || from.getLongitude() == null
+                || to.getLatitude() == null || to.getLongitude() == null) {
+            return 15;
+        }
+        double distance = haversineDistance(from.getLatitude(), from.getLongitude(), to.getLatitude(), to.getLongitude());
+        if (distance < 1.0) {
+            return (int) Math.max(5, Math.round((distance * 12.0) + 2.0));
+        }
+        return (int) Math.max(7, Math.round((distance * 2.0) + 3.0));
+    }
+
+    private double haversineDistance(double lat1, double lng1, double lat2, double lng2) {
+        double earthRadiusKm = 6371.0;
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLng = Math.toRadians(lng2 - lng1);
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+        return earthRadiusKm * 2 * Math.asin(Math.sqrt(a));
+    }
+
+    @Transactional
     public ItineraryResponse removeStop(Long userId, Long itineraryId, Long stopId) {
         Itinerary itinerary = itineraryRepository.findByIdAndUserId(itineraryId, userId)
                 .orElseThrow(() -> new IllegalArgumentException("Itinerary not found"));
@@ -247,6 +503,16 @@ public class ItineraryService {
             stops.add(stop);
         }
         stopRepository.saveAll(stops);
+    }
+
+    private String mergeArNote(String existing, String arNote) {
+        if (existing == null || existing.isBlank()) {
+            return arNote;
+        }
+        if (existing.contains(arNote)) {
+            return existing;
+        }
+        return existing + "\n" + arNote;
     }
 
     ItineraryResponse toResponse(Itinerary itinerary, boolean includeStops) {

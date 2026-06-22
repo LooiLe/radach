@@ -47,12 +47,14 @@ public class ARController {
             @RequestParam double lng,
             @RequestParam(required = false) Integer radiusM,
             @RequestParam(required = false) String excludeIds,
-            @RequestParam(required = false) Long expertId
+            @RequestParam(required = false) Long expertId,
+            Authentication auth
     ) {
+        Long userId = getUserIdOrNull(auth);
         if (expertId != null) {
-            return arService.findNearbySpotsByExpert(lat, lng, expertId, radiusM, parseIds(excludeIds));
+            return arService.findNearbySpotsByExpert(lat, lng, expertId, radiusM, parseIds(excludeIds), userId);
         }
-        return arService.findNearbySpots(lat, lng, radiusM, parseIds(excludeIds));
+        return arService.findNearbySpots(lat, lng, radiusM, parseIds(excludeIds), userId);
     }
 
     @GetMapping("/alternatives")

@@ -31,6 +31,7 @@ import ItinerarySharePage from './pages/ItinerarySharePage'
 import PaymentSuccessPage from './pages/PaymentSuccessPage'
 import ARViewPage from './pages/ARViewPage'
 import OnboardingPage from './pages/OnboardingPage'
+import MobileHandoffPage from './pages/MobileHandoffPage'
 
 export default function App() {
   return (
@@ -42,6 +43,7 @@ export default function App() {
          <Route path="/" element={<ProtectedRoute><SpotsPage /></ProtectedRoute>} />
          <Route path="/login" element={<LoginPage />} />
          <Route path="/register" element={<RegisterPage />} />
+         <Route path="/mobile-handoff/:token" element={<MobileHandoffPage />} />
           <Route path="/discover" element={<ProtectedRoute><SpotsPage /></ProtectedRoute>} />
          <Route path="/search" element={<ProtectedRoute><SearchPage /></ProtectedRoute>} />
           <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />

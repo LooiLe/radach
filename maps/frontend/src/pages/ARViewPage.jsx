@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
+import QRCode from 'qrcode'
 import { useApi } from '../hooks/useApi'
 import { useDeviceSensors } from '../hooks/useDeviceSensors'
 import { useARProjection } from '../hooks/useARProjection'
@@ -41,6 +42,68 @@ function formatDistance(meters) {
   return `${(meters / 1000).toFixed(1)}km`
 }
 
+function normalizeSpotType(type) {
+  return (type || '').toString().trim().toLowerCase().replace('é', 'e')
+}
+
+function spotTypeGroup(type) {
+  const normalized = normalizeSpotType(type)
+  if (['restaurant', 'cafe', 'bar', 'food hall', 'market'].some(value => normalized.includes(value))) return 'food'
+  if (['hotel', 'hostel', 'resort'].some(value => normalized.includes(value))) return 'stay'
+  if (['museum', 'gallery', 'attraction', 'temple', 'landmark'].some(value => normalized.includes(value))) return 'culture'
+  if (['park', 'beach', 'trail', 'viewpoint'].some(value => normalized.includes(value))) return 'outdoor'
+  if (['mall', 'shop', 'shopping'].some(value => normalized.includes(value))) return 'shopping'
+  return normalized || 'other'
+}
+
+function spotRatingValue(value) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function scoreTrustSignals(spot, friendPostCount = 0) {
+  const reasons = []
+  let score = 0
+  const friendLikeCount = Number(spot.friendLikeCount || 0)
+  const friendsRating = spotRatingValue(spot.friendsRating)
+  const expertRating = spotRatingValue(spot.expertRating)
+
+  if (friendPostCount > 0) {
+    score += 14
+    reasons.push(friendPostCount === 1 ? 'friend tip nearby' : `${friendPostCount} friend tips nearby`)
+  }
+  if (friendLikeCount > 0) {
+    score += Math.min(10, 5 + friendLikeCount * 2)
+    reasons.push(friendLikeCount === 1 ? 'liked by a friend' : `liked by ${friendLikeCount} friends`)
+  }
+  if (friendsRating >= 4.2) {
+    score += 9
+    reasons.push(`friends rate it ${friendsRating.toFixed(1)}`)
+  }
+  if (expertRating >= 4.3) {
+    score += 8
+    reasons.push(`expert-rated ${expertRating.toFixed(1)}`)
+  }
+  if (spot.submitterIsExpert) {
+    score += 6
+    reasons.push('expert-submitted')
+  }
+  if (spot.isSaved) {
+    score += 5
+    reasons.push('already saved')
+  }
+
+  return { score: Math.min(30, score), reasons }
+}
+
+function scoreQualitySignal(spot) {
+  const rating = spotRatingValue(spot.averageRating || spot.globalRating)
+  if (rating >= 4.6) return { score: 15, reason: `rated ${rating.toFixed(1)}` }
+  if (rating >= 4.3) return { score: 11, reason: `rated ${rating.toFixed(1)}` }
+  if (rating >= 4.0) return { score: 7, reason: `rated ${rating.toFixed(1)}` }
+  return { score: 0, reason: null }
+}
+
 // Compass direction label
 function getCompassLabel(heading) {
   const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']
@@ -79,9 +142,29 @@ function NavArrowSVG({ color }) {
   )
 }
 
+function normalizeItineraryStops(stops = []) {
+  return stops.map(stop => {
+    if (stop.spot) return stop
+    return {
+      ...stop,
+      spot: {
+        id: stop.spotId,
+        name: stop.spotName || 'Unknown',
+        type: stop.spotType || '',
+        address: stop.spotAddress || '',
+        latitude: stop.spotLatitude,
+        longitude: stop.spotLongitude,
+        photos: stop.spotPhotos || [],
+        averageRating: stop.spotAverageRating || 0
+      }
+    }
+  })
+}
+
 export default function ARViewPage() {
   const { itineraryId, spotId } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const { apiFetch } = useApi()
   const { toast } = useToast()
 
@@ -100,7 +183,9 @@ export default function ARViewPage() {
   const [showInfoSheet, setShowInfoSheet] = useState(false)
   const [explanation, setExplanation] = useState(null)
   const [explanationError, setExplanationError] = useState(null)
-  const [alternatives, setAlternatives] = useState([])
+  const [itineraryActionLoading, setItineraryActionLoading] = useState(false)
+  const [pendingOptimize, setPendingOptimize] = useState(null)
+  const [optimizingRemaining, setOptimizingRemaining] = useState(false)
   const [maxRange, setMaxRange] = useState(500)
   const [showSettings, setShowSettings] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -123,10 +208,16 @@ export default function ARViewPage() {
   const [capturedPhotoPreview, setCapturedPhotoPreview] = useState('')
   const [pinnedLocation, setPinnedLocation] = useState(null)
   const [nearbyFriendPosts, setNearbyFriendPosts] = useState([])
+  const [showFriendTips, setShowFriendTips] = useState(true)
+  const [categoriesList, setCategoriesList] = useState([])
+  const [selectedCategories, setSelectedCategories] = useState({ all: true })
   const [subscription, setSubscription] = useState({ tier: 'NONE' })
   const [followedExperts, setFollowedExperts] = useState([])
   const [selectedExpertId, setSelectedExpertId] = useState(null)
   const [showUpgradeModal, setShowUpgradeModal] = useState(false)
+  const [handoffUrl, setHandoffUrl] = useState('')
+  const [handoffQr, setHandoffQr] = useState('')
+  const [handoffError, setHandoffError] = useState('')
 
   const isAnnotationCancelledRef = useRef(false)
   const activePhotoUrlRef = useRef(null)
@@ -176,8 +267,20 @@ export default function ARViewPage() {
 
   const handleExitAR = useCallback(() => {
     stopCamera(true)
-    navigate(-1)
-  }, [navigate, stopCamera])
+    if (!location.state?.fromMobileHandoff && window.history.length > 2) {
+      navigate(-1)
+      return
+    }
+    if (itineraryId) {
+      navigate(`/itineraries/${itineraryId}`, { replace: true })
+      return
+    }
+    if (spotId) {
+      navigate(`/spot/${spotId}`, { replace: true })
+      return
+    }
+    navigate('/itineraries', { replace: true })
+  }, [itineraryId, location.state, navigate, spotId, stopCamera])
 
   const handleCancelAnnotation = useCallback(async () => {
     isAnnotationCancelledRef.current = true
@@ -251,18 +354,52 @@ export default function ARViewPage() {
     [itineraryStops]
   )
 
+  const isNearbyCategoryVisible = useCallback((spot) => {
+    if (categoriesList.length === 0) return true
+    const normalized = (spot.type || '').toString().trim().toLowerCase().replace('é', 'e')
+    return !!selectedCategories[normalized]
+  }, [categoriesList.length, selectedCategories])
+
+  const toggleCategory = useCallback((categoryId) => {
+    if (categoryId === 'all') {
+      setSelectedCategories(prev => {
+        const allSelected = categoriesList.length > 0 && categoriesList.every(cat => {
+          const norm = cat.name.trim().toLowerCase().replace('é', 'e')
+          return prev[norm]
+        })
+        const next = { all: !allSelected }
+        categoriesList.forEach(cat => {
+          const norm = cat.name.trim().toLowerCase().replace('é', 'e')
+          next[norm] = !allSelected
+        })
+        return next
+      })
+      return
+    }
+
+    setSelectedCategories(prev => {
+      const next = { ...prev, [categoryId]: !prev[categoryId] }
+      next.all = categoriesList.length > 0 && categoriesList.every(cat => {
+        const norm = cat.name.trim().toLowerCase().replace('é', 'e')
+        return next[norm]
+      })
+      return next
+    })
+  }, [categoriesList])
+
   const allPOIs = useMemo(() => [
     ...itineraryStops.map((s, idx) => ({
       ...s.spot,
       isItineraryStop: true,
       isAnnotation: false,
       isFriendPost: false,
+      itineraryStopId: s.id,
       stopNumber: idx + 1,
       notes: s.notes,
       startTime: s.startTime,
     })),
     ...nearbySpots.filter(ns =>
-      !excludeIds.includes(ns.id)
+      !excludeIds.includes(ns.id) && isNearbyCategoryVisible(ns)
     ).map(s => ({ ...s, isItineraryStop: false, isAnnotation: false, isFriendPost: false })),
     ...nearbyAnnotations.map(ann => ({
       id: `ann-${ann.id}`,
@@ -276,7 +413,7 @@ export default function ARViewPage() {
       isFriendPost: false,
       annotationData: ann
     })),
-    ...nearbyFriendPosts.map(post => ({
+    ...(showFriendTips ? nearbyFriendPosts : []).map(post => ({
       id: `post-${post.id}`,
       postId: post.id,
       name: `${post.authorName}'s tip`,
@@ -288,10 +425,50 @@ export default function ARViewPage() {
       isFriendPost: true,
       postData: post
     }))
-  ], [itineraryStops, nearbySpots, excludeIds, nearbyAnnotations, nearbyFriendPosts])
+  ], [itineraryStops, nearbySpots, excludeIds, isNearbyCategoryVisible, nearbyAnnotations, showFriendTips, nearbyFriendPosts])
 
   const positionLatitude = position?.latitude
   const positionLongitude = position?.longitude
+
+  useEffect(() => {
+    if (isSupported || requiresSecureContext) return
+
+    let cancelled = false
+    async function createMobileHandoff() {
+      const targetPath = `${window.location.pathname}${window.location.search}${window.location.hash}`
+      try {
+        setHandoffError('')
+        const res = await apiFetch('/api/v1/auth/mobile-handoff', {
+          method: 'POST',
+          body: JSON.stringify({ targetPath })
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) throw new Error(data.error || 'Could not create phone handoff.')
+
+        const nextUrl = `${window.location.origin}${data.handoffPath}`
+        const qrDataUrl = await QRCode.toDataURL(nextUrl, {
+          width: 220,
+          margin: 1,
+          errorCorrectionLevel: 'M'
+        })
+        if (!cancelled) {
+          setHandoffUrl(nextUrl)
+          setHandoffQr(qrDataUrl)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setHandoffUrl(window.location.href)
+          setHandoffQr('')
+          setHandoffError(err.message || 'Could not create phone handoff.')
+        }
+      }
+    }
+
+    createMobileHandoff()
+    return () => {
+      cancelled = true
+    }
+  }, [apiFetch, isSupported, requiresSecureContext])
 
   // Project POIs to screen positions
   const projectedPOIs = useARProjection({
@@ -445,23 +622,7 @@ export default function ARViewPage() {
           const res = await apiFetch(`/api/v1/itineraries/${itineraryId}`)
           if (res.ok) {
             const data = await res.json()
-            const stops = (data.stops || []).map(stop => {
-              if (stop.spot) return stop
-              return {
-                ...stop,
-                spot: {
-                  id: stop.spotId,
-                  name: stop.spotName || 'Unknown',
-                  type: stop.spotType || '',
-                  address: stop.spotAddress || '',
-                  latitude: stop.spotLatitude,
-                  longitude: stop.spotLongitude,
-                  photos: stop.spotPhotos || [],
-                  averageRating: stop.spotAverageRating || 0
-                }
-              }
-            })
-            setItineraryStops(stops)
+            setItineraryStops(normalizeItineraryStops(data.stops || []))
           }
         } else if (spotId) {
           // Spot-only mode — load the single spot
@@ -493,6 +654,25 @@ export default function ARViewPage() {
         const expRes = await apiFetch('/api/v1/follows/experts')
         if (expRes.ok) {
           setFollowedExperts(await expRes.json())
+        }
+
+        const catRes = await apiFetch('/api/v1/categories')
+        if (catRes.ok) {
+          const categories = await catRes.json()
+          const sorted = [...categories].sort((a, b) => {
+            const aIsOther = a.name.toLowerCase() === 'other' || a.name.toLowerCase() === 'others'
+            const bIsOther = b.name.toLowerCase() === 'other' || b.name.toLowerCase() === 'others'
+            if (aIsOther && !bIsOther) return 1
+            if (!aIsOther && bIsOther) return -1
+            return a.name.localeCompare(b.name)
+          })
+          const nextSelected = { all: true }
+          sorted.forEach(cat => {
+            const norm = cat.name.trim().toLowerCase().replace('é', 'e')
+            nextSelected[norm] = true
+          })
+          setCategoriesList(sorted)
+          setSelectedCategories(nextSelected)
         }
       } catch (err) {
         console.error('Failed to initialize differentiation features:', err)
@@ -534,6 +714,10 @@ export default function ARViewPage() {
 
   // ─── Fetch nearby friend posts when position changes ───
   useEffect(() => {
+    if (!showFriendTips) {
+      setNearbyFriendPosts([])
+      return
+    }
     if (positionLatitude == null || positionLongitude == null) return
 
     const controller = new AbortController()
@@ -559,7 +743,7 @@ export default function ARViewPage() {
       clearTimeout(timer)
       controller.abort()
     }
-  }, [positionLatitude, positionLongitude, maxRange, apiFetch])
+  }, [positionLatitude, positionLongitude, maxRange, showFriendTips, apiFetch])
 
   // ─── Fetch nearby annotations ───
   useEffect(() => {
@@ -609,7 +793,6 @@ export default function ARViewPage() {
     setShowInfoSheet(true)
     setExplanation(null)
     setExplanationError(null)
-    setAlternatives([])
 
     // If it's an annotation or a friend post, don't fetch spot explanation
     if (poi.isAnnotation || poi.isFriendPost) return
@@ -626,19 +809,7 @@ export default function ARViewPage() {
     } catch {
       setExplanationError('Local guide is unavailable for this spot.')
     }
-
-    // Fetch alternatives
-    if (position) {
-      try {
-        const res = await apiFetch(
-          `/api/v1/ar/alternatives?spotId=${poi.id}&lat=${position.latitude}&lng=${position.longitude}&radiusM=${maxRange}`
-        )
-        if (res.ok) {
-          setAlternatives(await res.json())
-        }
-      } catch { /* ignore */ }
-    }
-  }, [apiFetch, position, maxRange, itineraryId, showOnboarding])
+  }, [apiFetch, itineraryId, showOnboarding])
 
   const handleCloseSheet = useCallback(() => {
     setShowInfoSheet(false)
@@ -646,11 +817,175 @@ export default function ARViewPage() {
       setSelectedPOI(null)
       setExplanation(null)
       setExplanationError(null)
-      setAlternatives([])
     }, 350)
   }, [])
 
   // ─── Submit annotation ───
+  const currentItineraryStop = useMemo(() => {
+    if (!itineraryStops.length) return null
+    return itineraryStops[Math.min(arNav.currentStopIndex, itineraryStops.length - 1)] || null
+  }, [itineraryStops, arNav.currentStopIndex])
+
+  const nextItineraryStop = useMemo(() => {
+    if (!itineraryStops.length) return null
+    return itineraryStops[Math.min(arNav.nextStopIndex, itineraryStops.length - 1)] || null
+  }, [itineraryStops, arNav.nextStopIndex])
+
+  const selectedRouteInsight = useMemo(() => {
+    if (!itineraryId || !selectedPOI || selectedPOI.isItineraryStop || selectedPOI.isAnnotation || selectedPOI.isFriendPost) {
+      return null
+    }
+    if (!nextItineraryStop || arNav.distanceToNext == null || selectedPOI.distance == null) {
+      return null
+    }
+
+    const selectedDistance = Math.round(selectedPOI.distance)
+    const nextDistance = Math.round(arNav.distanceToNext)
+    const difference = nextDistance - selectedDistance
+    const nextName = nextItineraryStop.spot?.name || 'your next stop'
+    const nextSpot = nextItineraryStop.spot || {}
+    const selectedGroup = spotTypeGroup(selectedPOI.type)
+    const nextGroup = spotTypeGroup(nextSpot.type)
+    const sameType = normalizeSpotType(selectedPOI.type) === normalizeSpotType(nextSpot.type)
+    const sameRole = selectedGroup === nextGroup
+    const nearbyFriendTipCount = nearbyFriendPosts.filter(post => Number(post.spotId) === Number(selectedPOI.id)).length
+    const trust = scoreTrustSignals(selectedPOI, nearbyFriendTipCount)
+    const quality = scoreQualitySignal(selectedPOI)
+    const routeScore = difference >= 120
+      ? 35
+      : difference >= 80
+        ? 30
+        : selectedDistance <= nextDistance * 0.65
+          ? 28
+          : selectedDistance <= 120 && selectedDistance <= nextDistance + 60
+            ? 20
+            : selectedDistance <= nextDistance + 100
+              ? 12
+              : 4
+    const fitScore = sameType ? 20 : sameRole ? 14 : 4
+    const totalScore = routeScore + trust.score + fitScore + quality.score
+    const hasStrongRoute = routeScore >= 28
+    const hasStrongTrust = trust.score >= 16
+    const hasDecentFit = fitScore >= 14
+    const reasons = []
+
+    if (difference >= 80) {
+      reasons.push(`${formatDistance(difference)} closer`)
+    } else if (selectedDistance <= 120 && selectedDistance <= nextDistance + 60) {
+      reasons.push('easy nearby detour')
+    }
+    reasons.push(...trust.reasons)
+    if (hasDecentFit) {
+      reasons.push(sameType ? 'same kind of stop' : 'same itinerary role')
+    } else if (trust.score < 16) {
+      reasons.push('different kind of stop')
+    }
+    if (quality.reason) {
+      reasons.push(quality.reason)
+    }
+
+    const reasonText = [...new Set(reasons)].slice(0, 2).join(' / ')
+
+    if (totalScore >= 66 && hasDecentFit && (hasStrongRoute || hasStrongTrust)) {
+      return {
+        tone: 'swap',
+        title: 'Better swap candidate',
+        text: `${reasonText || `${formatDistance(selectedDistance)} vs ${formatDistance(nextDistance)}`}. Replace ${nextName} if this matches your mood.`
+      }
+    }
+
+    if (totalScore >= 45 && (selectedDistance <= nextDistance + 100 || hasStrongTrust)) {
+      return {
+        tone: 'add',
+        title: hasStrongTrust ? 'Worth a short detour' : 'Easy nearby detour',
+        text: `${reasonText || 'Close enough to add without bending the route too much'}. Add it after your current stop.`
+      }
+    }
+
+    return {
+      tone: 'keep',
+      title: 'Not clearly better',
+      text: `${reasonText || `${nextName} still looks cleaner`}. Keep the route unless this really catches your eye.`
+    }
+  }, [arNav.distanceToNext, itineraryId, nearbyFriendPosts, nextItineraryStop, selectedPOI])
+
+  const applyUpdatedItinerary = useCallback((data) => {
+    const updatedStops = data.stops || []
+    setItineraryStops(normalizeItineraryStops(updatedStops))
+    setNearbySpots(prev => prev.filter(spot => !updatedStops.some(stop => stop.spotId === spot.id)))
+  }, [])
+
+  const handleAddSelectedAfterCurrent = useCallback(async (poi) => {
+    if (itineraryActionLoading) return
+    if (!itineraryId || !currentItineraryStop?.id || !poi?.id) {
+      toast.error('Current itinerary stop is not ready yet.')
+      return
+    }
+    setItineraryActionLoading(true)
+    try {
+      const res = await apiFetch(`/api/v1/itineraries/${itineraryId}/stops/after/${currentItineraryStop.id}`, {
+        method: 'POST',
+        body: JSON.stringify({ spotId: poi.id })
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Could not add this spot.')
+      applyUpdatedItinerary(data)
+      setPendingOptimize({
+        anchorStopId: currentItineraryStop.id,
+        message: 'Want me to clean up the rest of this day?'
+      })
+      toast.success(`Added ${poi.name} after current stop.`)
+      handleCloseSheet()
+    } catch (err) {
+      toast.error(err.message || 'Could not add this spot.')
+    } finally {
+      setItineraryActionLoading(false)
+    }
+  }, [apiFetch, applyUpdatedItinerary, currentItineraryStop, handleCloseSheet, itineraryActionLoading, itineraryId, toast])
+
+  const handleReplaceNextStop = useCallback(async (poi) => {
+    if (!itineraryId || !nextItineraryStop?.id || !poi?.id || itineraryActionLoading) return
+    setItineraryActionLoading(true)
+    try {
+      const res = await apiFetch(`/api/v1/itineraries/${itineraryId}/stops/${nextItineraryStop.id}/spot`, {
+        method: 'PATCH',
+        body: JSON.stringify({ spotId: poi.id })
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Could not replace the next stop.')
+      applyUpdatedItinerary(data)
+      setPendingOptimize({
+        anchorStopId: nextItineraryStop.id,
+        message: 'Route changed. Optimize the stops after this?'
+      })
+      toast.success(`Replaced next stop with ${poi.name}.`)
+      handleCloseSheet()
+    } catch (err) {
+      toast.error(err.message || 'Could not replace the next stop.')
+    } finally {
+      setItineraryActionLoading(false)
+    }
+  }, [apiFetch, applyUpdatedItinerary, handleCloseSheet, itineraryActionLoading, itineraryId, nextItineraryStop, toast])
+
+  const handleOptimizeRemaining = useCallback(async () => {
+    if (!itineraryId || !pendingOptimize?.anchorStopId || optimizingRemaining) return
+    setOptimizingRemaining(true)
+    try {
+      const res = await apiFetch(`/api/v1/itineraries/${itineraryId}/stops/${pendingOptimize.anchorStopId}/optimize-remaining`, {
+        method: 'POST'
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Could not optimize the remaining stops.')
+      applyUpdatedItinerary(data)
+      setPendingOptimize(null)
+      toast.success('Optimized remaining stops and updated timings.')
+    } catch (err) {
+      toast.error(err.message || 'Could not optimize the remaining stops.')
+    } finally {
+      setOptimizingRemaining(false)
+    }
+  }, [apiFetch, applyUpdatedItinerary, itineraryId, optimizingRemaining, pendingOptimize, toast])
+
   const handleSubmitAnnotation = useCallback(async () => {
     const activeLoc = pinnedLocation || {
       latitude: position?.latitude,
@@ -738,7 +1073,7 @@ export default function ARViewPage() {
     const fallbackTitle = requiresSecureContext ? 'Secure Connection Required' : 'Open AR Explorer on Mobile'
     const fallbackDescription = requiresSecureContext
       ? 'AR Explorer needs a secure connection before it can use your camera, location, and motion sensors.'
-      : 'AR Explorer is designed for phones with camera, location, and compass support. Send this page to your phone to continue.'
+      : 'AR Explorer is designed for phones with camera, location, and compass support. Scan the QR code to continue signed in.'
 
     return (
       <div className="ar-page ar-page--fallback">
@@ -774,14 +1109,30 @@ export default function ARViewPage() {
                 <div>Open this page using HTTPS, then continue from your mobile browser.</div>
               </div>
             )}
+            {!requiresSecureContext && (
+              <div className="ar-fallback-qr-section">
+                {handoffQr ? (
+                  <img className="ar-fallback-qr" src={handoffQr} alt="Scan to open AR Explorer on your phone" />
+                ) : (
+                  <div className="ar-fallback-qr ar-fallback-qr--loading">
+                    {handoffError ? 'QR unavailable' : 'Preparing QR...'}
+                  </div>
+                )}
+                <div className="ar-fallback-qr-caption">
+                  {handoffError
+                    ? 'Copy the link instead, then sign in on your phone if asked.'
+                    : 'This one-time link expires in 5 minutes.'}
+                </div>
+              </div>
+            )}
             <div className="ar-fallback-url-section">
-              <div className="ar-fallback-url-label">Copy this link to your phone</div>
-              <div className="ar-fallback-url">{window.location.href}</div>
+              <div className="ar-fallback-url-label">{handoffUrl && !handoffError ? 'Phone handoff link' : 'Backup link'}</div>
+              <div className="ar-fallback-url">{handoffUrl || window.location.href}</div>
             </div>
             <button
               className="ar-fallback-copy-btn"
               onClick={() => {
-                navigator.clipboard.writeText(window.location.href)
+                navigator.clipboard.writeText(handoffUrl || window.location.href)
                   .then(() => toast.success('Link copied!'))
                   .catch(() => {})
               }}
@@ -893,7 +1244,7 @@ export default function ARViewPage() {
             ← Back
           </button>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="ar-top-status">
             {/* Itinerary progress indicator */}
             {itineraryId && itineraryStops.length > 0 && showNavigation && (
               <div className="ar-progress-indicator">
@@ -919,6 +1270,7 @@ export default function ARViewPage() {
           <button
             className="ar-settings-btn"
             onClick={() => setShowSettings(prev => !prev)}
+            aria-label="Open AR filters"
           >
             ⚙️
           </button>
@@ -938,9 +1290,39 @@ export default function ARViewPage() {
           selectedExpertId={selectedExpertId}
           setSelectedExpertId={setSelectedExpertId}
           setShowUpgradeModal={setShowUpgradeModal}
+          showFriendTips={showFriendTips}
+          setShowFriendTips={setShowFriendTips}
+          categoriesList={categoriesList}
+          selectedCategories={selectedCategories}
+          toggleCategory={toggleCategory}
         />
 
         {/* ─── Navigation Arrow (Area 3) ─── */}
+        {pendingOptimize && !showInfoSheet && (
+          <div className="ar-optimize-banner">
+            <div className="ar-optimize-copy">
+              <div className="ar-optimize-title">Itinerary updated</div>
+              <div className="ar-optimize-text">{pendingOptimize.message}</div>
+            </div>
+            <div className="ar-optimize-actions">
+              <button
+                className="ar-optimize-btn ar-optimize-btn--ghost"
+                onClick={() => setPendingOptimize(null)}
+                disabled={optimizingRemaining}
+              >
+                Keep
+              </button>
+              <button
+                className="ar-optimize-btn ar-optimize-btn--primary"
+                onClick={handleOptimizeRemaining}
+                disabled={optimizingRemaining}
+              >
+                {optimizingRemaining ? 'Optimizing...' : 'Optimize remaining'}
+              </button>
+            </div>
+          </div>
+        )}
+
         {showNavigation && arNav.nextStop && arNav.distanceToNext != null && !arNav.isArrived && (
           <>
             {/* Direction arrow ─── */}
@@ -1209,8 +1591,12 @@ export default function ARViewPage() {
           handleCloseSheet={handleCloseSheet}
           explanation={explanation}
           explanationError={explanationError}
-          alternatives={alternatives}
-          handleSelectPOI={handleSelectPOI}
+          itineraryId={itineraryId}
+          nextItineraryStop={nextItineraryStop}
+          routeInsight={selectedRouteInsight}
+          itineraryActionLoading={itineraryActionLoading}
+          handleAddSelectedAfterCurrent={handleAddSelectedAfterCurrent}
+          handleReplaceNextStop={handleReplaceNextStop}
           stopCamera={stopCamera}
           getIconUrl={getIconUrl}
           formatDistance={formatDistance}

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import './AuthPage.css'
 
@@ -10,6 +10,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const { login } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -22,7 +23,15 @@ export default function LoginPage() {
         body: JSON.stringify({ email: email.trim(), password })
       })
       const data = await res.json()
-      if (res.ok) { login(data); navigate('/', { replace: true }) }
+      if (res.ok) {
+        login(data)
+        const redirectParam = new URLSearchParams(location.search).get('redirect')
+        const statePath = location.state?.from
+          ? `${location.state.from.pathname}${location.state.from.search || ''}${location.state.from.hash || ''}`
+          : null
+        const target = redirectParam || statePath || '/'
+        navigate(target, { replace: true })
+      }
       else { setError(data.error || 'Invalid email or password.') }
     } catch { setError('Could not reach the server.') }
     finally { setLoading(false) }

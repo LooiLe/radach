@@ -49,4 +49,4 @@ case "${1:-all}" in
 esac
 
 echo -e "\n=== Deploy finished! ==="
-echo "Site: http://93.127.194.132"
+echo "Site: https://unlike.asia"
