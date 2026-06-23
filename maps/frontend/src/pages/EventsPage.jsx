@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useApi } from '../hooks/useApi'
 import { useAuth } from '../context/AuthContext'
@@ -50,6 +50,105 @@ export default function EventsPage() {
   const [eventCategoriesList, setEventCategoriesList] = useState([])
   const [selectedEventCategories, setSelectedEventCategories] = useState({})
   const [allEventCategoriesSelected, setAllEventCategoriesSelected] = useState(false)
+  const [filterDropdownOpen, setFilterDropdownOpen] = useState(false)
+
+  // ---- Temporary Staging State for Filters ----
+  const [tempCityFilter, setTempCityFilter] = useState('')
+  const [tempMonthFilter, setTempMonthFilter] = useState('')
+  const [tempYearFilter, setTempYearFilter] = useState('')
+  const [tempSortBy, setTempSortBy] = useState('date')
+  const [tempSelectedEventCategories, setTempSelectedEventCategories] = useState({})
+  const [tempAllEventCategoriesSelected, setTempAllEventCategoriesSelected] = useState(false)
+
+  const filterPopoverRef = useRef(null)
+
+  // Sync temp states with active states on popover open
+  const handleOpenFilters = () => {
+    setTempCityFilter(cityFilter)
+    setTempMonthFilter(monthFilter)
+    setTempYearFilter(yearFilter)
+    setTempSortBy(sortBy)
+    setTempSelectedEventCategories({ ...selectedEventCategories })
+    
+    const allSelected = eventCategoriesList.length > 0 && eventCategoriesList.every(c => selectedEventCategories[c.id])
+    setTempAllEventCategoriesSelected(allSelected)
+    setFilterDropdownOpen(true)
+  }
+
+  const handleCloseFilters = () => {
+    setFilterDropdownOpen(false)
+  }
+
+  const handleApplyFilters = () => {
+    setCityFilter(tempCityFilter)
+    setMonthFilter(tempMonthFilter)
+    setYearFilter(tempYearFilter)
+    setSortBy(tempSortBy)
+    setSelectedEventCategories({ ...tempSelectedEventCategories })
+    
+    const allSelected = eventCategoriesList.length > 0 && eventCategoriesList.every(c => tempSelectedEventCategories[c.id])
+    setAllEventCategoriesSelected(allSelected)
+    setFilterDropdownOpen(false)
+  }
+
+  const handleClearFilters = () => {
+    setTempCityFilter('')
+    setTempMonthFilter('')
+    setTempYearFilter('')
+    setTempSortBy('date')
+    setTempSelectedEventCategories({})
+    setTempAllEventCategoriesSelected(false)
+
+    setCityFilter('')
+    setMonthFilter('')
+    setYearFilter('')
+    setSortBy('date')
+    setSelectedEventCategories({})
+    setAllEventCategoriesSelected(false)
+    setFilterDropdownOpen(false)
+  }
+
+  const toggleTempAllEventCategories = () => {
+    const allSelected = eventCategoriesList.length > 0 && eventCategoriesList.every(c => tempSelectedEventCategories[c.id])
+    const newState = {}
+    eventCategoriesList.forEach(c => { newState[c.id] = !allSelected })
+    setTempSelectedEventCategories(newState)
+    setTempAllEventCategoriesSelected(!allSelected)
+  }
+
+  const toggleTempEventCategory = (categoryId) => {
+    setTempSelectedEventCategories(prev => {
+      const next = { ...prev, [categoryId]: !prev[categoryId] }
+      const allNowSelected = eventCategoriesList.length > 0 && eventCategoriesList.every(c => next[c.id])
+      setTempAllEventCategoriesSelected(allNowSelected)
+      return next
+    })
+  }
+
+  const getActiveFiltersCount = () => {
+    let count = 0
+    if (cityFilter) count++
+    if (monthFilter) count++
+    if (yearFilter) count++
+    if (sortBy !== 'date') count++
+    const selectedCount = eventCategoriesList.filter(c => selectedEventCategories[c.id]).length
+    if (selectedCount > 0 && selectedCount < eventCategoriesList.length) {
+      count++
+    }
+    return count
+  }
+
+  // Close category dropdown on click outside
+  useEffect(() => {
+    if (!filterDropdownOpen) return
+    const handleOutsideClick = (e) => {
+      if (filterPopoverRef.current && !filterPopoverRef.current.contains(e.target)) {
+        setFilterDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleOutsideClick)
+    return () => document.removeEventListener('mousedown', handleOutsideClick)
+  }, [filterDropdownOpen])
 
   // ---- Calendar State ----
   const [calendarDate, setCalendarDate] = useState(new Date())
@@ -121,22 +220,7 @@ export default function EventsPage() {
     fetchEventCategories()
   }, [apiFetch])
 
-  const toggleAllEventCategories = () => {
-    const allSelected = eventCategoriesList.every(c => selectedEventCategories[c.id])
-    const newState = {}
-    eventCategoriesList.forEach(c => { newState[c.id] = !allSelected })
-    setSelectedEventCategories(newState)
-    setAllEventCategoriesSelected(!allSelected)
-  }
-
-  const toggleEventCategory = (categoryId) => {
-    setSelectedEventCategories(prev => {
-      const next = { ...prev, [categoryId]: !prev[categoryId] }
-      const allNowSelected = eventCategoriesList.every(c => next[c.id])
-      setAllEventCategoriesSelected(allNowSelected)
-      return next
-    })
-  }
+  // Helper togglers and button text getters are now unified and handled in temp state handlers.
 
   useEffect(() => {
     const nextView = ['events', 'calendar', 'submissions'].includes(searchParams.get('view'))
@@ -520,111 +604,143 @@ export default function EventsPage() {
       {/* ============ EVENTS LIST VIEW ============ */}
       {view === 'events' && (
         <>
-          <div className="events-filter-bar">
-            <div className="field">
-              <label className="label">City / Location</label>
+          <div className="events-filter-header-row">
+            <div className="events-search-box-wrapper">
+              <svg className="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
               <input
-                className="input"
-                placeholder="Filter by city..."
-                value={cityFilter}
-                onChange={e => setCityFilter(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && loadEvents()}
+                type="text"
+                className="input search-input"
+                placeholder="Search events by city..."
+                value={tempCityFilter}
+                onChange={e => setTempCityFilter(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleApplyFilters()}
               />
             </div>
-            <div className="field">
-              <label className="label">Month</label>
-              <select className="input select" value={monthFilter} onChange={e => setMonthFilter(e.target.value)}>
-                <option value="">All months</option>
-                {MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
-              </select>
-            </div>
-            <div className="field">
-              <label className="label">Year</label>
-              <select className="input select" value={yearFilter} onChange={e => setYearFilter(e.target.value ? Number(e.target.value) : '')}>
-                <option value="">This & following years</option>
-                {Array.from({ length: 4 }, (_, i) => new Date().getFullYear() + i).map(y => (
-                  <option key={y} value={y}>{y}</option>
-                ))}
-              </select>
-            </div>
-            <div className="field">
-              <label className="label">Sort By</label>
-              <select className="input select" value={sortBy} onChange={e => setSortBy(e.target.value)}>
-                <option value="date">Date (Ascending)</option>
-                <option value="trending">Trending</option>
-              </select>
-            </div>
-            <div className="field">
-              <label className="label">&nbsp;</label>
-              <button className="btn btn-primary" onClick={loadEvents}>
-                Search
-              </button>
-            </div>
-          </div>
 
-          {/* Category Filter Chips */}
-          {eventCategoriesList.length > 0 && (
-            <div className="events-category-chips" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.5rem' }}>
+            <div className="filter-popover-container" ref={filterPopoverRef}>
               <button
-                className={`event-category-chip ${allEventCategoriesSelected ? 'active' : ''}`}
-                onClick={toggleAllEventCategories}
-                style={{
-                  padding: '0.4rem 1rem',
-                  borderRadius: '999px',
-                  border: '1px solid var(--border)',
-                  background: allEventCategoriesSelected ? 'var(--primary)' : 'var(--bg-card)',
-                  color: allEventCategoriesSelected ? '#fff' : 'var(--text-secondary)',
-                  cursor: 'pointer',
-                  fontSize: '0.85rem',
-                  fontWeight: 500,
-                  transition: 'all 0.2s ease',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.35rem'
-                }}
+                type="button"
+                className={`btn btn-filter-trigger ${filterDropdownOpen ? 'active' : ''}`}
+                onClick={filterDropdownOpen ? handleCloseFilters : handleOpenFilters}
               >
-                All
+                <svg className="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+                </svg>
+                <span>Filters</span>
+                {getActiveFiltersCount() > 0 && (
+                  <span className="filter-badge">{getActiveFiltersCount()}</span>
+                )}
               </button>
-              {eventCategoriesList.map(c => {
-                const isActive = selectedEventCategories[c.id]
-                return (
-                  <button
-                    key={c.id}
-                    className={`event-category-chip ${isActive ? 'active' : ''}`}
-                    onClick={() => toggleEventCategory(c.id)}
-                    style={{
-                      padding: '0.4rem 1rem',
-                      borderRadius: '999px',
-                      border: '1px solid var(--border)',
-                      background: isActive ? 'var(--primary)' : 'var(--bg-card)',
-                      color: isActive ? '#fff' : 'var(--text-secondary)',
-                      cursor: 'pointer',
-                      fontSize: '0.85rem',
-                      fontWeight: 500,
-                      transition: 'all 0.2s ease',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.35rem'
-                    }}
-                  >
-                    {c.iconUrl && (
-                      <img 
-                        src={c.iconUrl} 
-                        alt="" 
-                        style={{ 
-                          width: 16, 
-                          height: 16, 
-                          objectFit: 'contain',
-                          filter: isActive ? 'brightness(10)' : 'none'
-                        }} 
+
+              {filterDropdownOpen && (
+                <div className="filter-popover-card">
+                  <div className="filter-popover-header">
+                    <h3>Filters</h3>
+                    <button type="button" className="btn-close-popover" onClick={handleCloseFilters}>&times;</button>
+                  </div>
+
+                  <div className="filter-popover-body">
+                    {/* Location */}
+                    <div className="filter-section">
+                      <label className="filter-label">Location (City)</label>
+                      <input
+                        type="text"
+                        className="input"
+                        placeholder="Filter by city..."
+                        value={tempCityFilter}
+                        onChange={e => setTempCityFilter(e.target.value)}
                       />
-                    )}
-                    {c.name}
-                  </button>
-                )
-              })}
+                    </div>
+
+                    {/* Date Grid */}
+                    <div className="filter-section">
+                      <label className="filter-label">Date</label>
+                      <div className="filter-date-grid">
+                        <select className="input select" value={tempMonthFilter} onChange={e => setTempMonthFilter(e.target.value)}>
+                          <option value="">All months</option>
+                          {MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+                        </select>
+                        <select className="input select" value={tempYearFilter} onChange={e => setTempYearFilter(e.target.value ? Number(e.target.value) : '')}>
+                          <option value="">This & following years</option>
+                          {Array.from({ length: 4 }, (_, i) => new Date().getFullYear() + i).map(y => (
+                            <option key={y} value={y}>{y}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Sort By Radio Group */}
+                    <div className="filter-section">
+                      <label className="filter-label">Sort By</label>
+                      <div className="filter-radio-group">
+                        <label className="radio-label">
+                          <input
+                            type="radio"
+                            name="sortBy"
+                            value="date"
+                            checked={tempSortBy === 'date'}
+                            onChange={() => setTempSortBy('date')}
+                          />
+                          <span>Date (Ascending)</span>
+                        </label>
+                        <label className="radio-label">
+                          <input
+                            type="radio"
+                            name="sortBy"
+                            value="trending"
+                            checked={tempSortBy === 'trending'}
+                            onChange={() => setTempSortBy('trending')}
+                          />
+                          <span>Trending</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Categories Checklist Grid */}
+                    <div className="filter-section">
+                      <div className="filter-section-header">
+                        <label className="filter-label">Categories</label>
+                        <button type="button" className="btn-text-link" onClick={toggleTempAllEventCategories}>
+                          {eventCategoriesList.length > 0 && eventCategoriesList.every(c => tempSelectedEventCategories[c.id]) ? 'Deselect All' : 'Select All'}
+                        </button>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', maxHeight: '180px', overflowY: 'auto', paddingRight: '4px' }}>
+                        {eventCategoriesList.map(cat => (
+                          <label key={cat.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500', color: 'var(--text-primary)' }}>
+                            <input
+                              type="checkbox"
+                              checked={!!tempSelectedEventCategories[cat.id]}
+                              onChange={() => toggleTempEventCategory(cat.id)}
+                              style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: 'var(--text-primary)' }}
+                            />
+                            <img src={cat.iconUrl || '/icons/stash--pin-location-light.svg'} alt="" style={{ width: 16, height: 16, objectFit: 'contain' }} />
+                            <span>{cat.name}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="filter-popover-footer">
+                    <button type="button" className="btn btn-text btn-clear" onClick={handleClearFilters}>
+                      Clear All
+                    </button>
+                    <div className="footer-right-buttons">
+                      <button type="button" className="btn btn-primary btn-apply" onClick={handleApplyFilters}>
+                        Apply Filters
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
-          )}
+
+            <button className="btn btn-primary btn-search-trigger" onClick={handleApplyFilters}>
+              Search
+            </button>
+          </div>
 
           {loading ? (
             <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>Loading events...</div>

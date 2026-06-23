@@ -43,22 +43,353 @@
   color: var(--text-primary);
 }
 
-/* ---- Filter Bar ---- */
-.events-filter-bar {
+/* ---- Filter Header Row ---- */
+.events-filter-header-row {
   display: flex;
   gap: 0.75rem;
   margin-bottom: 1.5rem;
-  flex-wrap: wrap;
-  align-items: flex-end;
+  align-items: center;
+  position: relative;
+  width: 100%;
 }
 
-.events-filter-bar .field {
+/* ---- Search Box Wrapper ---- */
+.events-search-box-wrapper {
+  position: relative;
   flex: 1;
-  min-width: 140px;
+  display: flex;
+  align-items: center;
 }
 
-.events-filter-bar .label {
-  margin-bottom: 0.3rem;
+.events-search-box-wrapper .search-icon {
+  position: absolute;
+  left: 0.85rem;
+  width: 16px;
+  height: 16px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.events-search-box-wrapper .search-input {
+  width: 100%;
+  padding-left: 2.3rem;
+  height: 42px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg-input, var(--bg-surface));
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  transition: all 0.2s var(--ease);
+}
+
+.events-search-box-wrapper .search-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-alpha, rgba(79, 140, 255, 0.15));
+}
+
+/* ---- Popover Container ---- */
+.filter-popover-container {
+  position: relative;
+}
+
+/* ---- Trigger Button ---- */
+.btn-filter-trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 42px;
+  padding: 0 1rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 0.88rem;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: all 0.2s var(--ease);
+  white-space: nowrap;
+}
+
+.btn-filter-trigger:hover,
+.btn-filter-trigger.active {
+  border-color: var(--border-hover);
+  background: var(--bg-glass);
+  color: var(--text-primary);
+}
+
+.btn-filter-trigger.active {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.btn-filter-trigger .filter-icon {
+  width: 14px;
+  height: 14px;
+}
+
+/* Badge count */
+.filter-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--primary, #4f8cff);
+  color: var(--text-inverse, #ffffff);
+  font-size: 0.72rem;
+  font-weight: 700;
+  border-radius: 999px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+/* ---- Popover Card ---- */
+.filter-popover-card {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 380px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15), 0 1px 3px rgba(0, 0, 0, 0.05);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: filterFadeIn 0.2s var(--ease);
+}
+
+@keyframes filterFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.filter-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.filter-popover-header h3 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.btn-close-popover {
+  border: none;
+  background: none;
+  font-size: 1.25rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: color 0.15s;
+}
+
+.btn-close-popover:hover {
+  color: var(--text-primary);
+}
+
+.filter-popover-body {
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+/* Scrollbar styling for the popover body */
+.filter-popover-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.filter-popover-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.filter-popover-body::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 99px;
+}
+
+/* ---- Filter Section ---- */
+.filter-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.filter-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.filter-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.btn-text-link {
+  background: none;
+  border: none;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--primary);
+  cursor: pointer;
+  padding: 0;
+  transition: opacity 0.15s;
+}
+
+.btn-text-link:hover {
+  opacity: 0.8;
+  text-decoration: underline;
+}
+
+/* Location input styling in popover */
+.filter-section .input {
+  height: 38px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-input, var(--bg-surface));
+  color: var(--text-primary);
+  font-size: 0.88rem;
+  padding: 0 0.75rem;
+  transition: border-color 0.15s var(--ease);
+}
+
+.filter-section .input:focus {
+  border-color: var(--primary);
+}
+
+/* Date Grid */
+.filter-date-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.filter-date-grid select {
+  height: 38px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-input, var(--bg-surface));
+  color: var(--text-primary);
+  font-size: 0.88rem;
+  padding: 0 0.5rem;
+  cursor: pointer;
+  outline: none;
+}
+
+/* Sort By Radio Group */
+.filter-radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.radio-label {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.radio-label:hover {
+  color: var(--text-primary);
+}
+
+.radio-label input[type="radio"] {
+  cursor: pointer;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--primary);
+}
+
+
+
+/* ---- Popover Footer ---- */
+.filter-popover-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1.25rem;
+  border-top: 1px solid var(--border);
+  background: var(--bg-glass, rgba(255, 255, 255, 0.02));
+}
+
+.filter-popover-footer .btn-clear {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.15s;
+}
+
+.filter-popover-footer .btn-clear:hover {
+  color: var(--danger, #e11d48);
+}
+
+.footer-right-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.filter-popover-footer .btn-text {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.4rem 0.75rem;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s;
+}
+
+.filter-popover-footer .btn-text:hover {
+  background: var(--bg-glass);
+  color: var(--text-primary);
+}
+
+.filter-popover-footer .btn-apply {
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.4rem 0.9rem;
+  height: auto;
+}
+
+/* Search Trigger button in header row */
+.btn-search-trigger {
+  height: 42px;
+  padding: 0 1.25rem;
+  font-weight: 700;
+  font-size: 0.88rem;
+  border-radius: var(--radius-md);
 }
 
 /* ---- Event Cards Grid ---- */
@@ -586,12 +917,53 @@
     grid-template-columns: 1fr;
   }
 
-  .events-filter-bar {
+  .events-filter-header-row {
     flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
   }
 
-  .events-filter-bar .field {
-    min-width: 100%;
+  .events-search-box-wrapper {
+    width: 100%;
+  }
+
+  .filter-popover-container {
+    width: 100%;
+  }
+
+  .btn-filter-trigger {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .btn-search-trigger {
+    width: 100%;
+  }
+
+  .filter-popover-card {
+    position: fixed;
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-height: 80vh;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    border-bottom: none;
+    animation: slideUpMobile 0.25s var(--ease);
+  }
+
+  @keyframes slideUpMobile {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+
+  .filter-popover-body {
+    max-height: 50vh;
   }
 
   .calendar-day {
