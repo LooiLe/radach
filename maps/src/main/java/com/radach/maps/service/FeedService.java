@@ -23,6 +23,7 @@ public class FeedService {
 
     private final EventRepository eventRepository;
     private final JourneyRepository journeyRepository;
+    private final FollowService followService;
 
     public FeedService(
             SpotEventRepository spotEventRepository,
@@ -35,7 +36,8 @@ public class FeedService {
             PostLikeRepository postLikeRepository,
             PostCommentRepository postCommentRepository,
             EventRepository eventRepository,
-            JourneyRepository journeyRepository
+            JourneyRepository journeyRepository,
+            FollowService followService
     ) {
         this.spotEventRepository = spotEventRepository;
         this.reviewRepository = reviewRepository;
@@ -48,11 +50,12 @@ public class FeedService {
         this.postCommentRepository = postCommentRepository;
         this.eventRepository = eventRepository;
         this.journeyRepository = journeyRepository;
+        this.followService = followService;
     }
 
     /**
      * Build the feed based on filter.
-     * filter can be "friends", "experts", "global", "all", "user".
+     * filter can be "friends", "experts", "trusted", "global", "all", "user".
      */
     public List<FeedItem> getFeed(Long userId, String filter, int limit, Long targetUserId) {
         if (filter == null) filter = "global";
@@ -72,6 +75,10 @@ public class FeedService {
                     .filter(User::isExpert)
                     .map(User::getId)
                     .collect(Collectors.toSet());
+        } else if (filter.equalsIgnoreCase("trusted")) {
+            // Trusted = friends + experts you follow
+            relevantUserIds.addAll(friendIds);
+            relevantUserIds.addAll(followService.getFollowedExpertIds(userId));
         } else if (filter.equalsIgnoreCase("user") && targetUserId != null) {
             relevantUserIds.add(targetUserId);
         } else {
@@ -93,9 +100,9 @@ public class FeedService {
         // 2. Fetch interactions (only if friends filter, to avoid spamming global feed with likes/views)
         List<SpotEvent> events = new ArrayList<>();
         List<UserSpotInteraction> interactions = new ArrayList<>();
-        if (filter.equalsIgnoreCase("friends") || filter.equalsIgnoreCase("user")) {
+        if (filter.equalsIgnoreCase("friends") || filter.equalsIgnoreCase("trusted") || filter.equalsIgnoreCase("user")) {
             // if filter is "user", we can also show interactions of that user
-            Set<Long> idsToFetch = filter.equalsIgnoreCase("user") ? Set.of(targetUserId) : friendIds;
+            Set<Long> idsToFetch = filter.equalsIgnoreCase("user") ? Set.of(targetUserId) : relevantUserIds;
             
             events = spotEventRepository.findRecentByUserIds(idsToFetch, limit);
             for (SpotEvent e : events) {

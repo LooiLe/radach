@@ -131,7 +131,7 @@ const journeyIconMap = {
 
 function JourneyMarkerLayer({ journeys }) {
   const map = useMap()
-  const markersRef = useRef([])
+  const clusterGroupRef = useRef(null)
 
   function getFirstCoordinate(geoJson) {
     if (!geoJson) return null
@@ -156,9 +156,23 @@ function JourneyMarkerLayer({ journeys }) {
   }
 
   useEffect(() => {
-    // Remove old markers
-    markersRef.current.forEach(m => map.removeLayer(m))
-    markersRef.current = []
+    if (!clusterGroupRef.current) {
+      clusterGroupRef.current = L.markerClusterGroup({
+        showCoverageOnHover: false,
+        zoomToBoundsOnClick: true,
+        maxClusterRadius: 50,
+      })
+    }
+    const clusterGroup = clusterGroupRef.current
+    map.addLayer(clusterGroup)
+    return () => { map.removeLayer(clusterGroup) }
+  }, [map])
+
+  // Add/update markers
+  useEffect(() => {
+    const clusterGroup = clusterGroupRef.current
+    if (!clusterGroup) return
+    clusterGroup.clearLayers()
 
     journeys.forEach(j => {
       const position = getFirstCoordinate(j.geoJson)
@@ -180,15 +194,9 @@ function JourneyMarkerLayer({ journeys }) {
         ${j.distanceMeters ? `<span style="font-size: 0.85em;"> · ${j.distanceMeters >= 1000 ? (j.distanceMeters / 1000).toFixed(1) + ' km' : j.distanceMeters + ' m'}</span>` : ''}
       `
       marker.bindPopup(popupHtml)
-      marker.addTo(map)
-      markersRef.current.push(marker)
+      clusterGroup.addLayer(marker)
     })
-
-    return () => {
-      markersRef.current.forEach(m => map.removeLayer(m))
-      markersRef.current = []
-    }
-  }, [journeys, map])
+  }, [journeys])
 
   return null
 }
@@ -305,6 +313,8 @@ export default function SpotsPage() {
   const [mapBounds, setMapBounds] = useState(null)
   const [categoriesReady, setCategoriesReady] = useState(false)
   const initialCatLoadRef = useRef({ categories: false, journeyCategories: false })
+  const [searchedSpot, setSearchedSpot] = useState(null)
+  const [searchedJourney, setSearchedJourney] = useState(null)
 
   // Interest → spot category mapping
   const INTEREST_SPOT_MAP = {
@@ -513,14 +523,22 @@ export default function SpotsPage() {
   }
 
   const filteredJourneys = useMemo(() => {
+    // If a specific journey is searched, only show that one
+    if (searchedJourney) return [searchedJourney]
+    // If a specific spot is searched, don't show any journeys
+    if (searchedSpot) return []
     if (!journeyCategoriesList.length) return journeys
     const anySelected = journeyCategoriesList.some(c => selectedJourneyCategories[c.id])
     if (!anySelected) return []
     const selectedIds = new Set(journeyCategoriesList.filter(c => selectedJourneyCategories[c.id]).map(c => c.id))
     return journeys.filter(j => selectedIds.has(j.journeyCategoryId) && isJourneyInBounds(j, mapBounds))
-  }, [journeys, journeyCategoriesList, selectedJourneyCategories, mapBounds])
+  }, [journeys, journeyCategoriesList, selectedJourneyCategories, mapBounds, searchedJourney, searchedSpot])
 
   const visibleMapSpots = useMemo(() => {
+    // If a specific spot is searched, only show that one
+    if (searchedSpot) return [searchedSpot]
+    // If a specific journey is searched, don't show any spots
+    if (searchedJourney) return []
     const spotCategoriesActive = Object.keys(selectedCategories).some(k => k !== 'all' && selectedCategories[k])
     const journeyCategoriesActive = journeyCategoriesList.some(c => selectedJourneyCategories[c.id])
     const eventCategoriesActive = eventCategoriesList.some(c => selectedEventCategories[c.id])
@@ -585,7 +603,7 @@ export default function SpotsPage() {
     }
 
     return filtered
-  }, [mapSpots, selectedCategories, selectedJourneyCategories, journeyCategoriesList, selectedEventCategories, eventCategoriesList, searchMode, lat, lng, radius, sortBy])
+  }, [mapSpots, selectedCategories, selectedJourneyCategories, journeyCategoriesList, selectedEventCategories, eventCategoriesList, searchMode, lat, lng, radius, sortBy, searchedSpot, searchedJourney])
 
   // Pagination: 50 per page
   const pageSize = 50
@@ -663,6 +681,7 @@ export default function SpotsPage() {
   const handleClearSearch = () => {
     setPlace(''); setLat(''); setLng(''); setRadius(''); setSuggestions([]); setBounds([]); setMapSpots([]); setPage(0)
     setViewingSingleSpot(false)
+    setSearchedSpot(null); setSearchedJourney(null)
     setStatus('Loading map spots...')
     if (mapInstanceRef.current) loadMapViewport(mapInstanceRef.current)
   }
@@ -693,7 +712,25 @@ export default function SpotsPage() {
             const data = await res.json()
             if (res.ok && data?.length > 0) combinedSuggestions = [...data]
           } catch (e) { if (e.name !== 'AbortError') console.error(e) }
-          // 2. Nominatim city/place search
+          // 2. Journey search (client-side from already loaded journeys)
+          try {
+            const qLower = q.toLowerCase()
+            const matchingJourneys = journeys.filter(j => j.name?.toLowerCase().includes(qLower)).slice(0, 3)
+            if (matchingJourneys.length > 0) {
+              const formatted = matchingJourneys.map(j => ({
+                name: j.name,
+                type: 'Journey',
+                address: j.journeyCategoryName || 'Journey',
+                latitude: null,
+                longitude: null,
+                isJourney: true,
+                journeyData: j,
+              }))
+              const existingNames = new Set(combinedSuggestions.map(s => s.name))
+              combinedSuggestions.push(...formatted.filter(f => !existingNames.has(f.name)))
+            }
+          } catch (e) { console.error(e) }
+          // 3. Nominatim city/place search
           try {
             const nomRes = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=3`, {
               headers: { 'Accept-Language': 'en' },
@@ -720,8 +757,26 @@ export default function SpotsPage() {
 
   const selectSuggestion = (spot) => {
     setPlace(spot.name); setLat(spot.latitude); setLng(spot.longitude); setSuggestions([]); setPage(0)
-    if (spot.isPlace) {
-      setViewingSingleSpot(false)
+    setSearchedSpot(null)
+    setSearchedJourney(null)
+    if (spot.isJourney) {
+      // Journey selected — show only this journey
+      setSearchedJourney(spot.journeyData)
+      setMapSpots([])
+      setMapTotal(0)
+      setRadius('')
+      setStatus(`Journey: ${spot.name}`)
+      // Fly to journey start point if available
+      if (spot.journeyData?.geoJson && mapInstanceRef.current) {
+        try {
+          const geo = JSON.parse(spot.journeyData.geoJson)
+          if (geo.coordinates && geo.coordinates.length > 0) {
+            const [lng, lat] = geo.coordinates[0]
+            mapInstanceRef.current.flyTo([lat, lng], 13, { duration: 1.2 })
+          }
+        } catch { /* ignore */ }
+      }
+    } else if (spot.isPlace) {
       // City/place from Nominatim — fly map to that location
       setRadius(searchMode === 'nearby' ? (radius || '5') : '')
       setMapSpots([])
