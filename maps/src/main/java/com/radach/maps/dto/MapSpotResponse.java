@@ -7,6 +7,8 @@ public record MapSpotResponse(
         Double latitude,
         Double longitude,
         int rankScore,
-        Double averageRating
+        Double averageRating,
+        Boolean hasActiveEvent,
+        String activeEventCategories
 ) {
 }

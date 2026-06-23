@@ -143,7 +143,14 @@ export default function SpotCard({ spot, rank, style }) {
             <img src={categoryIcon} alt={`${spot.type} icon`} className="spot-card-type-icon" />
           )}
           <div>
-            <h3 className="spot-card-name">{spot.name}</h3>
+            <h3 className="spot-card-name">
+              {spot.name}
+              {spot.hasActiveEvent && (
+                <span className="spot-event-badge today" title="Active Event Today">
+                  📅 EVENT
+                </span>
+              )}
+            </h3>
             <p className="spot-card-meta">{spot.type} · {spot.address}</p>
           </div>
         </div>

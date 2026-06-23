@@ -666,7 +666,7 @@ export default function SubmitJourneyPage() {
           </svg>
         </button>
         <h2>
-          {isEdit ? 'Edit Journey' : 'Add Journey'}
+          {isEdit ? 'Edit Experience' : 'Add Experience'}
           {spot && !isEdit ? ` — ${spot.name}` : ''}
           <span className="step-indicator"> (Step {step} of 2)</span>
         </h2>
@@ -976,7 +976,7 @@ export default function SubmitJourneyPage() {
                 ← Edit Route
               </button>
               <button type="button" className="btn btn-primary" onClick={handleSubmit} disabled={submitting} style={{ flex: 2 }}>
-                {submitting ? 'Submitting...' : 'Submit Journey'}
+                {submitting ? 'Submitting...' : 'Submit Experience'}
               </button>
             </div>
           </div>

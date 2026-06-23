@@ -30,11 +30,15 @@ let dynamicIconMap = {
   default: '/icons/stash--pin-location-light.svg',
 }
 
-function createMarkerIcon(type) {
+function createMarkerIcon(type, hasActiveEvent) {
   const normalized = (type || '').toString().trim().toLowerCase().replace('é', 'e')
   const icon = dynamicIconMap[normalized] || dynamicIconMap.default
+  const markerClass = hasActiveEvent ? 'custom-map-marker has-active-event' : 'custom-map-marker'
   return new L.DivIcon({
-    html: `<div class="custom-map-marker"><img src="${icon}" alt="${type || 'Spot'}" /></div>`,
+    html: `<div class="${markerClass}">
+             <img src="${icon}" alt="${type || 'Spot'}" />
+             ${hasActiveEvent ? '<span class="marker-live-badge"></span>' : ''}
+           </div>`,
     className: 'custom-leaflet-marker',
     iconSize: [28, 28],
     iconAnchor: [14, 28],
@@ -76,12 +80,13 @@ function MarkerClusterGroup({ spots, createIcon }) {
     if (!spotClusterGroup) return
     spotClusterGroup.clearLayers()
     spots.forEach(s => {
-      const marker = L.marker([s.latitude, s.longitude], { icon: createIcon(s.type) })
+      const marker = L.marker([s.latitude, s.longitude], { icon: createIcon(s.type, s.hasActiveEvent) })
       const popupHtml = document.createElement('div')
       popupHtml.innerHTML = `
         <strong>${s.name}</strong><br />
         <span style="color: var(--star);">${s.averageRating > 0 ? '★ ' + s.averageRating.toFixed(1) : 'No ratings'}</span><br />
         ${s.type}<br />
+        ${s.hasActiveEvent ? '<div style="margin-top: 0.25rem; font-size: 0.75rem; color: #ef4444; font-weight: 600;">📅 EVENT TODAY</div>' : ''}
       `
       marker.bindPopup(popupHtml)
       spotClusterGroup.addLayer(marker)
@@ -206,6 +211,22 @@ function ZoomControls() {
   )
 }
 
+// Haversine distance in meters
+function haversineDistance(lat1, lng1, lat2, lng2) {
+  const R = 6371e3 // metres
+  const phi1 = lat1 * Math.PI/180
+  const phi2 = lat2 * Math.PI/180
+  const deltaPhi = (lat2-lat1) * Math.PI/180
+  const deltaLambda = (lng2-lng1) * Math.PI/180
+
+  const a = Math.sin(deltaPhi/2) * Math.sin(deltaPhi/2) +
+            Math.cos(phi1) * Math.cos(phi2) *
+            Math.sin(deltaLambda/2) * Math.sin(deltaLambda/2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+
+  return R * c // in meters
+}
+
 export default function SpotsPage() {
   const { apiFetch } = useApi()
   const [mapSpots, setMapSpots] = useState([])
@@ -220,6 +241,7 @@ export default function SpotsPage() {
   const [radius, setRadius] = useState(searchParams.get('radiusKm') || '')
   const [sortBy, setSortBy] = useState(searchParams.get('sortBy') || 'popularity')
   const [suggestions, setSuggestions] = useState([])
+  const [viewingSingleSpot, setViewingSingleSpot] = useState(false)
   const [bounds, setBounds] = useState(() => {
     const pLat = parseFloat(searchParams.get('lat'))
     const pLng = parseFloat(searchParams.get('lng'))
@@ -232,6 +254,11 @@ export default function SpotsPage() {
   useEffect(() => {
     const queryLat = searchParams.get('lat')
     const queryLng = searchParams.get('lng')
+    const queryMode = searchParams.get('mode')
+    if (queryMode) {
+      setSearchMode(queryMode)
+      if (queryMode === 'nearby') setViewingSingleSpot(false)
+    }
     if (queryLat && queryLng) {
       const parsedLat = parseFloat(queryLat)
       const parsedLng = parseFloat(queryLng)
@@ -240,10 +267,21 @@ export default function SpotsPage() {
         setLng(queryLng)
         setBounds([[parsedLat, parsedLng]])
         const queryRadius = searchParams.get('radiusKm') || searchParams.get('radius')
-        if (queryRadius) setRadius(queryRadius)
+        setRadius(queryRadius || (queryMode === 'nearby' || searchMode === 'nearby' ? '5' : ''))
       }
     }
-  }, [searchParams])
+  }, [searchParams, searchMode])
+
+  const handleSetSearchMode = (mode) => {
+    setSearchMode(mode)
+    if (mode === 'nearby') {
+      setViewingSingleSpot(false)
+      if (!radius) setRadius('5')
+    } else {
+      setRadius('')
+    }
+  }
+
   const geocodeTimer = useRef(null)
   const suggestionsAbort = useRef(null)
   const suggestionsRequestId = useRef(0)
@@ -251,16 +289,19 @@ export default function SpotsPage() {
   const mapInstanceRef = useRef(null)
   const [page, setPage] = useState(0)
 
-  const [ratingMode, setRatingMode] = useState(() => searchParams.get('mode') || 'global')
+  const [ratingMode, setRatingMode] = useState(() => searchParams.get('ratingMode') || 'global')
   const [categoriesList, setCategoriesList] = useState([])
-  const [selectedCategories, setSelectedCategories] = useState({ all: false })
+  const [selectedCategories, setSelectedCategories] = useState({ all: true })
   const [journeyCategoriesList, setJourneyCategoriesList] = useState([])
   const [selectedJourneyCategories, setSelectedJourneyCategories] = useState({})
   const [filterDropdownOpen, setFilterDropdownOpen] = useState(false)
+  const [eventCategoriesList, setEventCategoriesList] = useState([])
+  const [selectedEventCategories, setSelectedEventCategories] = useState({})
+  const [allEventCategoriesSelected, setAllEventCategoriesSelected] = useState(true)
   const [searchModeDropdownOpen, setSearchModeDropdownOpen] = useState(false)
   const [journeys, setJourneys] = useState([])
   const [journeysLoading, setJourneysLoading] = useState(false)
-  const [allJourneyCategoriesSelected, setAllJourneyCategoriesSelected] = useState(false)
+  const [allJourneyCategoriesSelected, setAllJourneyCategoriesSelected] = useState(true)
   const [mapBounds, setMapBounds] = useState(null)
   const [categoriesReady, setCategoriesReady] = useState(false)
   const initialCatLoadRef = useRef({ categories: false, journeyCategories: false })
@@ -324,20 +365,25 @@ export default function SpotsPage() {
             return a.name.localeCompare(b.name);
           })
           setCategoriesList(sorted)
-          const selMap = { all: false }
+          const selMap = { all: true }
           sorted.forEach(c => {
             const norm = c.name.trim().toLowerCase().replace('é', 'e')
-            selMap[norm] = false
+            selMap[norm] = true
             if (c.iconUrl) dynamicIconMap[norm] = c.iconUrl
           })
           // Auto-select categories based on user interests
           const stored = localStorage.getItem('interests')
           if (stored) {
             const userInterests = stored.split(',').filter(Boolean)
-            userInterests.forEach(interest => {
-              const mapped = INTEREST_SPOT_MAP[interest] || []
-              mapped.forEach(catName => { if (selMap[catName] !== undefined) selMap[catName] = true })
-            })
+            if (userInterests.length > 0) {
+              Object.keys(selMap).forEach(k => { selMap[k] = false })
+              userInterests.forEach(interest => {
+                const mapped = INTEREST_SPOT_MAP[interest] || []
+                mapped.forEach(catName => { if (selMap[catName] !== undefined) selMap[catName] = true })
+              })
+              const allSelected = Object.keys(selMap).filter(k => k !== 'all').every(k => selMap[k] === true)
+              selMap.all = allSelected
+            }
           }
           setSelectedCategories(selMap)
           // Check if both are loaded
@@ -357,22 +403,31 @@ export default function SpotsPage() {
           setJourneyCategoriesList(sorted)
           // Auto-select journey categories based on user interests
           const stored = localStorage.getItem('interests')
+          const next = {}
           if (stored) {
             const userInterests = stored.split(',').filter(Boolean)
-            const journeyNamesToSelect = new Set()
-            userInterests.forEach(interest => {
-              const mapped = INTEREST_JOURNEY_MAP[interest] || []
-              mapped.forEach(catName => journeyNamesToSelect.add(catName))
-            })
-            const next = {}
-            sorted.forEach(cat => {
-              if (journeyNamesToSelect.has(cat.name.toLowerCase())) {
-                next[cat.id] = true
-              }
-            })
-            setSelectedJourneyCategories(next)
+            if (userInterests.length > 0) {
+              const journeyNamesToSelect = new Set()
+              userInterests.forEach(interest => {
+                const mapped = INTEREST_JOURNEY_MAP[interest] || []
+                mapped.forEach(catName => journeyNamesToSelect.add(catName))
+              })
+              sorted.forEach(cat => {
+                if (journeyNamesToSelect.has(cat.name.toLowerCase())) {
+                  next[cat.id] = true
+                }
+              })
+              setSelectedJourneyCategories(next)
+              setAllJourneyCategoriesSelected(sorted.every(c => next[c.id]))
+            } else {
+              sorted.forEach(cat => { next[cat.id] = true })
+              setSelectedJourneyCategories(next)
+              setAllJourneyCategoriesSelected(true)
+            }
           } else {
-            setSelectedJourneyCategories({})
+            sorted.forEach(cat => { next[cat.id] = true })
+            setSelectedJourneyCategories(next)
+            setAllJourneyCategoriesSelected(true)
           }
           // Check if both are loaded
           if (initialCatLoadRef.current.categories) setCategoriesReady(true)
@@ -381,6 +436,22 @@ export default function SpotsPage() {
       } catch { /* ignore */ }
     }
     fetchJourneyCatList()
+
+    async function fetchEventCatList() {
+      try {
+        const res = await apiFetch('/api/v1/event-categories')
+        const data = await res.json()
+        if (res.ok && data.length > 0) {
+          const sorted = data.sort((a, b) => a.name.localeCompare(b.name))
+          setEventCategoriesList(sorted)
+          const next = {}
+          sorted.forEach(cat => { next[cat.id] = true })
+          setSelectedEventCategories(next)
+          setAllEventCategoriesSelected(true)
+        }
+      } catch { /* ignore */ }
+    }
+    fetchEventCatList()
   }, [apiFetch])
 
   useEffect(() => {
@@ -424,6 +495,23 @@ export default function SpotsPage() {
     })
   }
 
+  const toggleAllEventCategories = () => {
+    const allSelected = eventCategoriesList.every(c => selectedEventCategories[c.id])
+    const newState = {}
+    eventCategoriesList.forEach(c => { newState[c.id] = !allSelected })
+    setSelectedEventCategories(newState)
+    setAllEventCategoriesSelected(!allSelected)
+  }
+
+  const toggleEventCategory = (categoryId) => {
+    setSelectedEventCategories(prev => {
+      const next = { ...prev, [categoryId]: !prev[categoryId] }
+      const allNowSelected = eventCategoriesList.every(c => next[c.id])
+      setAllEventCategoriesSelected(allNowSelected)
+      return next
+    })
+  }
+
   const filteredJourneys = useMemo(() => {
     if (!journeyCategoriesList.length) return journeys
     const anySelected = journeyCategoriesList.some(c => selectedJourneyCategories[c.id])
@@ -435,13 +523,20 @@ export default function SpotsPage() {
   const visibleMapSpots = useMemo(() => {
     const spotCategoriesActive = Object.keys(selectedCategories).some(k => k !== 'all' && selectedCategories[k])
     const journeyCategoriesActive = journeyCategoriesList.some(c => selectedJourneyCategories[c.id])
-    if (!spotCategoriesActive && !journeyCategoriesActive) return []
-    return mapSpots.filter(spot => {
-      const normalized = (spot.type || '').trim().toLowerCase().replace('é', 'e')
-      // Match if spot category is selected
-      if (spotCategoriesActive && selectedCategories[normalized]) return true
-      // Match if journey type maps to this spot
+    const eventCategoriesActive = eventCategoriesList.some(c => selectedEventCategories[c.id])
+
+    if (!spotCategoriesActive && !journeyCategoriesActive && !eventCategoriesActive) return []
+
+    let filtered = mapSpots.filter(spot => {
+      // 1. Match spot categories
+      if (spotCategoriesActive) {
+        const normalized = (spot.type || '').trim().toLowerCase().replace('é', 'e')
+        if (selectedCategories[normalized]) return true
+      }
+
+      // 2. Match journey categories
       if (journeyCategoriesActive) {
+        const normalized = (spot.type || '').trim().toLowerCase().replace('é', 'e')
         for (const cat of journeyCategoriesList) {
           if (selectedJourneyCategories[cat.id]) {
             const types = JOURNEY_SPOT_TYPES[cat.name.toLowerCase()] || []
@@ -449,9 +544,48 @@ export default function SpotsPage() {
           }
         }
       }
+
+      // 3. Match event categories
+      if (eventCategoriesActive && spot.hasActiveEvent && spot.activeEventCategories) {
+        const activeCats = spot.activeEventCategories.split(',').map(c => c.trim().toLowerCase())
+        for (const cat of eventCategoriesList) {
+          if (selectedEventCategories[cat.id]) {
+            if (activeCats.includes(cat.name.toLowerCase())) return true
+          }
+        }
+      }
+
       return false
     })
-  }, [mapSpots, selectedCategories, selectedJourneyCategories, journeyCategoriesList])
+
+    // 2. Filter by distance/radius if searchMode is 'nearby'
+    if (searchMode === 'nearby' && lat && lng && radius) {
+      const targetLat = parseFloat(lat)
+      const targetLng = parseFloat(lng)
+      const maxDistanceMeters = parseFloat(radius) * 1000
+      if (!isNaN(targetLat) && !isNaN(targetLng) && !isNaN(maxDistanceMeters)) {
+        filtered = filtered.filter(spot => {
+          const dist = haversineDistance(targetLat, targetLng, spot.latitude, spot.longitude)
+          return dist <= maxDistanceMeters
+        })
+      }
+    }
+
+    // 3. Sort by distance or popularity
+    if (sortBy === 'distance' && lat && lng) {
+      const targetLat = parseFloat(lat)
+      const targetLng = parseFloat(lng)
+      if (!isNaN(targetLat) && !isNaN(targetLng)) {
+        filtered = [...filtered].sort((a, b) => {
+          const distA = haversineDistance(targetLat, targetLng, a.latitude, a.longitude)
+          const distB = haversineDistance(targetLat, targetLng, b.latitude, b.longitude)
+          return distA - distB
+        })
+      }
+    }
+
+    return filtered
+  }, [mapSpots, selectedCategories, selectedJourneyCategories, journeyCategoriesList, selectedEventCategories, eventCategoriesList, searchMode, lat, lng, radius, sortBy])
 
   // Pagination: 50 per page
   const pageSize = 50
@@ -473,7 +607,7 @@ export default function SpotsPage() {
   }, [selectedCategories, journeyCategoriesList, selectedJourneyCategories])
 
   const loadMapViewport = useCallback(async (map) => {
-    if (!map || place) return
+    if (!map || (viewingSingleSpot && searchMode !== 'nearby')) return
     const requestId = ++viewportRequestId.current
     const bounds = map.getBounds()
     setMapBounds({
@@ -515,19 +649,20 @@ export default function SpotsPage() {
     } catch (e) {
       if (requestId === viewportRequestId.current) setStatus(e.message)
     }
-  }, [apiFetch, place, lat, lng, getActiveMapType, ratingMode])
+  }, [apiFetch, viewingSingleSpot, searchMode, getActiveMapType, ratingMode])
 
   const isInitialCategoryLoad = useRef(true)
   useEffect(() => {
     if (isInitialCategoryLoad.current) { isInitialCategoryLoad.current = false; return }
-    if (mapInstanceRef.current && !place && !lat && !lng) {
+    if (mapInstanceRef.current && !viewingSingleSpot) {
       setPage(0)
       loadMapViewport(mapInstanceRef.current)
     }
-  }, [selectedCategories, loadMapViewport, place, lat, lng, categoriesReady])
+  }, [selectedCategories, loadMapViewport, viewingSingleSpot, categoriesReady])
 
   const handleClearSearch = () => {
     setPlace(''); setLat(''); setLng(''); setRadius(''); setSuggestions([]); setBounds([]); setMapSpots([]); setPage(0)
+    setViewingSingleSpot(false)
     setStatus('Loading map spots...')
     if (mapInstanceRef.current) loadMapViewport(mapInstanceRef.current)
   }
@@ -544,6 +679,7 @@ export default function SpotsPage() {
 
   const handlePlaceInput = (q) => {
     setPlace(q)
+    setViewingSingleSpot(false)
     clearTimeout(geocodeTimer.current); suggestionsAbort.current?.abort()
     const requestId = ++suggestionsRequestId.current
     if (q.length < 2) { setSuggestions([]); return }
@@ -585,8 +721,9 @@ export default function SpotsPage() {
   const selectSuggestion = (spot) => {
     setPlace(spot.name); setLat(spot.latitude); setLng(spot.longitude); setSuggestions([]); setPage(0)
     if (spot.isPlace) {
+      setViewingSingleSpot(false)
       // City/place from Nominatim — fly map to that location
-      setRadius('')
+      setRadius(searchMode === 'nearby' ? (radius || '5') : '')
       setMapSpots([])
       setMapTotal(0)
       setPage(0)
@@ -599,11 +736,18 @@ export default function SpotsPage() {
         if (mapInstanceRef.current) loadMapViewport(mapInstanceRef.current)
       }, 1600)
     } else if (spot.isCityDestination) {
+      setViewingSingleSpot(false)
       setRadius(radius || '50')
     } else if (searchMode === 'nearby' && radius) {
+      setViewingSingleSpot(false)
       // keep radius
     } else {
-      setRadius(''); setStatus('1 spot found.'); setMapSpots([spot]); setMapTotal(1); setBounds([[spot.latitude, spot.longitude]])
+      setViewingSingleSpot(true)
+      setRadius('')
+      setStatus('1 spot found.')
+      setMapSpots([spot])
+      setMapTotal(1)
+      setBounds([[spot.latitude, spot.longitude]])
     }
   }
 
@@ -622,7 +766,8 @@ export default function SpotsPage() {
     if (status.includes('Loading')) return status
     const spotActive = Object.keys(selectedCategories).some(k => k !== 'all' && selectedCategories[k])
     const journeyActive = journeyCategoriesList.some(c => selectedJourneyCategories[c.id])
-    if (!spotActive && !journeyActive) return 'Select a category!'
+    const eventActive = eventCategoriesList.some(c => selectedEventCategories[c.id])
+    if (!spotActive && !journeyActive && !eventActive) return 'Select a category!'
     if (visibleMapSpots.length === 0 && !status.includes('spots in view') && !journeyActive) return status
     const spotCount = visibleMapSpots.length
     const journeyCount = filteredJourneys.length
@@ -636,7 +781,7 @@ export default function SpotsPage() {
     }
     if (spotCount > 1000) return `More than 1000 spots found.`
     return `${spotCount.toLocaleString()} spots found.`
-  }, [status, visibleMapSpots.length, filteredJourneys.length, mapTotal, mapLimited, totalPages, currentPage, pageSize, selectedCategories, selectedJourneyCategories, journeyCategoriesList])
+  }, [status, visibleMapSpots.length, filteredJourneys.length, mapTotal, mapLimited, totalPages, currentPage, pageSize, selectedCategories, selectedJourneyCategories, journeyCategoriesList, selectedEventCategories, eventCategoriesList])
 
   // Page numbers for pagination — show current group of 5, can shift groups with arrows
   const pageNumbers = useMemo(() => {
@@ -658,7 +803,7 @@ export default function SpotsPage() {
       <div className="spots-map">
         <div className="map-search-container">
           <div className="map-search-bar-wrapper">
-            <input className="input map-search-input" value={place} onChange={e => handlePlaceInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') handleSearch() }} placeholder="Search spots, journeys or cities..." autoComplete="off" />
+            <input className="input map-search-input" value={place} onChange={e => handlePlaceInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') handleSearch() }} placeholder="Search spots, experiences or cities..." autoComplete="off" />
             <button type="button" className={`map-search-icon-btn clear-btn${(place || lat || lng) ? ' active' : ''}`} onClick={handleClearSearch} title="Clear search & location" aria-label="Clear search">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
             </button>
@@ -686,10 +831,10 @@ export default function SpotsPage() {
           {searchModeDropdownOpen && (
             <div style={{ position: 'absolute', top: '0', left: '100%', marginLeft: '0.5rem', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', zIndex: 1001, minWidth: '180px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.35rem 0.75rem', cursor: 'pointer', fontSize: '0.75rem' }}>
-                <input type="radio" checked={searchMode === 'place'} onChange={() => { setSearchMode('place'); setSearchModeDropdownOpen(false) }} style={{ width: '14px', height: '14px', accentColor: 'var(--text-primary)' }} /><span>Place</span>
+                <input type="radio" checked={searchMode === 'place'} onChange={() => { handleSetSearchMode('place'); setSearchModeDropdownOpen(false) }} style={{ width: '14px', height: '14px', accentColor: 'var(--text-primary)' }} /><span>Place</span>
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.35rem 0.75rem', cursor: 'pointer', fontSize: '0.75rem' }}>
-                <input type="radio" checked={searchMode === 'nearby'} onChange={() => { setSearchMode('nearby'); setSearchModeDropdownOpen(false) }} style={{ width: '14px', height: '14px', accentColor: 'var(--text-primary)' }} /><span>Nearby</span>
+                <input type="radio" checked={searchMode === 'nearby'} onChange={() => { handleSetSearchMode('nearby'); setSearchModeDropdownOpen(false) }} style={{ width: '14px', height: '14px', accentColor: 'var(--text-primary)' }} /><span>Nearby</span>
               </label>
               <div style={{ padding: '0.35rem 0.75rem', borderTop: '1px solid var(--border)', marginTop: '0.25rem' }}>
                 <label className="label" style={{ marginBottom: '0.15rem', fontSize: '0.65rem' }}>Radius (km)</label>
@@ -718,14 +863,26 @@ export default function SpotsPage() {
                   )
                 })}
               </div>
-              <div style={{ fontWeight: 600, fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem', paddingBottom: '0.25rem', borderBottom: '1px solid var(--border)', marginTop: '0.5rem' }}>Journeys</div>
+              <div style={{ fontWeight: 600, fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem', paddingBottom: '0.25rem', borderBottom: '1px solid var(--border)', marginTop: '0.5rem' }}>Experiences</div>
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500', marginBottom: '0.5rem', paddingBottom: '0.5rem', borderBottom: '1px solid var(--border)' }}>
-                <input type="checkbox" checked={allJourneyCategoriesSelected} onChange={toggleAllJourneyCategories} style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: 'var(--text-primary)' }} /><span>All Journeys</span>
+                <input type="checkbox" checked={allJourneyCategoriesSelected} onChange={toggleAllJourneyCategories} style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: 'var(--text-primary)' }} /><span>All Experiences</span>
               </label>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '0.75rem' }}>
                 {journeyCategoriesList.map(cat => (
                   <label key={cat.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500' }}>
                     <input type="checkbox" checked={!!selectedJourneyCategories[cat.id]} onChange={() => toggleJourneyCategory(cat.id)} style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: 'var(--text-primary)' }} />
+                    <img src={cat.iconUrl || '/icons/stash--pin-location-light.svg'} alt="" style={{ width: 16, height: 16, objectFit: 'contain' }} /><span>{cat.name}</span>
+                  </label>
+                ))}
+              </div>
+              <div style={{ fontWeight: 600, fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem', paddingBottom: '0.25rem', borderBottom: '1px solid var(--border)', marginTop: '0.5rem' }}>Events</div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500', marginBottom: '0.5rem', paddingBottom: '0.5rem', borderBottom: '1px solid var(--border)' }}>
+                <input type="checkbox" checked={allEventCategoriesSelected} onChange={toggleAllEventCategories} style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: 'var(--text-primary)' }} /><span>All Events</span>
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', maxHeight: '200px', overflowY: 'auto' }}>
+                {eventCategoriesList.map(cat => (
+                  <label key={cat.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500' }}>
+                    <input type="checkbox" checked={!!selectedEventCategories[cat.id]} onChange={() => toggleEventCategory(cat.id)} style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: 'var(--text-primary)' }} />
                     <img src={cat.iconUrl || '/icons/stash--pin-location-light.svg'} alt="" style={{ width: 16, height: 16, objectFit: 'contain' }} /><span>{cat.name}</span>
                   </label>
                 ))}
@@ -765,9 +922,8 @@ export default function SpotsPage() {
         <div style={{ display: 'flex', justifyContent: 'center', gap: '0.75rem', alignItems: 'center', marginTop: '0.25rem', marginBottom: '0.5rem' }}>
           <RatingModeSelector mode={ratingMode} onChange={(m) => {
             setRatingMode(m)
-            // Re-fetch map with new mode
-            if (mapInstanceRef.current && !place && !lat && !lng) {
-              setPage(0)
+            setPage(0)
+            if (mapInstanceRef.current && !viewingSingleSpot) {
               loadMapViewport(mapInstanceRef.current)
             }
           }} />

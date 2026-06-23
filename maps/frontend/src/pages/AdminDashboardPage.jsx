@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useApi } from '../hooks/useApi'
 import { useAuth } from '../context/AuthContext'
@@ -1349,7 +1350,7 @@ export default function AdminDashboardPage() {
           ))}
 
           {/* Inline Edit Form Overlay Modal */}
-          {editingAnnotation && (
+          {editingAnnotation && createPortal(
             <div className="confirm-dialog-overlay" role="dialog" aria-modal="true" style={{ zIndex: 1100 }}>
               <div className="confirm-dialog-box" style={{ maxWidth: '500px', width: '90%' }}>
                 <h3 style={{ marginTop: 0, marginBottom: '1.5rem', textAlign: 'center' }}>
@@ -1451,7 +1452,8 @@ export default function AdminDashboardPage() {
                   </button>
                 </div>
               </div>
-            </div>
+            </div>,
+            document.body
           )}
         </div>
       )}

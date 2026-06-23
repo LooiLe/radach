@@ -32,7 +32,7 @@ export default function FloatingAddButton() {
             className="fab-item" 
             onClick={() => { setIsOpen(false); navigate('/add-journey'); }}
           >
-            Add Journey 🥾
+            Add Experience 🥾
           </button>
         </div>
       )}

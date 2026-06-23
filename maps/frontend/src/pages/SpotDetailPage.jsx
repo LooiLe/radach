@@ -45,6 +45,7 @@ export default function SpotDetailPage() {
 
   // Admin vibe tag management
   const [vibeTagDefinitions, setVibeTagDefinitions] = useState([])
+  const [categories, setCategories] = useState([])
   const [selectedVibeTagId, setSelectedVibeTagId] = useState('')
   const [reanalyzing, setReanalyzing] = useState(false)
 
@@ -134,12 +135,28 @@ export default function SpotDetailPage() {
 
   useEffect(() => { loadSpot(); loadReviews(); loadEvents(); loadTrailPaths(); }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load vibe tag definitions for admin tag management
+  // Load vibe tag definitions and categories for admin management
   useEffect(() => {
     if (!isAdmin) return
     apiFetch('/api/v1/vibe/definitions')
       .then(res => res.ok ? res.json() : [])
       .then(data => setVibeTagDefinitions(Array.isArray(data) ? data : []))
+      .catch(() => {})
+
+    apiFetch('/api/v1/categories')
+      .then(res => res.ok ? res.json() : [])
+      .then(data => {
+        if (data && data.length > 0) {
+          const sorted = data.sort((a, b) => {
+            const nameA = a.name.toLowerCase()
+            const nameB = b.name.toLowerCase()
+            if (nameA === 'other' || nameA === 'others') return 1
+            if (nameB === 'other' || nameB === 'others') return -1
+            return a.name.localeCompare(b.name)
+          })
+          setCategories(sorted)
+        }
+      })
       .catch(() => {})
   }, [isAdmin, apiFetch])
 
@@ -355,7 +372,11 @@ export default function SpotDetailPage() {
               <div className="field"><label className="label">Name</label><input className="input" value={editName} onChange={e => setEditName(e.target.value)} /></div>
               <div className="field"><label className="label">Type</label>
                 <select className="input select" value={editType} onChange={e => setEditType(e.target.value)}>
-                  {['Restaurant', 'Food Hall', 'Café', 'Bar', 'Market', 'Other'].map(t => <option key={t} value={t}>{t}</option>)}
+                  {categories.length > 0 ? (
+                    categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)
+                  ) : (
+                    ['Restaurant', 'Food Hall', 'Café', 'Bar', 'Market', 'Other'].map(t => <option key={t} value={t}>{t}</option>)
+                  )}
                 </select>
               </div>
             </div>

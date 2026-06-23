@@ -1,5 +1,8 @@
 package com.radach.maps.service;
 
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -338,16 +341,77 @@ public class SpotService {
             "FROM spots s WHERE " + whereClause +
             " ORDER BY s.rank_score DESC, s.id DESC LIMIT :limit";
 
+        // Query active events in the viewport today
+        Instant todayStart = java.time.LocalDate.now(java.time.ZoneOffset.UTC).atStartOfDay(java.time.ZoneOffset.UTC).toInstant();
+        Instant todayEnd = todayStart.plus(java.time.Duration.ofDays(1)).minusMillis(1);
+
+        MapSqlParameterSource eventParams = new MapSqlParameterSource()
+            .addValue("swLat", swLat)
+            .addValue("swLng", swLng)
+            .addValue("neLat", neLat)
+            .addValue("neLng", neLng)
+            .addValue("todayStart", todayStart)
+            .addValue("todayEnd", todayEnd);
+
+        String eventSql = "SELECT e.id, e.spot_id, e.category, e.start_time, e.end_time, e.recurrence_rule FROM events e " +
+            "JOIN spots s ON e.spot_id = s.id " +
+            "WHERE e.status = 'ACTIVE' AND s.status = 'ACTIVE' " +
+            "AND s.latitude BETWEEN :swLat AND :neLat AND s.longitude BETWEEN :swLng AND :neLng " +
+            "AND ((e.start_time >= :todayStart AND e.start_time < :todayEnd) " +
+            "OR (e.recurrence_rule IS NOT NULL AND e.start_time < :todayEnd))";
+
+        class EventCandidate {
+            final Long spotId;
+            final String category;
+            final Instant startTime;
+            final Instant endTime;
+            final String recurrenceRule;
+            EventCandidate(Long spotId, String category, Instant startTime, Instant endTime, String recurrenceRule) {
+                this.spotId = spotId;
+                this.category = category;
+                this.startTime = startTime;
+                this.endTime = endTime;
+                this.recurrenceRule = recurrenceRule;
+            }
+        }
+
+        List<EventCandidate> candidates = jdbcTemplate.query(eventSql, eventParams, (rs, rowNum) -> {
+            java.sql.Timestamp startTs = rs.getTimestamp("start_time");
+            java.sql.Timestamp endTs = rs.getTimestamp("end_time");
+            return new EventCandidate(
+                rs.getLong("spot_id"),
+                rs.getString("category"),
+                startTs != null ? startTs.toInstant() : null,
+                endTs != null ? endTs.toInstant() : null,
+                rs.getString("recurrence_rule")
+            );
+        });
+
+        Map<Long, Set<String>> spotActiveCategories = new java.util.HashMap<>();
+        for (EventCandidate c : candidates) {
+            if (c.startTime != null && isEventActiveToday(c.startTime, c.endTime, c.recurrenceRule, todayStart, todayEnd)) {
+                String cat = c.category != null ? c.category.trim() : "Other";
+                spotActiveCategories.computeIfAbsent(c.spotId, k -> new java.util.HashSet<>()).add(cat);
+            }
+        }
+
         List<MapSpotResponse> spots = jdbcTemplate.query(
-            sql, params, (rs, rowNum) -> new MapSpotResponse(
-                rs.getLong("id"),
-                rs.getString("name"),
-                rs.getString("type"),
-                rs.getDouble("latitude"),
-                rs.getDouble("longitude"),
-                rs.getInt("rank_score"),
-                rs.getDouble("avg_rating")
-            )
+            sql, params, (rs, rowNum) -> {
+                long spotId = rs.getLong("id");
+                boolean hasEvent = spotActiveCategories.containsKey(spotId);
+                String activeCats = hasEvent ? String.join(",", spotActiveCategories.get(spotId)) : null;
+                return new MapSpotResponse(
+                    spotId,
+                    rs.getString("name"),
+                    rs.getString("type"),
+                    rs.getDouble("latitude"),
+                    rs.getDouble("longitude"),
+                    rs.getInt("rank_score"),
+                    rs.getDouble("avg_rating"),
+                    hasEvent,
+                    activeCats
+                );
+            }
         );
 
         return SpotMapResponse.spots(total, total > MAP_SPOT_LIMIT, spots);
@@ -435,7 +499,9 @@ public class SpotService {
                         bucket.latitude(),
                         bucket.longitude(),
                         bucket.rankScore(),
-                        0.0
+                        0.0,
+                        false,
+                        null
                 ))
                 .toList();
 
@@ -830,5 +896,85 @@ public class SpotService {
         
         List<Spot> spots = spotRepository.findAllById(savedIds);
         return withRatingsAndInteractions(spots, userId, ratingMode);
+    }
+
+    private boolean isEventActiveToday(Instant startTime, Instant endTime, String recurrenceRule, Instant todayStart, Instant todayEnd) {
+        // 1. Non-recurring events
+        if (recurrenceRule == null || recurrenceRule.isBlank()) {
+            Instant end = endTime != null ? endTime : startTime;
+            return !end.isBefore(todayStart) && !startTime.isAfter(todayEnd);
+        }
+
+        // 2. Recurring events
+        // Check if the recurrence has already ended before today
+        if (recurrenceRule.contains("UNTIL=")) {
+            int index = recurrenceRule.indexOf("UNTIL=");
+            String sub = recurrenceRule.substring(index + 6);
+            int endOfUntil = sub.indexOf(";");
+            String untilStr = endOfUntil != -1 ? sub.substring(0, endOfUntil) : sub;
+            try {
+                Instant untilInstant;
+                if (untilStr.endsWith("Z")) {
+                    untilStr = untilStr.substring(0, untilStr.length() - 1);
+                }
+                if (untilStr.contains("T")) {
+                    java.time.LocalDateTime ldt = java.time.LocalDateTime.parse(
+                            untilStr,
+                            java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss")
+                    );
+                    untilInstant = ldt.toInstant(java.time.ZoneOffset.UTC);
+                } else {
+                    java.time.LocalDate ld = java.time.LocalDate.parse(
+                            untilStr,
+                            java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd")
+                    );
+                    untilInstant = ld.atTime(23, 59, 59).atZone(java.time.ZoneOffset.UTC).toInstant();
+                }
+                if (untilInstant.isBefore(todayStart)) {
+                    return false;
+                }
+            } catch (Exception ex) {
+                // ignore and assume not ended
+            }
+        }
+
+        // Check if the event started in the future after today
+        if (startTime.isAfter(todayEnd)) {
+            return false;
+        }
+
+        // Check if the event is excluded via EXDATE
+        if (recurrenceRule.contains("EXDATE=")) {
+            ZonedDateTime targetTime = todayStart.atZone(ZoneOffset.UTC);
+            java.time.LocalDate targetDate = targetTime.toLocalDate();
+            String dateStr = String.format("%d%02d%02dT", targetDate.getYear(), targetDate.getMonthValue(), targetDate.getDayOfMonth());
+            if (recurrenceRule.contains(dateStr)) {
+                return false; // Excluded date!
+            }
+        }
+
+        // Check frequency
+        ZonedDateTime eventTime = startTime.atZone(ZoneOffset.UTC);
+        ZonedDateTime targetTime = todayStart.atZone(ZoneOffset.UTC);
+
+        if (recurrenceRule.contains("FREQ=DAILY")) {
+            return true;
+        }
+        if (recurrenceRule.contains("FREQ=WEEKLY")) {
+            if (recurrenceRule.contains("INTERVAL=2")) {
+                long weeksDiff = java.time.temporal.ChronoUnit.WEEKS.between(eventTime.toLocalDate(), targetTime.toLocalDate());
+                return eventTime.getDayOfWeek() == targetTime.getDayOfWeek() && weeksDiff % 2 == 0;
+            } else {
+                return eventTime.getDayOfWeek() == targetTime.getDayOfWeek();
+            }
+        }
+        if (recurrenceRule.contains("FREQ=MONTHLY")) {
+            return eventTime.getDayOfMonth() == targetTime.getDayOfMonth();
+        }
+        if (recurrenceRule.contains("FREQ=YEARLY")) {
+            return eventTime.getDayOfMonth() == targetTime.getDayOfMonth() && eventTime.getMonth() == targetTime.getMonth();
+        }
+
+        return true;
     }
 }
