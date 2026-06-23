@@ -642,18 +642,6 @@ export default function EventsPage() {
                   </div>
 
                   <div className="filter-popover-body">
-                    {/* Location */}
-                    <div className="filter-section">
-                      <label className="filter-label">Location (City)</label>
-                      <input
-                        type="text"
-                        className="input"
-                        placeholder="Filter by city..."
-                        value={tempCityFilter}
-                        onChange={e => setTempCityFilter(e.target.value)}
-                      />
-                    </div>
-
                     {/* Date Grid */}
                     <div className="filter-section">
                       <label className="filter-label">Date</label>
