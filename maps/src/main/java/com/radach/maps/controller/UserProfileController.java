@@ -27,6 +27,7 @@ import com.radach.maps.repository.JourneyRepository;
 import com.radach.maps.service.AuthenticatedUserService;
 import com.radach.maps.service.ReviewService;
 import com.radach.maps.service.FeedService;
+import com.radach.maps.service.FollowService;
 import com.radach.maps.service.AccountDeletionService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -47,13 +48,15 @@ public class UserProfileController {
     private final SpotRepository spotRepository;
     private final EventRepository eventRepository;
     private final JourneyRepository journeyRepository;
+    private final FollowService followService;
 
     public UserProfileController(UserRepository userRepository, ReviewService reviewService,
                                  AuthenticatedUserService authenticatedUserService, FeedService feedService,
                                  com.radach.maps.service.FriendshipService friendshipService,
                                  AccountDeletionService accountDeletionService, PasswordEncoder passwordEncoder,
                                  SpotRepository spotRepository, EventRepository eventRepository,
-                                 JourneyRepository journeyRepository) {
+                                 JourneyRepository journeyRepository,
+                                 FollowService followService) {
         this.userRepository = userRepository;
         this.reviewService = reviewService;
         this.authenticatedUserService = authenticatedUserService;
@@ -64,6 +67,7 @@ public class UserProfileController {
         this.spotRepository = spotRepository;
         this.eventRepository = eventRepository;
         this.journeyRepository = journeyRepository;
+        this.followService = followService;
     }
 
     @GetMapping("/{id}")
@@ -85,6 +89,7 @@ public class UserProfileController {
         profile.put("portfolioUrl", user.getPortfolioUrl());
         profile.put("profilePicture", user.getProfilePicture());
         profile.put("role", user.getRole().name());
+        profile.put("interests", user.getInterests() != null ? java.util.Arrays.asList(user.getInterests().split(",")) : java.util.List.of());
 
         if (auth != null && auth.isAuthenticated() && !auth.getName().equals("anonymousUser")) {
             Long currentUserId = authenticatedUserService.getUserId(auth);
@@ -162,6 +167,12 @@ public class UserProfileController {
         return ResponseEntity.ok(feedService.getFeed(requesterId, "user", Math.min(limit, 100), id));
     }
 
+    @GetMapping("/me/following-expert-ids")
+    public ResponseEntity<java.util.Set<Long>> getFollowingExpertIds(Authentication auth) {
+        Long userId = authenticatedUserService.getUserId(auth);
+        return ResponseEntity.ok(followService.getFollowedExpertIds(userId));
+    }
+
     @GetMapping("/me/profile")
     public ResponseEntity<Map<String, Object>> getMyProfile(Authentication authentication) {
         Long userId = authenticatedUserService.getUserId(authentication);
@@ -169,6 +180,22 @@ public class UserProfileController {
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         return ResponseEntity.ok(toProfileMap(user));
+    }
+
+    @PutMapping("/me/interests")
+    public ResponseEntity<Map<String, Object>> updateInterests(
+            @Valid @RequestBody Map<String, java.util.List<String>> body,
+            Authentication authentication
+    ) {
+        Long userId = authenticatedUserService.getUserId(authentication);
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        java.util.List<String> interests = body.getOrDefault("interests", java.util.List.of());
+        user.setInterests(String.join(",", interests));
+        userRepository.save(user);
+
+        return ResponseEntity.ok(Map.of("interests", interests, "message", "Interests updated"));
     }
 
     @PutMapping("/me/profile")
@@ -216,6 +243,7 @@ public class UserProfileController {
         profile.put("specializations", user.getSpecializations());
         profile.put("portfolioUrl", user.getPortfolioUrl());
         profile.put("profilePicture", user.getProfilePicture());
+        profile.put("interests", user.getInterests() != null ? java.util.Arrays.asList(user.getInterests().split(",")) : java.util.List.of());
 
         return profile;
     }

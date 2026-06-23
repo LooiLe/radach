@@ -38,6 +38,7 @@ export default function SpotDetailPage() {
   const [reportTarget, setReportTarget] = useState({ type: '', id: null })
   const [confirmDialog, setConfirmDialog] = useState(null)
   const [friendIds, setFriendIds] = useState(new Set())
+  const [followedExpertIds, setFollowedExpertIds] = useState(new Set())
   const [showDetailFriendLikes, setShowDetailFriendLikes] = useState(false)
   const [detailFriendLikes, setDetailFriendLikes] = useState([])
   const [loadingDetailFriendLikes, setLoadingDetailFriendLikes] = useState(false)
@@ -123,11 +124,19 @@ export default function SpotDetailPage() {
         const ids = new Set()
         if (Array.isArray(data)) {
           data.forEach(f => {
-            if (f.friendId) ids.add(String(f.friendId))
-            if (f.userId) ids.add(String(f.userId))
+            if (f.id) ids.add(String(f.id))
           })
         }
         setFriendIds(ids)
+      })
+      .catch(() => {})
+    // Also fetch followed expert IDs
+    apiFetch('/api/v1/users/me/following-expert-ids')
+      .then(res => res.ok ? res.json() : [])
+      .then(data => {
+        if (Array.isArray(data)) {
+          setFollowedExpertIds(new Set(data.map(String)))
+        }
       })
       .catch(() => {})
   }, [isAuthenticated, apiFetch])
@@ -768,7 +777,9 @@ export default function SpotDetailPage() {
           let filteredReviews = reviews;
 
           if (reviewFilter === 'trusted') {
-            filteredReviews = filteredReviews.filter(r => friendIds.has(String(r.authorId)));
+            // Trusted = friends + experts you follow
+            const trustedIds = new Set([...friendIds, ...followedExpertIds])
+            filteredReviews = filteredReviews.filter(r => trustedIds.has(String(r.authorId)));
           } else if (reviewFilter === 'expert') {
             filteredReviews = filteredReviews.filter(r => r.authorIsExpert);
           }

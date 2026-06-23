@@ -460,7 +460,7 @@ export default function SpotsPage() {
     return null
   }, [selectedCategories, journeyCategoriesList, selectedJourneyCategories])
 
-  const loadMapViewport = useCallback(async (map) => {
+  const loadMapViewport = useCallback(async (map, modeOverride) => {
     if (!map || place || lat || lng) return
     const requestId = ++viewportRequestId.current
     const bounds = map.getBounds()
@@ -477,7 +477,7 @@ export default function SpotsPage() {
     })
     const activeType = getActiveMapType()
     if (activeType) params.set('type', activeType)
-    params.set('mode', ratingMode)
+    params.set('mode', modeOverride || ratingMode)
 
     setStatus('Loading map spots...')
     try {
@@ -785,10 +785,10 @@ export default function SpotsPage() {
         <div style={{ display: 'flex', justifyContent: 'center', gap: '0.75rem', alignItems: 'center', marginTop: '0.25rem', marginBottom: '0.5rem' }}>
           <RatingModeSelector mode={ratingMode} onChange={(m) => {
             setRatingMode(m)
-            // Re-fetch map with new mode
+            // Re-fetch map with new mode — pass m directly to avoid stale closure
             if (mapInstanceRef.current && !place && !lat && !lng) {
               setPage(0)
-              loadMapViewport(mapInstanceRef.current)
+              loadMapViewport(mapInstanceRef.current, m)
             }
           }} />
           <select className="input select" style={{ width: 'auto', padding: '0.4rem 2.5rem 0.4rem 1rem' }}
