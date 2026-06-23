@@ -94,7 +94,8 @@ public class EventServiceTest {
             Instant.now().plusSeconds(3600),
             Instant.now().plusSeconds(7200),
             null,
-            List.of("http://example.com/image.png")
+            List.of("http://example.com/image.png"),
+            null
         );
 
         // User submits -> PENDING
@@ -117,7 +118,8 @@ public class EventServiceTest {
             Instant.now().plusSeconds(3600),
             Instant.now().plusSeconds(7200),
             null,
-            List.of("http://example.com/image.png")
+            List.of("http://example.com/image.png"),
+            null
         );
 
         EventResponse event = eventService.submitEvent(request, user1.getId(), false);
@@ -129,7 +131,8 @@ public class EventServiceTest {
             Instant.now().plusSeconds(3600),
             Instant.now().plusSeconds(7200),
             null,
-            List.of("http://example.com/image.png")
+            List.of("http://example.com/image.png"),
+            null
         );
 
         // Try updating another user's event -> fails
@@ -153,7 +156,8 @@ public class EventServiceTest {
             Instant.now().plusSeconds(3600),
             Instant.now().plusSeconds(7200),
             null,
-            List.of("http://example.com/image.png")
+            List.of("http://example.com/image.png"),
+            null
         );
 
         // Submit as admin -> ACTIVE
@@ -167,7 +171,8 @@ public class EventServiceTest {
             Instant.now().plusSeconds(3600),
             Instant.now().plusSeconds(7200),
             null,
-            List.of("http://example.com/image.png")
+            List.of("http://example.com/image.png"),
+            null
         );
 
         // User updates active event -> reverts to PENDING
@@ -184,7 +189,8 @@ public class EventServiceTest {
             Instant.now().plusSeconds(3600),
             Instant.now().plusSeconds(7200),
             null,
-            List.of("http://example.com/image.png")
+            List.of("http://example.com/image.png"),
+            null
         );
 
         // Submit as admin -> ACTIVE
@@ -198,7 +204,8 @@ public class EventServiceTest {
             Instant.now().plusSeconds(3600),
             Instant.now().plusSeconds(7200),
             null,
-            List.of("http://example.com/image.png")
+            List.of("http://example.com/image.png"),
+            null
         );
 
         // Admin updates active event -> remains ACTIVE
@@ -215,7 +222,8 @@ public class EventServiceTest {
             Instant.now().plusSeconds(3600),
             Instant.now().plusSeconds(7200),
             null,
-            List.of("http://example.com/image.png")
+            List.of("http://example.com/image.png"),
+            null
         );
 
         EventResponse event = eventService.submitEvent(request, user1.getId(), false);
@@ -236,15 +244,15 @@ public class EventServiceTest {
     public void testUpcomingEventsSortingByTrending() {
         // Create 3 active events
         EventResponse eventA = eventService.submitEvent(new EventRequest(
-            spot.id(), "Event A", "Desc A", Instant.now().plusSeconds(3600), Instant.now().plusSeconds(7200), null, null
+            spot.id(), "Event A", "Desc A", Instant.now().plusSeconds(3600), Instant.now().plusSeconds(7200), null, null, null
         ), admin.getId(), true);
         
         EventResponse eventB = eventService.submitEvent(new EventRequest(
-            spot.id(), "Event B", "Desc B", Instant.now().plusSeconds(7200), Instant.now().plusSeconds(10800), null, null
+            spot.id(), "Event B", "Desc B", Instant.now().plusSeconds(7200), Instant.now().plusSeconds(10800), null, null, null
         ), admin.getId(), true);
         
         EventResponse eventC = eventService.submitEvent(new EventRequest(
-            spot.id(), "Event C", "Desc C", Instant.now().plusSeconds(10800), Instant.now().plusSeconds(14400), null, null
+            spot.id(), "Event C", "Desc C", Instant.now().plusSeconds(10800), Instant.now().plusSeconds(14400), null, null, null
         ), admin.getId(), true);
 
         // 1. Global trending test (no user context)
@@ -257,7 +265,7 @@ public class EventServiceTest {
         // Event C: No interactions (weight 0)
 
         // Fetch global trending
-        List<EventResponse> globalTrending = eventService.getUpcomingEvents(null, null, null, "trending", null);
+        List<EventResponse> globalTrending = eventService.getUpcomingEvents(null, null, null, "trending", null, null);
         assertThat(globalTrending).hasSize(3);
         assertThat(globalTrending.get(0).id()).isEqualTo(eventB.id()); // 10 score
         assertThat(globalTrending.get(1).id()).isEqualTo(eventA.id()); // 5 score
@@ -271,7 +279,7 @@ public class EventServiceTest {
         eventService.toggleLike(eventC.id(), user2.getId());
 
         // Fetch trending personalized for user1
-        List<EventResponse> personalizedTrending = eventService.getUpcomingEvents(null, null, null, "trending", user1.getId());
+        List<EventResponse> personalizedTrending = eventService.getUpcomingEvents(null, null, null, "trending", null, user1.getId());
         assertThat(personalizedTrending).hasSize(3);
         assertThat(personalizedTrending.get(0).id()).isEqualTo(eventC.id()); // 25 score
         assertThat(personalizedTrending.get(1).id()).isEqualTo(eventA.id()); // 0 score (user1's own like is not in connection weights, fallback to date order)
@@ -290,11 +298,11 @@ public class EventServiceTest {
         Instant eventEnd = target.plusHours(2).toInstant();
 
         EventResponse eventA = eventService.submitEvent(new EventRequest(
-            spot.id(), "Upcoming Month Event", "Desc", eventStart, eventEnd, null, null
+            spot.id(), "Upcoming Month Event", "Desc", eventStart, eventEnd, null, null, null
         ), admin.getId(), true);
 
         // Fetch events for targetMonth, year = null (defaults to current year)
-        List<EventResponse> events = eventService.getUpcomingEvents(null, targetMonth, null, "date", null);
+        List<EventResponse> events = eventService.getUpcomingEvents(null, targetMonth, null, "date", null, null);
         
         // Assert we got our Upcoming Month Event
         assertThat(events).hasSize(1);
@@ -307,18 +315,18 @@ public class EventServiceTest {
         Instant pastRecurringStart = Instant.now().minus(java.time.Duration.ofDays(2));
         Instant pastRecurringEnd = pastRecurringStart.plusSeconds(7200);
         EventResponse recurringEvent = eventService.submitEvent(new EventRequest(
-            spot.id(), "Past Recurring Event", "Desc", pastRecurringStart, pastRecurringEnd, "FREQ=MONTHLY", null
+            spot.id(), "Past Recurring Event", "Desc", pastRecurringStart, pastRecurringEnd, "FREQ=MONTHLY", null, null
         ), admin.getId(), true);
 
         // Create an event that starts 2 days ago but does NOT repeat
         Instant pastNonRecurringStart = Instant.now().minus(java.time.Duration.ofDays(2));
         Instant pastNonRecurringEnd = pastNonRecurringStart.plusSeconds(7200);
         EventResponse nonRecurringEvent = eventService.submitEvent(new EventRequest(
-            spot.id(), "Past Non-Recurring Event", "Desc", pastNonRecurringStart, pastNonRecurringEnd, null, null
+            spot.id(), "Past Non-Recurring Event", "Desc", pastNonRecurringStart, pastNonRecurringEnd, null, null, null
         ), admin.getId(), true);
 
         // Fetch upcoming events
-        List<EventResponse> events = eventService.getUpcomingEvents(null, null, null, "date", null);
+        List<EventResponse> events = eventService.getUpcomingEvents(null, null, null, "date", null, null);
 
         // Assert that recurring event is included, and non-recurring is excluded
         List<Long> eventIds = events.stream().map(EventResponse::id).toList();
@@ -332,7 +340,7 @@ public class EventServiceTest {
         Instant pastOneOffStart = Instant.now().minus(java.time.Duration.ofDays(5));
         Instant pastOneOffEnd = pastOneOffStart.plusSeconds(7200);
         EventResponse pastOneOffEvent = eventService.submitEvent(new EventRequest(
-            spot.id(), "Past One-Off Event", "Desc", pastOneOffStart, pastOneOffEnd, null, null
+            spot.id(), "Past One-Off Event", "Desc", pastOneOffStart, pastOneOffEnd, null, null, null
         ), admin.getId(), true);
 
         // 2. Recurring event that has ended (starts 10 days ago, ended 5 days ago via UNTIL)
@@ -342,16 +350,16 @@ public class EventServiceTest {
         java.time.format.DateTimeFormatter fmt = java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'").withZone(java.time.ZoneOffset.UTC);
         String untilStr = fmt.format(Instant.now().minus(java.time.Duration.ofDays(5)));
         EventResponse finishedRecurringEvent = eventService.submitEvent(new EventRequest(
-            spot.id(), "Finished Recurring Event", "Desc", pastRecurringStart, pastRecurringEnd, "FREQ=DAILY;UNTIL=" + untilStr, null
+            spot.id(), "Finished Recurring Event", "Desc", pastRecurringStart, pastRecurringEnd, "FREQ=DAILY;UNTIL=" + untilStr, null, null
         ), admin.getId(), true);
 
         // 3. Active recurring event (starts 10 days ago, has no UNTIL, repeats daily)
         EventResponse activeRecurringEvent = eventService.submitEvent(new EventRequest(
-            spot.id(), "Active Recurring Event", "Desc", pastRecurringStart, pastRecurringEnd, "FREQ=DAILY", null
+            spot.id(), "Active Recurring Event", "Desc", pastRecurringStart, pastRecurringEnd, "FREQ=DAILY", null, null
         ), admin.getId(), true);
 
         // Fetch upcoming events
-        List<EventResponse> events = eventService.getUpcomingEvents(null, null, null, "date", null);
+        List<EventResponse> events = eventService.getUpcomingEvents(null, null, null, "date", null, null);
         List<Long> eventIds = events.stream().map(EventResponse::id).toList();
 
         // Assertions
@@ -366,12 +374,12 @@ public class EventServiceTest {
         Instant pastOneOffStart = Instant.now().minus(java.time.Duration.ofDays(5));
         Instant pastOneOffEnd = pastOneOffStart.plusSeconds(7200);
         EventResponse pastOneOffEvent = eventService.submitEvent(new EventRequest(
-            spot.id(), "Past One-Off Event", "Desc", pastOneOffStart, pastOneOffEnd, null, null
+            spot.id(), "Past One-Off Event", "Desc", pastOneOffStart, pastOneOffEnd, null, null, null
         ), admin.getId(), true);
 
         // Future event
         EventResponse futureEvent = eventService.submitEvent(new EventRequest(
-            spot.id(), "Future Event", "Desc", Instant.now().plusSeconds(3600), Instant.now().plusSeconds(7200), null, null
+            spot.id(), "Future Event", "Desc", Instant.now().plusSeconds(3600), Instant.now().plusSeconds(7200), null, null, null
         ), admin.getId(), true);
 
         // Fetch events for spot
@@ -386,7 +394,7 @@ public class EventServiceTest {
     @Test
     public void testEventChangeNotifications() {
         EventResponse event = eventService.submitEvent(new EventRequest(
-            spot.id(), "Initial Title", "Desc", Instant.now().plusSeconds(3600), Instant.now().plusSeconds(7200), null, null
+            spot.id(), "Initial Title", "Desc", Instant.now().plusSeconds(3600), Instant.now().plusSeconds(7200), null, null, null
         ), user1.getId(), true);
 
         eventService.toggleCalendar(event.id(), user2.getId());
@@ -394,7 +402,7 @@ public class EventServiceTest {
         assertThat(calendarEntryRepository.existsByUserIdAndEventId(user2.getId(), event.id())).isTrue();
 
         EventRequest updateRequest = new EventRequest(
-            spot.id(), "New Title", "New Desc", Instant.now().plusSeconds(3600), Instant.now().plusSeconds(7200), null, null
+            spot.id(), "New Title", "New Desc", Instant.now().plusSeconds(3600), Instant.now().plusSeconds(7200), null, null, null
         );
         eventService.updateUserEvent(event.id(), updateRequest, admin.getId(), true);
 

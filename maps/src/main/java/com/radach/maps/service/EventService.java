@@ -55,7 +55,7 @@ public class EventService {
     /**
      * List upcoming ACTIVE events with optional filters.
      */
-    public List<EventResponse> getUpcomingEvents(String city, Integer month, Integer year, String sortBy, Long currentUserId) {
+    public List<EventResponse> getUpcomingEvents(String city, Integer month, Integer year, String sortBy, String category, Long currentUserId) {
         Instant now = Instant.now();
 
         Instant rangeStart;
@@ -116,6 +116,7 @@ public class EventService {
 
         return events.stream()
                 .filter(e -> !isEventEnded(e, now))
+                .filter(e -> category == null || category.isBlank() || category.equalsIgnoreCase(e.getCategory()))
                 .map(e -> toResponse(e, currentUserId))
                 .toList();
     }
@@ -157,6 +158,7 @@ public class EventService {
         event.setEndTime(request.endTime());
         event.setRecurrenceRule(request.recurrenceRule());
         event.setImageUrls(request.imageUrls() != null ? request.imageUrls() : new java.util.ArrayList<>());
+        event.setCategory(request.category() != null ? request.category().trim() : null);
         event.setSubmittedBy(userId);
         event.setStatus(isAdmin ? EventStatus.ACTIVE : EventStatus.PENDING);
 
@@ -273,6 +275,7 @@ public class EventService {
         event.setEndTime(request.endTime());
         event.setRecurrenceRule(request.recurrenceRule());
         if (request.imageUrls() != null) event.setImageUrls(request.imageUrls());
+        if (request.category() != null) event.setCategory(request.category().trim());
         
         event = eventRepository.save(event);
         if (detailsChanged) {
@@ -369,6 +372,7 @@ public class EventService {
         event.setEndTime(request.endTime());
         event.setRecurrenceRule(request.recurrenceRule());
         event.setImageUrls(request.imageUrls() != null ? request.imageUrls() : new java.util.ArrayList<>());
+        if (request.category() != null) event.setCategory(request.category().trim());
 
         event = eventRepository.save(event);
 
@@ -461,6 +465,7 @@ public class EventService {
                 event.getEndTime(),
                 event.getRecurrenceRule(),
                 event.getImageUrls(),
+                event.getCategory(),
                 responseStatus,
                 event.getSubmittedBy(),
                 submitterName,

@@ -46,6 +46,11 @@ export default function EventsPage() {
   const [yearFilter, setYearFilter] = useState('')
   const [sortBy, setSortBy] = useState('date')
 
+  // ---- Event Category Filter State ----
+  const [eventCategoriesList, setEventCategoriesList] = useState([])
+  const [selectedEventCategories, setSelectedEventCategories] = useState({})
+  const [allEventCategoriesSelected, setAllEventCategoriesSelected] = useState(false)
+
   // ---- Calendar State ----
   const [calendarDate, setCalendarDate] = useState(new Date())
   const [calendarEntries, setCalendarEntries] = useState([])
@@ -72,14 +77,66 @@ export default function EventsPage() {
       if (monthFilter) params.set('month', monthFilter)
       if (yearFilter) params.set('year', yearFilter)
       if (sortBy) params.set('sortBy', sortBy)
+      // Category filter — pass selected category name if exactly one is selected,
+      // otherwise filter client-side for multi-select
+      const selectedCatNames = eventCategoriesList
+        .filter(c => selectedEventCategories[c.id])
+        .map(c => c.name)
+      if (selectedCatNames.length === 1) {
+        params.set('category', selectedCatNames[0])
+      }
       const qs = params.toString() ? `?${params.toString()}` : ''
       const res = await apiFetch(`/api/v1/events${qs}`)
-      if (res.ok) setEvents(await res.json())
+      if (res.ok) {
+        let data = await res.json()
+        // Client-side multi-category filter
+        if (selectedCatNames.length > 1) {
+          const catSet = new Set(selectedCatNames.map(n => n.toLowerCase()))
+          data = data.filter(e => e.category && catSet.has(e.category.toLowerCase()))
+        }
+        setEvents(data)
+      }
     } catch { /* ignore */ }
     setLoading(false)
-  }, [apiFetch, cityFilter, monthFilter, yearFilter, sortBy])
+  }, [apiFetch, cityFilter, monthFilter, yearFilter, sortBy, eventCategoriesList, selectedEventCategories])
 
   useEffect(() => { loadEvents() }, [loadEvents])
+
+  // ---- Load Event Categories ----
+  useEffect(() => {
+    async function fetchEventCategories() {
+      try {
+        const res = await apiFetch('/api/v1/event-categories')
+        if (res.ok) {
+          const data = await res.json()
+          const sorted = data.sort((a, b) => {
+            if (a.name.toLowerCase() === 'other') return 1;
+            if (b.name.toLowerCase() === 'other') return -1;
+            return a.name.localeCompare(b.name);
+          });
+          setEventCategoriesList(sorted)
+        }
+      } catch { /* ignore */ }
+    }
+    fetchEventCategories()
+  }, [apiFetch])
+
+  const toggleAllEventCategories = () => {
+    const allSelected = eventCategoriesList.every(c => selectedEventCategories[c.id])
+    const newState = {}
+    eventCategoriesList.forEach(c => { newState[c.id] = !allSelected })
+    setSelectedEventCategories(newState)
+    setAllEventCategoriesSelected(!allSelected)
+  }
+
+  const toggleEventCategory = (categoryId) => {
+    setSelectedEventCategories(prev => {
+      const next = { ...prev, [categoryId]: !prev[categoryId] }
+      const allNowSelected = eventCategoriesList.every(c => next[c.id])
+      setAllEventCategoriesSelected(allNowSelected)
+      return next
+    })
+  }
 
   useEffect(() => {
     const nextView = ['events', 'calendar', 'submissions'].includes(searchParams.get('view'))
@@ -505,6 +562,70 @@ export default function EventsPage() {
             </div>
           </div>
 
+          {/* Category Filter Chips */}
+          {eventCategoriesList.length > 0 && (
+            <div className="events-category-chips" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.5rem' }}>
+              <button
+                className={`event-category-chip ${allEventCategoriesSelected ? 'active' : ''}`}
+                onClick={toggleAllEventCategories}
+                style={{
+                  padding: '0.4rem 1rem',
+                  borderRadius: '999px',
+                  border: '1px solid var(--border)',
+                  background: allEventCategoriesSelected ? 'var(--primary)' : 'var(--bg-card)',
+                  color: allEventCategoriesSelected ? '#fff' : 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  fontSize: '0.85rem',
+                  fontWeight: 500,
+                  transition: 'all 0.2s ease',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.35rem'
+                }}
+              >
+                All
+              </button>
+              {eventCategoriesList.map(c => {
+                const isActive = selectedEventCategories[c.id]
+                return (
+                  <button
+                    key={c.id}
+                    className={`event-category-chip ${isActive ? 'active' : ''}`}
+                    onClick={() => toggleEventCategory(c.id)}
+                    style={{
+                      padding: '0.4rem 1rem',
+                      borderRadius: '999px',
+                      border: '1px solid var(--border)',
+                      background: isActive ? 'var(--primary)' : 'var(--bg-card)',
+                      color: isActive ? '#fff' : 'var(--text-secondary)',
+                      cursor: 'pointer',
+                      fontSize: '0.85rem',
+                      fontWeight: 500,
+                      transition: 'all 0.2s ease',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.35rem'
+                    }}
+                  >
+                    {c.iconUrl && (
+                      <img 
+                        src={c.iconUrl} 
+                        alt="" 
+                        style={{ 
+                          width: 16, 
+                          height: 16, 
+                          objectFit: 'contain',
+                          filter: isActive ? 'brightness(10)' : 'none'
+                        }} 
+                      />
+                    )}
+                    {c.name}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
           {loading ? (
             <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>Loading events...</div>
           ) : events.length === 0 ? (
@@ -531,6 +652,21 @@ export default function EventsPage() {
 
                   <div className="event-card-body">
                     <div className="event-card-title">{event.title}</div>
+
+                    {event.category && (
+                      <div style={{
+                        display: 'inline-block',
+                        background: 'var(--primary-alpha, rgba(79, 140, 255, 0.15))',
+                        color: 'var(--primary)',
+                        padding: '0.15rem 0.6rem',
+                        borderRadius: '999px',
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        marginBottom: '0.5rem'
+                      }}>
+                        {event.category}
+                      </div>
+                    )}
 
                     <div className="event-card-meta">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

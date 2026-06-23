@@ -13,5 +13,6 @@ public record EventRequest(
         @NotNull Instant startTime,
         Instant endTime,
         String recurrenceRule,
-        List<String> imageUrls
+        List<String> imageUrls,
+        String category
 ) {}

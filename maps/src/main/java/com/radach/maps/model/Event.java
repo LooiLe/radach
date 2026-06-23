@@ -44,6 +44,9 @@ public class Event {
     @Column(columnDefinition = "text")
     private List<String> imageUrls = new ArrayList<>();
 
+    @Column
+    private String category;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private EventStatus status = EventStatus.PENDING;
@@ -88,6 +91,9 @@ public class Event {
 
     public List<String> getImageUrls() { return imageUrls; }
     public void setImageUrls(List<String> imageUrls) { this.imageUrls = imageUrls; }
+
+    public String getCategory() { return category; }
+    public void setCategory(String category) { this.category = category; }
 
     public EventStatus getStatus() { return status; }
     public void setStatus(EventStatus status) { this.status = status; }

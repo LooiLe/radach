@@ -211,6 +211,21 @@ export default function EventDetailPage() {
         <div className="ed-content">
           <h1 className="ed-title">{event.title}</h1>
 
+          {event.category && (
+            <div style={{
+              display: 'inline-block',
+              background: 'var(--primary-alpha, rgba(79, 140, 255, 0.15))',
+              color: 'var(--primary)',
+              padding: '0.25rem 0.85rem',
+              borderRadius: '999px',
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              marginBottom: '1rem'
+            }}>
+              {event.category}
+            </div>
+          )}
+
           {/* Date/Time Section */}
           <div className="ed-info-section">
             <div className="ed-info-icon">

@@ -29,6 +29,8 @@ export default function AddEventPage() {
 
   const [title, setTitle] = useState(editEvent?.title || '')
   const [description, setDescription] = useState(editEvent?.description || '')
+  const [category, setCategory] = useState(editEvent?.category || '')
+  const [eventCategories, setEventCategories] = useState([])
 
   const formatDateForInput = (iso) => iso ? new Date(iso).toISOString().slice(0, 16) : ''
   const [startTime, setStartTime] = useState(formatDateForInput(editEvent?.startTime))
@@ -72,6 +74,25 @@ export default function AddEventPage() {
     const timer = setTimeout(fetchSpots, 300)
     return () => clearTimeout(timer)
   }, [searchSpotQuery, apiFetch])
+
+  // Fetch event categories
+  useEffect(() => {
+    async function fetchEventCategories() {
+      try {
+        const res = await apiFetch('/api/v1/event-categories')
+        if (res.ok) {
+          const data = await res.json()
+          const sorted = data.sort((a, b) => {
+            if (a.name.toLowerCase() === 'other') return 1;
+            if (b.name.toLowerCase() === 'other') return -1;
+            return a.name.localeCompare(b.name);
+          });
+          setEventCategories(sorted)
+        }
+      } catch { /* ignore */ }
+    }
+    fetchEventCategories()
+  }, [apiFetch])
 
   const handleSpotSelect = (spot) => {
     setSelectedSpotId(spot.id)
@@ -141,7 +162,8 @@ export default function AddEventPage() {
         startTime: new Date(startTime).toISOString(),
         endTime: endTime ? new Date(endTime).toISOString() : null,
         recurrenceRule: recurrenceRule || null,
-        imageUrls: photos.length > 0 ? photos : null
+        imageUrls: photos.length > 0 ? photos : null,
+        category: category || null
       }
 
       if (editEvent) {
@@ -171,6 +193,7 @@ export default function AddEventPage() {
           setEndTime('')
           setRecurrenceRule('')
           setPhotos([])
+          setCategory('')
           setSelectedSpotId('')
           setSearchSpotQuery('')
         } else {
@@ -224,6 +247,16 @@ export default function AddEventPage() {
         <div className="field">
           <label className="label">Event Title</label>
           <input className="input" value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Live Music Night" />
+        </div>
+
+        <div className="field">
+          <label className="label">Category</label>
+          <select className="input select" value={category} onChange={e => setCategory(e.target.value)}>
+            <option value="">Select a category...</option>
+            {eventCategories.map(c => (
+              <option key={c.id} value={c.name}>{c.name}</option>
+            ))}
+          </select>
         </div>
 
         <div className="field">

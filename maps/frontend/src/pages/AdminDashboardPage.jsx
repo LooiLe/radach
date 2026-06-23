@@ -473,6 +473,108 @@ export default function AdminDashboardPage() {
     } catch { setCatMsg({ type: 'error', text: 'Server error' }) }
   }
 
+  // === EVENT CATEGORIES TAB ===
+  const [eventCategories, setEventCategories] = useState([])
+  const [newEventCatName, setNewEventCatName] = useState('')
+  const [newEventCatIconUrl, setNewEventCatIconUrl] = useState('')
+  const [uploadingEventIcon, setUploadingEventIcon] = useState(false)
+
+  const loadEventCategories = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/v1/event-categories')
+      const data = await res.json()
+      if (res.ok) {
+        const sorted = data.sort((a, b) => {
+          if (a.name.toLowerCase() === 'other') return 1;
+          if (b.name.toLowerCase() === 'other') return -1;
+          return a.name.localeCompare(b.name);
+        });
+        setEventCategories(sorted);
+      }
+    } catch { /* ignore */ }
+  }, [apiFetch])
+
+  const handleEventCatIconUpload = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    setUploadingEventIcon(true)
+    setCatMsg({ type: '', text: '' })
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await apiFetch('/api/v1/upload', { method: 'POST', body: formData })
+      if (res.ok) {
+        const data = await res.json()
+        setNewEventCatIconUrl(data.url)
+        setCatMsg({ type: 'success', text: 'Icon uploaded successfully!' })
+      } else {
+        setCatMsg({ type: 'error', text: 'Failed to upload icon' })
+      }
+    } catch {
+      setCatMsg({ type: 'error', text: 'Error uploading icon' })
+    } finally {
+      setUploadingEventIcon(false)
+      e.target.value = ''
+    }
+  }
+
+  const updateExistingEventCatIcon = async (id, e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    setCatMsg({ type: '', text: '' })
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await apiFetch('/api/v1/upload', { method: 'POST', body: formData })
+      if (res.ok) {
+        const data = await res.json()
+        await apiFetch(`/api/v1/admin/event-categories/${id}/icon`, {
+          method: 'PUT',
+          body: JSON.stringify({ iconUrl: data.url })
+        })
+        loadEventCategories()
+        setCatMsg({ type: 'success', text: 'Event category icon updated successfully!' })
+      }
+    } catch {
+      setCatMsg({ type: 'error', text: 'Failed to update event category icon' })
+    } finally {
+      e.target.value = ''
+    }
+  }
+
+  const addEventCategory = async () => {
+    if (!newEventCatName.trim()) return
+    setCatMsg({ type: '', text: '' })
+    try {
+      const res = await apiFetch('/api/v1/admin/event-categories', {
+        method: 'POST',
+        body: JSON.stringify({ name: newEventCatName.trim(), iconUrl: newEventCatIconUrl.trim() })
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setCatMsg({ type: 'success', text: `Added event category: ${data.name}` })
+        setNewEventCatName('')
+        setNewEventCatIconUrl('')
+        loadEventCategories()
+      } else {
+        setCatMsg({ type: 'error', text: data.error || 'Failed to add event category' })
+      }
+    } catch { setCatMsg({ type: 'error', text: 'Server error' }) }
+  }
+
+  const deleteEventCategory = async (id) => {
+    setCatMsg({ type: '', text: '' })
+    try {
+      const res = await apiFetch(`/api/v1/admin/event-categories/${id}`, { method: 'DELETE' })
+      if (res.ok) {
+        setCatMsg({ type: 'success', text: 'Event category deleted' })
+        loadEventCategories()
+      } else {
+        setCatMsg({ type: 'error', text: 'Failed to delete event category' })
+      }
+    } catch { setCatMsg({ type: 'error', text: 'Server error' }) }
+  }
+
   // === USERS TAB ===
   const [users, setUsers] = useState([])
   const [emailFilter, setEmailFilter] = useState('')
@@ -530,10 +632,11 @@ export default function AdminDashboardPage() {
     loadExpertApps()
     loadCategories()
     loadJourneyCategories()
+    loadEventCategories()
     loadPendingReports()
     loadPendingAnnotationsCountOnly()
     if (isSuperAdmin) loadUsers()
-  }, [loadPendingReviews, loadPendingSpots, loadPendingEvents, loadPendingPaths, loadExpertApps, loadCategories, loadJourneyCategories, loadPendingReports, loadPendingAnnotationsCountOnly, loadUsers, isSuperAdmin])
+  }, [loadPendingReviews, loadPendingSpots, loadPendingEvents, loadPendingPaths, loadExpertApps, loadCategories, loadJourneyCategories, loadEventCategories, loadPendingReports, loadPendingAnnotationsCountOnly, loadUsers, isSuperAdmin])
 
   // Annotations tab listing trigger
   useEffect(() => {
@@ -972,6 +1075,62 @@ export default function AdminDashboardPage() {
               </div>
             ))}
             {journeyCategories.length === 0 && <p className="text-muted">No journey categories found.</p>}
+          </div>
+
+          <h3 className="admin-form-title" style={{ marginTop: '2rem' }}>Event Categories</h3>
+          
+          <div className="add-category-box" style={{ background: 'var(--bg-card)', padding: '1.25rem', borderRadius: 'var(--radius-md)', marginBottom: '1.5rem', border: '1px solid var(--border)' }}>
+            <h4 style={{ margin: '0 0 1rem 0', fontSize: '1rem', color: 'var(--text-secondary)' }}>Create New Event Category</h4>
+            <div className="add-category-row" style={{ marginBottom: '1rem' }}>
+              <input 
+                className="input" 
+                value={newEventCatName} 
+                onChange={e => setNewEventCatName(e.target.value)} 
+                placeholder="Event category name (e.g. Music)..." 
+                onKeyDown={e => e.key === 'Enter' && addEventCategory()}
+              />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <div className="category-icon" style={{ width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <img src={newEventCatIconUrl || '/icons/stash--pin-location-light.svg'} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                </div>
+                <div>
+                  <label className="btn btn-sm" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', cursor: 'pointer', display: 'inline-block' }}>
+                    {uploadingEventIcon ? 'Uploading...' : 'Upload Custom Icon'}
+                    <input type="file" accept="image/svg+xml, image/png, image/webp" style={{ display: 'none' }} onChange={handleEventCatIconUpload} disabled={uploadingEventIcon} />
+                  </label>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>SVG or PNG (default pin icon if none)</div>
+                </div>
+              </div>
+              <button className="btn btn-primary" onClick={addEventCategory} style={{ padding: '0.6rem 1.5rem' }}>Add Event Category</button>
+            </div>
+          </div>
+
+          <div className="categories-list">
+            {eventCategories.map(c => (
+              <div key={c.id} className="category-item">
+                <div className="category-info">
+                  <img className="category-icon" src={c.iconUrl || '/icons/stash--pin-location-light.svg'} alt={c.name} />
+                  <span className="category-name">{c.name}</span>
+                </div>
+                <div className="category-actions">
+                  <label className="btn btn-sm" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', cursor: 'pointer', margin: 0 }}>
+                    Change Icon
+                    <input type="file" accept="image/svg+xml, image/png, image/webp" style={{ display: 'none' }} onChange={(e) => updateExistingEventCatIcon(c.id, e)} />
+                  </label>
+                  {c.name.toLowerCase() !== 'other' && (
+                    <button className="btn btn-danger btn-sm" onClick={() => setConfirmDialog({
+                      title: 'Delete event category?',
+                      message: `This will delete "${c.name}".`,
+                      confirmLabel: 'Delete category',
+                      onConfirm: () => deleteEventCategory(c.id)
+                    })}>Delete</button>
+                  )}
+                </div>
+              </div>
+            ))}
+            {eventCategories.length === 0 && <p className="text-muted">No event categories found.</p>}
           </div>
         </div>
       )}

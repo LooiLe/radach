@@ -14,6 +14,7 @@ public record EventResponse(
         Instant endTime,
         String recurrenceRule,
         List<String> imageUrls,
+        String category,
         String status,
         Long submittedBy,
         String submitterName,
