@@ -270,7 +270,7 @@
   margin-top: 2px;
 }
 
-/* Map filter dropdown */
+/* Map filter container (Discover button on map) */
 .map-filter-container {
   position: absolute;
   top: 1rem;
@@ -466,17 +466,437 @@
   transform: rotate(90deg);
 }
 
+/* Filter bar: top section with mode buttons + status + filter icon */
+.spots-filter-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.spots-filter-mode {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+}
+
+.spots-filter-mode select {
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23666' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+  background-size: 10px 6px;
+  padding-right: 1.5rem !important;
+}
+
+.spots-sidebar-header-center {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 36px;
+}
+
+.spots-sidebar-header-center .spots-status {
+  text-align: left;
+  margin-bottom: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  padding: 0 0.25rem;
+}
+
+/* Sidebar filter button and dropdown */
+.sidebar-filter-wrapper {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.sidebar-filter-btn {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  padding: 0;
+  border: 1px solid var(--border);
+}
+
+.sidebar-filter-icon {
+  width: 20px;
+  height: 20px;
+  opacity: 0.7;
+}
+
+.sidebar-filter-btn:hover .sidebar-filter-icon {
+  opacity: 1;
+}
+
+.sidebar-filter-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 0.5rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1rem;
+  min-width: 200px;
+  z-index: 1001;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  animation: slideDown 0.2s var(--ease) forwards;
+}
+
 @media (max-width: 960px) {
-  .spots-page { flex-direction: column; height: calc(100vh - 64px); }
-  .spots-map { flex: none; height: 40vh; min-height: 250px; border-right: none; border-bottom: 1px solid var(--border); }
-  .spots-sidebar { width: 100%; flex: 1; }
-  .map-search-container { max-width: 340px; }
+  .sidebar-filter-dropdown {
+    position: fixed;
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    margin-top: 0;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    min-width: unset;
+    animation: slideUp 0.2s var(--ease) forwards;
+  }
+}
+
+.sidebar-filter-section {
+  margin-bottom: 0.75rem;
+}
+
+.sidebar-filter-section:last-child {
+  margin-bottom: 0;
+}
+
+.sidebar-filter-label {
+  font-weight: 600;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.sidebar-filter-rating {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.sidebar-filter-rating .btn {
+  font-size: 0.8rem;
+  padding: 0.35rem 0.7rem;
+}
+
+.sidebar-filter-select {
+  width: 100%;
+  font-size: 0.8rem;
+  padding: 0.35rem 0.7rem;
+}
+
+/* Map credits toggle (info icon) at bottom-right of map */
+.map-credits-toggle {
+  position: absolute;
+  bottom: 1rem;
+  right: 1rem;
+  z-index: 1000;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--bg-glass);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s var(--ease);
+  opacity: 0.6;
+}
+
+.map-credits-toggle:hover {
+  opacity: 1;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+.map-credits-popup {
+  position: absolute;
+  bottom: 1rem;
+  right: 2.8rem;
+  z-index: 1000;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  animation: slideLeft 0.2s var(--ease) forwards;
+}
+
+.map-credits-popup a {
+  color: var(--text-secondary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.map-credits-popup a:hover {
+  color: var(--text-primary);
+}
+
+/* Discover full-screen overlay */
+.discover-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 2000;
+}
+
+.discover-overlay {
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2001;
+  background: var(--bg-surface);
+}
+
+@media (max-width: 960px) {
+  .discover-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 3000;
+  }
+
+  .discover-overlay {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 3001;
+    background: var(--bg-surface);
+    animation: slideUp 0.3s var(--ease) forwards;
+  }
+
+  .discover-overlay-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .discover-overlay-header h2 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin: 0;
+  }
+
+  .discover-close-btn {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    padding: 0;
+  }
+
+  .discover-overlay-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem 1.25rem;
+  }
+
+  .discover-section {
+    margin-bottom: 1.5rem;
+  }
+
+  .discover-section-title {
+    font-weight: 600;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.25rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .discover-all-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .discover-all-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--text-primary);
+  }
+
+  .discover-categories-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .discover-categories-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .discover-cat-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+  }
+
+  .discover-cat-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--text-primary);
+  }
+
+  .discover-cat-label img {
+    width: 18px;
+    height: 18px;
+    object-fit: contain;
+  }
+}
+
+/* Mobile-only: hidden on desktop, visible on mobile */
+.mobile-only {
+  display: none;
+}
+
+/* Hide on desktop by default, visible via media query for mobile */
+.desktop-only {
+  display: block;
+}
+
+@media (max-width: 960px) {
+  .mobile-only {
+    display: flex;
+  }
+  .spots-page { flex-direction: column; height: 100vh; }
+  .spots-map { flex: none; height: 55vh; min-height: 280px; border-right: none; border-bottom: 1px solid var(--border); }
+  .spots-sidebar { width: 100%; flex: 1; padding-top: 0.5rem; }
+  .map-search-container { max-width: 100%; gap: 0.5rem; }
+  .map-search-container .hamburger.mobile-only {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--bg-glass);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    transition: all 0.25s var(--ease);
+    flex-shrink: 0;
+  }
+  .map-search-container .hamburger.mobile-only:hover {
+    border-color: var(--border-hover);
+    background: var(--bg-card-hover);
+    color: var(--text-primary);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  }
+
+  /* Move Discover button to bottom-left on mobile */
+  .map-filter-container {
+    top: auto !important;
+    right: auto !important;
+    bottom: 1rem !important;
+    left: 1rem !important;
+  }
+
+  /* Hide ZoomControls (+/-) on mobile */
+  .desktop-only {
+    display: none !important;
+  }
+
+  /* Hide Leaflet attribution bar on mobile */
+  .leaflet-control-attribution {
+    display: none !important;
+  }
+
+  /* Sidebar header adjustments for mobile */
+  .spots-sidebar-header-center {
+    gap: 0.4rem;
+  }
+
+  /* Search mode dropdown: full width below search bar on mobile */
+  #search-mode-dropdown {
+    position: absolute !important;
+    top: 100% !important;
+    left: 0 !important;
+    right: 0 !important;
+    margin-left: 0 !important;
+    margin-top: 0.5rem !important;
+    min-width: unset !important;
+    border-radius: var(--radius-md) !important;
+    z-index: 2001 !important;
+  }
 }
 
 @keyframes slideDown {
   from {
     opacity: 0;
     transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideLeft {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
   }
   to {
     opacity: 1;

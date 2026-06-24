@@ -202,6 +202,11 @@
   color: var(--text-inverse);
 }
 
+/* Fix for trending dropdown arrow overlap - increase right margin to prevent overlap with card content */
+.rank-badge {
+  margin-right: 0.5rem !important;
+}
+
 .rank-1 {
   background: linear-gradient(135deg, #d9c9b2, #c9b399);
   box-shadow: none;

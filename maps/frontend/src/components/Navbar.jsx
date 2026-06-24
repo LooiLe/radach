@@ -64,6 +64,22 @@ export default function Navbar() {
     return () => window.removeEventListener('notificationsRead', handler)
   }, [loadUnreadCount])
 
+  // Listen for mobile hamburger toggle from SpotsPage
+  useEffect(() => {
+    const handler = () => setMenuOpen(prev => !prev)
+    window.addEventListener('toggleMobileMenu', handler)
+    return () => window.removeEventListener('toggleMobileMenu', handler)
+  }, [])
+
+  // Sync body class for mobile menu open state
+  useEffect(() => {
+    if (menuOpen) {
+      document.body.classList.add('mobile-menu-open')
+    } else {
+      document.body.classList.remove('mobile-menu-open')
+    }
+  }, [menuOpen])
+
   // Poll every 15 seconds
   useEffect(() => {
     const interval = setInterval(loadUnreadCount, 15000)
@@ -80,7 +96,7 @@ export default function Navbar() {
 
   return (
     <>
-      <nav className="navbar">
+      <nav className={`navbar${['/discover', '/'].includes(location.pathname) ? ' discover-page' : ''}`}>
         <div className="navbar-left">
           {!['/login', '/register', '/onboarding'].includes(location.pathname) && (
             <button className="hamburger" onClick={() => setMenuOpen(!menuOpen)} aria-label="Menu">
