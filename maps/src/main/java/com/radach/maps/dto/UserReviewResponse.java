@@ -1,6 +1,7 @@
 package com.radach.maps.dto;
 
 import java.time.Instant;
+import java.util.List;
 
 import com.radach.maps.model.Review;
 
@@ -13,7 +14,8 @@ public record UserReviewResponse(
         String reviewType,
         String body,
         Double rating,
-        Instant createdAt
+        Instant createdAt,
+        List<String> mediaUrls
 ) {
     public UserReviewResponse(Review review, String spotName, String spotType, String spotAddress) {
         this(
@@ -25,7 +27,8 @@ public record UserReviewResponse(
                 review.getReviewType().name(),
                 review.getBody(),
                 review.getRating(),
-                review.getCreatedAt()
+                review.getCreatedAt(),
+                review.getMediaUrls()
         );
     }
 }

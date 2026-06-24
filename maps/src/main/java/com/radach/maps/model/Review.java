@@ -1,8 +1,10 @@
 package com.radach.maps.model;
 
 import java.time.Instant;
+import java.util.List;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -48,6 +50,10 @@ public class Review {
     @Column(nullable = false)
     private Status status = Status.PENDING;
 
+    @Convert(converter = StringListConverter.class)
+    @Column(columnDefinition = "text")
+    private List<String> mediaUrls;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -78,6 +84,9 @@ public class Review {
 
     public Status getStatus() { return status; }
     public void setStatus(Status status) { this.status = status; }
+
+    public List<String> getMediaUrls() { return mediaUrls; }
+    public void setMediaUrls(List<String> mediaUrls) { this.mediaUrls = mediaUrls; }
 
     public Instant getCreatedAt() { return createdAt; }
 }

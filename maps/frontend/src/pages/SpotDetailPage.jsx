@@ -62,11 +62,31 @@ export default function SpotDetailPage() {
   const [uploading, setUploading] = useState(false)
   const newlyUploaded = useRef([])
 
+  // Create review photo state
+  const [reviewMediaUrls, setReviewMediaUrls] = useState([])
+  const [reviewUploading, setReviewUploading] = useState(false)
+
+  // Edit review photo state
+  const [editingMediaUrls, setEditingMediaUrls] = useState([])
+  const [editingUploading, setEditingUploading] = useState(false)
+
+  // Lightbox dynamic images list
+  const [activeLightboxImages, setActiveLightboxImages] = useState([])
+  const newlyUploadedReviewPhotos = useRef([])
+
   useEffect(() => {
     return () => {
       // Cleanup newly uploaded photos if component unmounts before saving
       if (newlyUploaded.current.length > 0) {
         newlyUploaded.current.forEach(url => {
+          fetch(`/api/v1/upload?url=${encodeURIComponent(url)}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+          }).catch(() => { });
+        });
+      }
+      if (newlyUploadedReviewPhotos.current.length > 0) {
+        newlyUploadedReviewPhotos.current.forEach(url => {
           fetch(`/api/v1/upload?url=${encodeURIComponent(url)}`, {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
@@ -246,13 +266,89 @@ export default function SpotDetailPage() {
     setEditPhotos(prev => prev.filter((_, i) => i !== index));
   };
 
+  const handleReviewFileUpload = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    setReviewUploading(true)
+    const formData = new FormData()
+    formData.append('file', file)
+    try {
+      const res = await apiFetch('/api/v1/upload', {
+        method: 'POST',
+        headers: {},
+        body: formData
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setReviewMediaUrls(prev => [...prev, data.url])
+        newlyUploadedReviewPhotos.current.push(data.url)
+      }
+    } catch { toast.error('Upload failed') }
+    finally {
+      setReviewUploading(false)
+      e.target.value = ''
+    }
+  }
+
+  const removeReviewMedia = async (url) => {
+    setReviewMediaUrls(prev => prev.filter(u => u !== url))
+    newlyUploadedReviewPhotos.current = newlyUploadedReviewPhotos.current.filter(u => u !== url)
+    try {
+      await apiFetch(`/api/v1/upload?url=${encodeURIComponent(url)}`, { method: 'DELETE' })
+    } catch { /* ignore */ }
+  }
+
+  const clearCreateReviewForm = () => {
+    if (newlyUploadedReviewPhotos.current.length > 0) {
+      newlyUploadedReviewPhotos.current.forEach(url => {
+        apiFetch(`/api/v1/upload?url=${encodeURIComponent(url)}`, { method: 'DELETE' }).catch(() => { });
+      });
+      newlyUploadedReviewPhotos.current = [];
+    }
+    setReviewBody('')
+    setRating(5)
+    setReviewMediaUrls([])
+  }
+
+  const handleEditingFileUpload = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    setEditingUploading(true)
+    const formData = new FormData()
+    formData.append('file', file)
+    try {
+      const res = await apiFetch('/api/v1/upload', {
+        method: 'POST',
+        headers: {},
+        body: formData
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setEditingMediaUrls(prev => [...prev, data.url])
+        newlyUploadedReviewPhotos.current.push(data.url)
+      }
+    } catch { toast.error('Upload failed') }
+    finally {
+      setEditingUploading(false)
+      e.target.value = ''
+    }
+  }
+
+  const removeEditingMedia = async (url) => {
+    setEditingMediaUrls(prev => prev.filter(u => u !== url))
+    newlyUploadedReviewPhotos.current = newlyUploadedReviewPhotos.current.filter(u => u !== url)
+    try {
+      await apiFetch(`/api/v1/upload?url=${encodeURIComponent(url)}`, { method: 'DELETE' })
+    } catch { /* ignore */ }
+  }
+
   const submitReview = async () => {
     if (!rating || rating === 0) { setReviewMsg({ type: 'error', text: 'Please select a rating.' }); return }
     setReviewMsg({ type: '', text: '' }); setSaving(true)
     try {
       const body = reviewBody.trim() || null
       const res = await apiFetch(`/api/v1/spots/${id}/reviews`, {
-        method: 'POST', body: JSON.stringify({ body, rating })
+        method: 'POST', body: JSON.stringify({ body, rating, mediaUrls: reviewMediaUrls })
       })
       const data = await res.json()
       if (res.ok) {
@@ -260,7 +356,9 @@ export default function SpotDetailPage() {
           ? '✓ Rating submitted!'
           : '✓ Rating submitted! Pending admin moderation.';
         setReviewMsg({ type: 'success', text: msg })
-        setReviewBody(''); setRating(0); loadReviews(); loadSpot()
+        setReviewBody(''); setRating(5); setReviewMediaUrls([]);
+        newlyUploadedReviewPhotos.current = [];
+        loadReviews(); loadSpot()
       } else { setReviewMsg({ type: 'error', text: data.error || 'Failed.' }) }
     } catch { setReviewMsg({ type: 'error', text: 'Could not reach server.' }) }
     finally { setSaving(false) }
@@ -270,12 +368,20 @@ export default function SpotDetailPage() {
     setEditingReviewId(r.id)
     setEditingBody(r.body)
     setEditingRating(r.rating)
+    setEditingMediaUrls(r.mediaUrls || [])
   }
 
   const cancelEditReview = () => {
+    if (newlyUploadedReviewPhotos.current.length > 0) {
+      newlyUploadedReviewPhotos.current.forEach(url => {
+        apiFetch(`/api/v1/upload?url=${encodeURIComponent(url)}`, { method: 'DELETE' }).catch(() => { });
+      });
+      newlyUploadedReviewPhotos.current = [];
+    }
     setEditingReviewId(null)
     setEditingBody('')
     setEditingRating(0)
+    setEditingMediaUrls([])
   }
 
   const saveEditReview = async () => {
@@ -283,10 +389,11 @@ export default function SpotDetailPage() {
     setReviewMsg({ type: '', text: '' }); setSaving(true)
     try {
       const res = await apiFetch(`/api/v1/spots/${id}/reviews/${editingReviewId}`, {
-        method: 'PUT', body: JSON.stringify({ body: editingBody.trim() || null, rating: editingRating })
+        method: 'PUT', body: JSON.stringify({ body: editingBody.trim() || null, rating: editingRating, mediaUrls: editingMediaUrls })
       })
       if (res.ok) {
         setReviewMsg({ type: 'success', text: '✓ Review updated!' })
+        newlyUploadedReviewPhotos.current = [];
         cancelEditReview()
         loadReviews(); loadSpot()
       } else {
@@ -579,7 +686,7 @@ export default function SpotDetailPage() {
                 <h3 style={{ fontSize: '1.1rem', marginBottom: '0.8rem' }}>Photos</h3>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '10px' }}>
                   {spot.photos.map((url, idx) => (
-                    <img key={idx} src={url} alt={`Spot photo ${idx + 1}`} style={{ width: '100%', height: '150px', objectFit: 'cover', borderRadius: '8px', cursor: 'pointer' }} onClick={() => { setLightboxIndex(idx); setLightboxOpen(true); }} />
+                    <img key={idx} src={url} alt={`Spot photo ${idx + 1}`} style={{ width: '100%', height: '150px', objectFit: 'cover', borderRadius: '8px', cursor: 'pointer' }} onClick={() => { setActiveLightboxImages(spot.photos); setLightboxIndex(idx); setLightboxOpen(true); }} />
                   ))}
                 </div>
               </div>
@@ -716,6 +823,18 @@ export default function SpotDetailPage() {
         <div className="review-form glass">
           <textarea className="textarea" value={reviewBody} onChange={e => setReviewBody(e.target.value)}
             placeholder="Write a review." maxLength={2000} />
+          
+          {reviewMediaUrls.length > 0 && (
+            <div className="uploaded-images-preview">
+              {reviewMediaUrls.map(url => (
+                <div key={url} className="preview-img-container">
+                  <img src={url} alt="Upload" />
+                  <button className="remove-img-btn" onClick={() => removeReviewMedia(url)}>✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="rating-row">
             <label className="label" style={{ marginBottom: 0 }}>Rating:</label>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -733,12 +852,25 @@ export default function SpotDetailPage() {
               </span>
             </div>
           </div>
-          <div className="review-submit-row">
-            <button className="btn btn-primary" onClick={submitReview} disabled={saving}>
-              {saving ? 'Submitting...' : 'Submit review'}
-            </button>
-            {reviewMsg.text && <div className={`msg msg-${reviewMsg.type}`}>{reviewMsg.text}</div>}
+          <div className="review-submit-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <div className="image-upload-wrapper">
+                <button className="btn btn-ghost">📷 Add Photo</button>
+                <input type="file" accept="image/*" onChange={handleReviewFileUpload} disabled={reviewUploading} />
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              {(reviewBody.trim() || reviewMediaUrls.length > 0 || rating !== 5) && (
+                <button className="btn btn-ghost" onClick={clearCreateReviewForm} style={{ fontSize: '0.9rem' }}>
+                  Clear
+                </button>
+              )}
+              <button className="btn btn-primary" onClick={submitReview} disabled={saving || reviewUploading}>
+                {saving ? 'Submitting...' : 'Submit review'}
+              </button>
+            </div>
           </div>
+          {reviewMsg.text && <div className={`msg msg-${reviewMsg.type}`} style={{ marginTop: '0.5rem' }}>{reviewMsg.text}</div>}
         </div>
       ) : (
         <div className="review-form glass" style={{ textAlign: 'center', padding: '2rem' }}>
@@ -813,6 +945,18 @@ export default function SpotDetailPage() {
                 <div className="review-form glass" style={{ marginTop: '0.5rem', marginBottom: '0.5rem', padding: '0.75rem' }}>
                   <textarea className="textarea" value={editingBody} onChange={e => setEditingBody(e.target.value)}
                     placeholder="Edit your review..." maxLength={2000} />
+                  
+                  {editingMediaUrls.length > 0 && (
+                    <div className="uploaded-images-preview">
+                      {editingMediaUrls.map(url => (
+                        <div key={url} className="preview-img-container">
+                          <img src={url} alt="Upload" />
+                          <button className="remove-img-btn" onClick={() => removeEditingMedia(url)}>✕</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   <div className="rating-row" style={{ marginTop: '0.5rem' }}>
                     <label className="label" style={{ marginBottom: 0 }}>Rating:</label>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -821,11 +965,17 @@ export default function SpotDetailPage() {
                       <span className="rating-display">{editingRating >= 1 ? `${editingRating.toFixed(1)}/5` : 'Select a rating'}</span>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-                    <button className="btn btn-primary btn-sm" onClick={saveEditReview} disabled={saving}>
-                      {saving ? 'Saving...' : 'Save'}
-                    </button>
-                    <button className="btn btn-ghost btn-sm" onClick={cancelEditReview}>Cancel</button>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem' }}>
+                    <div className="image-upload-wrapper">
+                      <button className="btn btn-ghost">📷 Add Photo</button>
+                      <input type="file" accept="image/*" onChange={handleEditingFileUpload} disabled={editingUploading} />
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button className="btn btn-primary btn-sm" onClick={saveEditReview} disabled={saving || editingUploading}>
+                        {saving ? 'Saving...' : 'Save'}
+                      </button>
+                      <button className="btn btn-ghost btn-sm" onClick={cancelEditReview}>Cancel</button>
+                    </div>
                   </div>
                 </div>
               ) : (
@@ -834,6 +984,17 @@ export default function SpotDetailPage() {
                     <p className="review-text">{r.body}</p>
                     <span className="review-rating">{r.rating.toFixed(1)}/5</span>
                   </div>
+                  {r.mediaUrls && r.mediaUrls.length > 0 && (
+                    <div className="review-item-images">
+                      {r.mediaUrls.map((url, idx) => (
+                        <img key={url} src={url} alt="Review media" onClick={() => {
+                          setActiveLightboxImages(r.mediaUrls);
+                          setLightboxIndex(idx);
+                          setLightboxOpen(true);
+                        }} />
+                      ))}
+                    </div>
+                  )}
                   <div className="review-author" style={{ marginTop: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <Link to={`/user/${r.authorId}`} className="author-profile-link" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--primary)', fontWeight: '600', textDecoration: 'none', background: 'var(--bg-glass)', padding: '0.2rem 0.6rem', borderRadius: 'var(--radius-sm)', transition: 'background 0.2s' }}>
                       {r.authorProfilePicture ? (
@@ -877,9 +1038,9 @@ export default function SpotDetailPage() {
 
       {lightboxOpen && (
         <Lightbox 
-          images={spot.photos} 
+          images={activeLightboxImages} 
           initialIndex={lightboxIndex} 
-          onClose={() => setLightboxOpen(false)} 
+          onClose={() => { setLightboxOpen(false); setActiveLightboxImages([]); }} 
         />
       )}
       {reportModalOpen && (

@@ -165,7 +165,7 @@ public class FeedService {
                     null, null,  // journeyId, journeyName
                     r.getBody(),
                     r.getCreatedAt(),
-                    null, 0, false, List.of(), List.of()
+                    r.getMediaUrls(), 0, false, List.of(), List.of()
             ));
         }
 

@@ -146,7 +146,7 @@ export default function SpotCard({ spot, rank, style }) {
             <h3 className="spot-card-name">
               {spot.name}
               {spot.hasActiveEvent && (
-                <span className="spot-event-badge today" title="Active Event Today">
+                <span className="spot-event-badge today" title="Active Event">
                   📅 EVENT
                 </span>
               )}

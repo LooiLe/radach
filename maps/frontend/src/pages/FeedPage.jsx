@@ -581,6 +581,13 @@ export default function FeedPage() {
                   {item.description !== 'viewed' && item.description !== 'saved' && item.description !== 'liked' && (
                     <p className="feed-item-content">{item.description}</p>
                   )}
+                  {item.mediaUrls && item.mediaUrls.length > 0 && (
+                    <div className="feed-item-images" style={{ marginBottom: '0.5rem' }}>
+                      {item.mediaUrls.map(url => (
+                        <img key={url} src={url} alt="Review media" />
+                      ))}
+                    </div>
+                  )}
                   <Link to={`/spot/${item.spotId}`} className="feed-item-spot-link">
                     📍 {item.spotName} {item.spotAddress ? `· ${item.spotAddress}` : ''}
                   </Link>

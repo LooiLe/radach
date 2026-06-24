@@ -46,6 +46,13 @@ public final class TagKeywords {
         rules.put("trendy", patterns("trendy", "hip", "cool", "fashionable", "insta.*famous", "hottest"));
         rules.put("quiet", patterns("quiet", "peaceful", "serene", "tranquil", "noiseless", "silent", "calm"));
         rules.put("spacious", patterns("spacious", "roomy", "big", "large", "plenty of space", "open space", "airy"));
+        rules.put("fine dining", patterns("fine dining", "elegant", "fancy", "upscale", "white tablecloth", "sophisticated"));
+        rules.put("casual dining", patterns("casual", "casual dining", "informal", "relaxed dining", "easygoing"));
+        rules.put("chic", patterns("chic", "modern", "stylish", "fashionable", "sleek", "minimalist"));
+        rules.put("vintage", patterns("vintage", "retro", "antique", "old school", "classic", "nostalgic"));
+        rules.put("rustic", patterns("rustic", "traditional", "charming", "old-world", "quaint"));
+        rules.put("waterfront", patterns("waterfront", "beachside", "oceanfront", "lakeside", "seaside", "harbor views", "river view"));
+        rules.put("garden setting", patterns("garden", "greenery", "plants", "lush", "courtyard", "botanical"));
 
         // ── Experience ──
         rules.put("sunset views", patterns("sunset", "sunsets", "sun set", "panoramic view", "scenic", "great view", "nice view", "breathtaking"));
@@ -68,6 +75,8 @@ public final class TagKeywords {
         rules.put("family friendly", patterns("family", "kids", "children", "child friendly", "kid friendly", "baby", "stroller"));
         rules.put("pet friendly", patterns("pet", "dog", "dog friendly", "dogs welcome", "pets", "furry"));
         rules.put("hidden gem", patterns("hidden gem", "off the beaten path", "undiscovered", "secret spot", "tucked away"));
+        rules.put("solo friendly", patterns("solo", "alone", "single diner", "bar seating", "counter space"));
+        rules.put("business friendly", patterns("business meeting", "work lunch", "client dinner", "professional", "formal meeting"));
 
         // ── Food & Drink ──
         rules.put("brunch", patterns("brunch", "breakfast", "morning", "eggs benedict", "pancakes", "avocado toast", "waffles"));
@@ -81,10 +90,46 @@ public final class TagKeywords {
         rules.put("seafood", patterns("seafood", "fish", "shrimp", "oyster", "crab", "lobster", "fresh fish"));
         rules.put("desserts", patterns("dessert", "cake", "pastry", "pie", "ice cream", "sweet", "chocolate cake", "tiramisu"));
         rules.put("vegan friendly", patterns("vegan", "plant.based", "vegetarian", "veggie", "tofu", "dairy.free"));
+        rules.put("french food", patterns("french", "bistro", "croissant", "escargot", "coq au vin", "brasserie", "french cuisine"));
+        rules.put("italian food", patterns("italian", "pasta", "pizza", "risotto", "lasagna", "gelato", "trattoria", "tiramisu", "italian cuisine"));
+        rules.put("mexican food", patterns("mexican", "tacos", "burritos", "quesadilla", "guacamole", "salsa", "enchiladas", "fajitas", "mexican cuisine"));
+        rules.put("indian food", patterns("indian", "curry", "naan", "biryani", "tandoori", "tikka masala", "samosa", "paneer", "indian cuisine"));
+        rules.put("chinese food", patterns("chinese", "dim sum", "dumplings", "noodles", "peking duck", "wonton", "szechuan", "chinese cuisine"));
+        rules.put("korean food", patterns("korean", "bbq", "kimchi", "bibimbap", "bulgogi", "tteokbokki", "soju", "k-fried chicken", "korean cuisine"));
+        rules.put("spanish food", patterns("spanish", "tapas", "paella", "churros", "sangria", "patatas bravas", "jamon", "spanish cuisine"));
+        rules.put("vietnamese food", patterns("vietnamese", "pho", "banh mi", "spring rolls", "vietnamese coffee", "vietnamese cuisine"));
+        rules.put("japanese food", patterns("japanese", "sushi", "sashimi", "maki", "ramen", "tempura", "izakaya", "yakitori", "japanese cuisine"));
+        rules.put("middle eastern food", patterns("middle eastern", "hummus", "falafel", "shawarma", "kebab", "baklava", "pita", "middle eastern cuisine"));
+        rules.put("mediterranean food", patterns("mediterranean", "greek", "gyros", "souvlaki", "hummus", "olive oil", "feta", "mediterranean cuisine"));
+        rules.put("american food", patterns("american", "burgers", "hot dogs", "ribs", "steakhouse", "diner", "american cuisine"));
+        rules.put("bakery", patterns("bakery", "bakeries", "croissant", "pastries", "donuts", "cakes", "sweet treats", "bread"));
+        rules.put("wine bar", patterns("wine bar", "wine", "wines", "wine list", "sommelier", "chardonnay", "cabernet", "pinot noir"));
 
         // ── Views & Ambiance ──
         rules.put("beautiful view", patterns("beautiful view", "great view", "nice view", "scenic", "panoramic", "stunning view", "amazing view", "breathtaking view", "city view", "ocean view", "river view"));
         rules.put("live music", patterns("live music", "live band", "dj", "acoustic", "concert", "musician", "jazz", "performance"));
+
+        // ── Non-Food / Miscellaneous Activity & Atmosphere ──
+        rules.put("snorkeling", patterns("snorkel", "snorkeling", "snorkelling"));
+        rules.put("diving", patterns("diving", "scuba", "scuba diving", "dive"));
+        rules.put("surfing", patterns("surf", "surfing", "wave", "waves"));
+        rules.put("swimming", patterns("swim", "swimming", "swimming pool", "dip"));
+        rules.put("pool", patterns("pool", "swimming pool", "infinity pool"));
+        rules.put("boutique hotel", patterns("boutique", "boutique hotel", "boutique stay"));
+        rules.put("resort", patterns("resort", "resorts", "luxury resort", "staycation"));
+        rules.put("cocktails", patterns("cocktail", "cocktails", "mixologist", "drinks", "martini"));
+        rules.put("craft beer", patterns("craft beer", "draft beer", "ipa", "microbrewery", "beers", "local beer"));
+        rules.put("rooftop", patterns("rooftop", "roof top", "rooftop bar", "roof deck"));
+        rules.put("happy hour", patterns("happy hour", "happy hours", "drink specials"));
+        rules.put("night market", patterns("night market", "nightmarket", "evening market"));
+        rules.put("street food", patterns("street food", "street snack", "stalls", "food stall", "hawker"));
+        rules.put("adventure", patterns("adventure", "activities", "hike", "hiking", "trekking", "thrill", "quad bike", "atv", "zipline"));
+        rules.put("cultural", patterns("cultural", "culture", "temple", "heritage", "historical", "history", "museum", "art"));
+        rules.put("sightseeing", patterns("sightseeing", "landmark", "monument", "historic site", "attraction", "must-see"));
+        rules.put("shopping", patterns("shopping", "boutiques", "souvenirs", "malls", "shops", "stores"));
+        rules.put("nature walk", patterns("hiking", "nature walk", "trekking", "forest trail", "mountain climb", "scenic trail"));
+        rules.put("nightlife", patterns("clubbing", "nightlife", "dance floor", "dj", "nightclub", "party spot"));
+        rules.put("wellness", patterns("spa", "massage", "wellness", "sauna", "relaxation", "yoga", "meditation"));
 
         return rules;
     }

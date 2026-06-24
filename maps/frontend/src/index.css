@@ -14,6 +14,11 @@
 
 /* ---------- TOKENS ---------- */
 :root {
+  /* Brand Theme */
+  --primary: #6366f1;
+  --primary-rgb: 99, 102, 241;
+  --primary-alpha: rgba(99, 102, 241, 0.15);
+
   /* Backgrounds */
   --bg-deep: #ffffff;
   --bg-surface: #ffffff;
@@ -503,3 +508,16 @@ a:hover {
 .map-filter-dropdown label {
   white-space: nowrap;
 }
+
+/* Selected map marker */
+.custom-map-marker.is-selected {
+  background: var(--primary);
+  transform: scale(1.25) translateY(-2px);
+  box-shadow: 0 0 0 4px rgba(var(--primary-rgb, 99, 102, 241), 0.3);
+  animation: none;
+  z-index: 1000 !important;
+}
+
+.custom-map-marker.is-selected img {
+  filter: brightness(0) invert(1);
+}

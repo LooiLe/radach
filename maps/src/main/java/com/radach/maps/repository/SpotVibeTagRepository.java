@@ -34,4 +34,29 @@ public interface SpotVibeTagRepository extends JpaRepository<SpotVibeTag, Long> 
                                       @Param("preserveSources") Collection<String> preserveSources);
 
     boolean existsBySpotIdAndVibeTagId(Long spotId, Long vibeTagId);
+
+    @Query(value = """
+            SELECT vtd.id, vtd.name, vtd.emoji, vtd.category, COUNT(svt.spot_id) AS cnt
+            FROM spot_vibe_tags svt
+            JOIN vibe_tag_definitions vtd ON vtd.id = svt.vibe_tag_id
+            JOIN spots s ON s.id = svt.spot_id
+            WHERE LOWER(s.type) IN (:types) AND s.status = 'ACTIVE'
+            GROUP BY vtd.id, vtd.name, vtd.emoji, vtd.category
+            ORDER BY cnt DESC
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<Object[]> findTopVibeTagsBySpotTypes(@Param("types") List<String> types, @Param("limit") int limit);
+
+    @Query(value = """
+            SELECT vtd.id, vtd.name, vtd.emoji, vtd.category, COUNT(svt.spot_id) AS cnt
+            FROM spot_vibe_tags svt
+            JOIN vibe_tag_definitions vtd ON vtd.id = svt.vibe_tag_id
+            JOIN spots s ON s.id = svt.spot_id
+            WHERE s.status = 'ACTIVE'
+            GROUP BY vtd.id, vtd.name, vtd.emoji, vtd.category
+            ORDER BY cnt DESC
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<Object[]> findTopVibeTags(@Param("limit") int limit);
 }
+

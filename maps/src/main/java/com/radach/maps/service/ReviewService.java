@@ -32,11 +32,30 @@ public class ReviewService {
 
     private static final Logger log = LoggerFactory.getLogger(ReviewService.class);
 
+    @org.springframework.beans.factory.annotation.Value("${app.upload.dir:uploads}")
+    private String uploadPath;
+
     private final ReviewRepository reviewRepository;
     private final UserRepository userRepository;
     private final com.radach.maps.repository.SpotRepository spotRepository;
     private final VibeAnalysisService vibeService;
     private final EntityManager entityManager;
+
+    private void deletePhysicalFile(String fileUrl) {
+        if (fileUrl == null || !fileUrl.startsWith("/uploads/")) {
+            return;
+        }
+        String filename = fileUrl.substring("/uploads/".length());
+        if (filename.contains("..") || filename.contains("/") || filename.contains("\\")) {
+            return;
+        }
+        try {
+            java.nio.file.Path path = java.nio.file.Paths.get(uploadPath).toAbsolutePath().normalize().resolve(filename);
+            java.nio.file.Files.deleteIfExists(path);
+        } catch (java.io.IOException e) {
+            log.error("Failed to delete physical file: {}", fileUrl, e);
+        }
+    }
 
     public ReviewService(ReviewRepository reviewRepository, UserRepository userRepository, com.radach.maps.repository.SpotRepository spotRepository, VibeAnalysisService vibeService, EntityManager entityManager) {
         this.reviewRepository = reviewRepository;
@@ -59,6 +78,7 @@ public class ReviewService {
         review.setReviewType(reviewType);
         review.setBody(request.body() != null ? request.body().trim() : "");
         review.setRating(request.rating().doubleValue());
+        review.setMediaUrls(request.mediaUrls());
 
         // Expert and Admin reviews are auto-approved; regular user reviews go to moderation
         boolean autoApprove = author.isExpert() || author.getRole() == com.radach.maps.model.Role.ADMIN || author.getRole() == com.radach.maps.model.Role.SUPER_ADMIN;
@@ -198,8 +218,18 @@ public class ReviewService {
         if (!review.getAuthorId().equals(requesterId)) {
             throw new org.springframework.security.access.AccessDeniedException("You can only edit your own reviews");
         }
+        List<String> oldPhotos = review.getMediaUrls();
+        List<String> newPhotos = request.mediaUrls();
+        if (oldPhotos != null) {
+            for (String oldPhoto : oldPhotos) {
+                if (newPhotos == null || !newPhotos.contains(oldPhoto)) {
+                    deletePhysicalFile(oldPhoto);
+                }
+            }
+        }
         review.setBody(request.body() != null ? request.body().trim() : "");
         review.setRating(request.rating().doubleValue());
+        review.setMediaUrls(request.mediaUrls());
         Review saved = reviewRepository.save(review);
 
         // Recompute vibes if this review was already approved
@@ -224,6 +254,11 @@ public class ReviewService {
         }
         Long spotId = review.getSpotId();
         boolean wasApproved = review.getStatus() == Status.APPROVED;
+        if (review.getMediaUrls() != null) {
+            for (String url : review.getMediaUrls()) {
+                deletePhysicalFile(url);
+            }
+        }
         reviewRepository.delete(review);
 
         // Recompute vibes since an approved review was removed — use spotId captured before delete
@@ -239,6 +274,11 @@ public class ReviewService {
                 .orElseThrow(() -> new ResourceNotFoundException("Review not found"));
         Long spotId = review.getSpotId();
         boolean wasApproved = review.getStatus() == Status.APPROVED;
+        if (review.getMediaUrls() != null) {
+            for (String url : review.getMediaUrls()) {
+                deletePhysicalFile(url);
+            }
+        }
         reviewRepository.delete(review);
 
         // Recompute vibes if the deleted review was approved

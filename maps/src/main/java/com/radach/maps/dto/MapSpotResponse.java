@@ -1,5 +1,7 @@
 package com.radach.maps.dto;
 
+import java.util.List;
+
 public record MapSpotResponse(
         Long id,
         String name,
@@ -9,6 +11,7 @@ public record MapSpotResponse(
         int rankScore,
         Double averageRating,
         Boolean hasActiveEvent,
-        String activeEventCategories
+        String activeEventCategories,
+        List<Long> vibeTagIds
 ) {
 }

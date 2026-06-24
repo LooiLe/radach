@@ -1,6 +1,7 @@
 package com.radach.maps.dto;
 
 import java.time.Instant;
+import java.util.List;
 
 import com.radach.maps.model.Review;
 
@@ -18,7 +19,8 @@ public record ReviewResponse(
         String body,
         Double rating,
         String status,
-        Instant createdAt
+        Instant createdAt,
+        List<String> mediaUrls
 ) {
     /** Convenience constructor from entity + resolved author info. */
     public ReviewResponse(Review review, String authorName, String authorEmail, long authorApprovedCount, boolean authorIsExpert, boolean authorIsAdmin, String authorProfilePicture) {
@@ -36,7 +38,8 @@ public record ReviewResponse(
                 review.getBody(),
                 review.getRating(),
                 review.getStatus().name(),
-                review.getCreatedAt()
+                review.getCreatedAt(),
+                review.getMediaUrls()
         );
     }
 }

@@ -30,10 +30,12 @@ let dynamicIconMap = {
   default: '/icons/stash--pin-location-light.svg',
 }
 
-function createMarkerIcon(type, hasActiveEvent) {
+function createMarkerIcon(type, hasActiveEvent, isSelected = false) {
   const normalized = (type || '').toString().trim().toLowerCase().replace('é', 'e')
   const icon = dynamicIconMap[normalized] || dynamicIconMap.default
-  const markerClass = hasActiveEvent ? 'custom-map-marker has-active-event' : 'custom-map-marker'
+  let markerClass = 'custom-map-marker'
+  if (hasActiveEvent) markerClass += ' has-active-event'
+  if (isSelected) markerClass += ' is-selected'
   return new L.DivIcon({
     html: `<div class="${markerClass}">
              <img src="${icon}" alt="${type || 'Spot'}" />
@@ -58,9 +60,11 @@ import 'leaflet.markercluster/dist/MarkerCluster.css'
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css'
 import 'leaflet.markercluster'
 
-function MarkerClusterGroup({ spots, createIcon }) {
+function MarkerClusterGroup({ spots, createIcon, onSpotSelect, selectedSpotId }) {
   const map = useMap()
   const spotClusterGroupRef = useRef(null)
+  const markerMapRef = useRef({}) // spotId → L.marker
+  const clickingMarkerRef = useRef(false)
 
   useEffect(() => {
     if (!spotClusterGroupRef.current) {
@@ -72,26 +76,88 @@ function MarkerClusterGroup({ spots, createIcon }) {
     }
     const spotClusterGroup = spotClusterGroupRef.current
     map.addLayer(spotClusterGroup)
-    return () => { map.removeLayer(spotClusterGroup) }
-  }, [map])
+    
+    // Clicking the map background deselects
+    const handleMapClick = () => { if (onSpotSelect) onSpotSelect(null) }
+    map.on('click', handleMapClick)
 
+    // Closing a popup deselects
+    const handlePopupClose = () => {
+      if (clickingMarkerRef.current) return
+      if (onSpotSelect) onSpotSelect(null)
+    }
+    map.on('popupclose', handlePopupClose)
+
+    return () => {
+      map.removeLayer(spotClusterGroup)
+      map.off('click', handleMapClick)
+      map.off('popupclose', handlePopupClose)
+    }
+  }, [map, onSpotSelect])
+
+  // Build markers when spots or createIcon change.
+  // Note: selectedSpotId is intentionally excluded from the dependencies of this effect
+  // to prevent clearLayers() from destroying active popups during selection state changes.
   useEffect(() => {
     const spotClusterGroup = spotClusterGroupRef.current
     if (!spotClusterGroup) return
     spotClusterGroup.clearLayers()
+    markerMapRef.current = {}
+    
     spots.forEach(s => {
-      const marker = L.marker([s.latitude, s.longitude], { icon: createIcon(s.type, s.hasActiveEvent) })
+      const isSelected = s.id === selectedSpotId
+      const marker = L.marker([s.latitude, s.longitude], {
+        icon: createIcon(s.type, s.hasActiveEvent, isSelected)
+      })
+
       const popupHtml = document.createElement('div')
+      popupHtml.className = 'custom-map-popup'
       popupHtml.innerHTML = `
-        <strong>${s.name}</strong><br />
-        <span style="color: var(--star);">${s.averageRating > 0 ? '★ ' + s.averageRating.toFixed(1) : 'No ratings'}</span><br />
-        ${s.type}<br />
-        ${s.hasActiveEvent ? '<div style="margin-top: 0.25rem; font-size: 0.75rem; color: #ef4444; font-weight: 600;">📅 EVENT TODAY</div>' : ''}
+        <div style="font-family: inherit; font-size: 0.9rem; line-height: 1.4; min-width: 150px;">
+          <a href="/spot/${s.id}" style="color: var(--primary); font-weight: 600; text-decoration: none; display: inline-block; margin-bottom: 0.25rem;">${s.name}</a>
+          ${s.isGlobal ? '<span style="font-size: 0.7rem; color: #888; margin-left: 4px;">🌐</span>' : ''}<br />
+          <span style="color: var(--star); font-size: 0.8rem;">${s.averageRating > 0 ? `★ ${s.averageRating.toFixed(1)}` : s.isGlobal ? 'Global spot' : 'No ratings'}</span><br />
+          <span style="color: var(--text-secondary); font-size: 0.75rem;">${s.type} · ${s.address || ''}</span>
+          ${s.hasActiveEvent ? '<div style="margin-top: 0.25rem; font-size: 0.75rem; color: #ef4444; font-weight: 600;">📅 EVENT</div>' : ''}
+        </div>
       `
       marker.bindPopup(popupHtml)
+
+      marker.on('click', (e) => {
+        if (e.originalEvent) {
+          L.DomEvent.stopPropagation(e.originalEvent)
+        }
+        clickingMarkerRef.current = true
+        if (onSpotSelect) onSpotSelect(s)
+        setTimeout(() => {
+          clickingMarkerRef.current = false
+        }, 50)
+      })
+      
+      markerMapRef.current[s.id] = marker
       spotClusterGroup.addLayer(marker)
     })
-  }, [spots, createIcon])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spots, createIcon, onSpotSelect])
+
+  // Update icons and trigger popup open/close when selectedSpotId changes
+  useEffect(() => {
+    const markerMap = markerMapRef.current
+    spots.forEach(s => {
+      const m = markerMap[s.id]
+      if (m) {
+        const isSelected = s.id === selectedSpotId
+        m.setIcon(createIcon(s.type, s.hasActiveEvent, isSelected))
+        if (isSelected && !m.isPopupOpen()) {
+          m.openPopup()
+        }
+      }
+    })
+    if (!selectedSpotId) {
+      map.closePopup()
+    }
+  }, [selectedSpotId, spots, createIcon, map])
+
   return null
 }
 
@@ -235,9 +301,32 @@ function haversineDistance(lat1, lng1, lat2, lng2) {
   return R * c // in meters
 }
 
+function mapSpotTypeToCategory(type) {
+  const norm = (type || '').toString().trim().toLowerCase().replace('é', 'e');
+  if (norm === 'hotel' || norm === 'accommodations') return 'accommodations';
+  if (norm === 'restaurant' || norm === 'food hall') return 'restaurant';
+  if (norm === 'cafe' || norm === 'café') return 'cafe';
+  if (norm === 'activity' || norm === 'activities' || norm === 'attraction' || norm === 'attractions') return 'activities';
+  if (norm === 'viewpoints' || norm === 'viewpoint') return 'viewpoint';
+  if (norm === 'child' || norm === 'children') return 'children';
+  return norm;
+}
+
 export default function SpotsPage() {
   const { apiFetch } = useApi()
   const [mapSpots, setMapSpots] = useState([])
+  const [vibeChips, setVibeChips] = useState([])
+  const [selectedVibeTagIds, setSelectedVibeTagIds] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('selectedVibeTagIds')
+      if (saved) return new Set(JSON.parse(saved))
+    } catch (e) { /* ignore */ }
+    return new Set()
+  })
+  const [allVibeDefinitions, setAllVibeDefinitions] = useState([])
+  const [isMoreVibesOpen, setIsMoreVibesOpen] = useState(false)
+  const [vibeSearchQuery, setVibeSearchQuery] = useState('')
+  const [selectedMarkerSpot, setSelectedMarkerSpot] = useState(null)
   const [mapTotal, setMapTotal] = useState(0)
   const [mapLimited, setMapLimited] = useState(false)
   const [status, setStatus] = useState('Loading spots...')
@@ -299,12 +388,30 @@ export default function SpotsPage() {
 
   const [ratingMode, setRatingMode] = useState(() => searchParams.get('ratingMode') || 'global')
   const [categoriesList, setCategoriesList] = useState([])
-  const [selectedCategories, setSelectedCategories] = useState({ all: true })
+  const [selectedCategories, setSelectedCategories] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('selectedCategories')
+      if (saved) return JSON.parse(saved)
+    } catch (e) { /* ignore */ }
+    return { all: true }
+  })
   const [journeyCategoriesList, setJourneyCategoriesList] = useState([])
-  const [selectedJourneyCategories, setSelectedJourneyCategories] = useState({})
+  const [selectedJourneyCategories, setSelectedJourneyCategories] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('selectedJourneyCategories')
+      if (saved) return JSON.parse(saved)
+    } catch (e) { /* ignore */ }
+    return {}
+  })
   const [filterDropdownOpen, setFilterDropdownOpen] = useState(false)
   const [eventCategoriesList, setEventCategoriesList] = useState([])
-  const [selectedEventCategories, setSelectedEventCategories] = useState({})
+  const [selectedEventCategories, setSelectedEventCategories] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('selectedEventCategories')
+      if (saved) return JSON.parse(saved)
+    } catch (e) { /* ignore */ }
+    return {}
+  })
   const [allEventCategoriesSelected, setAllEventCategoriesSelected] = useState(true)
   const [searchModeDropdownOpen, setSearchModeDropdownOpen] = useState(false)
   const [journeys, setJourneys] = useState([])
@@ -395,7 +502,25 @@ export default function SpotsPage() {
               selMap.all = allSelected
             }
           }
-          setSelectedCategories(selMap)
+          
+          const savedCategories = sessionStorage.getItem('selectedCategories')
+          if (savedCategories) {
+            try {
+              const parsed = JSON.parse(savedCategories)
+              const merged = { ...parsed }
+              sorted.forEach(c => {
+                const norm = c.name.trim().toLowerCase().replace('é', 'e')
+                if (merged[norm] === undefined) {
+                  merged[norm] = merged.all !== undefined ? merged.all : true
+                }
+              })
+              setSelectedCategories(merged)
+            } catch (e) {
+              setSelectedCategories(selMap)
+            }
+          } else {
+            setSelectedCategories(selMap)
+          }
           // Check if both are loaded
           if (initialCatLoadRef.current.journeyCategories) setCategoriesReady(true)
           initialCatLoadRef.current.categories = true
@@ -427,17 +552,30 @@ export default function SpotsPage() {
                   next[cat.id] = true
                 }
               })
-              setSelectedJourneyCategories(next)
-              setAllJourneyCategoriesSelected(sorted.every(c => next[c.id]))
             } else {
               sorted.forEach(cat => { next[cat.id] = true })
-              setSelectedJourneyCategories(next)
-              setAllJourneyCategoriesSelected(true)
             }
           } else {
             sorted.forEach(cat => { next[cat.id] = true })
+          }
+
+          const savedJourney = sessionStorage.getItem('selectedJourneyCategories')
+          if (savedJourney) {
+            try {
+              const parsed = JSON.parse(savedJourney)
+              const merged = { ...parsed }
+              sorted.forEach(cat => {
+                if (merged[cat.id] === undefined) merged[cat.id] = false
+              })
+              setSelectedJourneyCategories(merged)
+              setAllJourneyCategoriesSelected(sorted.every(c => merged[c.id]))
+            } catch (e) {
+              setSelectedJourneyCategories(next)
+              setAllJourneyCategoriesSelected(sorted.every(c => next[c.id]))
+            }
+          } else {
             setSelectedJourneyCategories(next)
-            setAllJourneyCategoriesSelected(true)
+            setAllJourneyCategoriesSelected(sorted.every(c => next[c.id]))
           }
           // Check if both are loaded
           if (initialCatLoadRef.current.categories) setCategoriesReady(true)
@@ -455,9 +593,26 @@ export default function SpotsPage() {
           const sorted = data.sort((a, b) => a.name.localeCompare(b.name))
           setEventCategoriesList(sorted)
           const next = {}
-          sorted.forEach(cat => { next[cat.id] = true })
-          setSelectedEventCategories(next)
-          setAllEventCategoriesSelected(true)
+          sorted.forEach(cat => { next[cat.id] = false })
+          
+          const savedEvent = sessionStorage.getItem('selectedEventCategories')
+          if (savedEvent) {
+            try {
+              const parsed = JSON.parse(savedEvent)
+              const merged = { ...parsed }
+              sorted.forEach(cat => {
+                if (merged[cat.id] === undefined) merged[cat.id] = false
+              })
+              setSelectedEventCategories(merged)
+              setAllEventCategoriesSelected(sorted.every(c => merged[c.id]))
+            } catch (e) {
+              setSelectedEventCategories(next)
+              setAllEventCategoriesSelected(false)
+            }
+          } else {
+            setSelectedEventCategories(next)
+            setAllEventCategoriesSelected(false)
+          }
         }
       } catch { /* ignore */ }
     }
@@ -468,6 +623,23 @@ export default function SpotsPage() {
     return () => { clearTimeout(geocodeTimer.current); suggestionsAbort.current?.abort() }
   }, [])
 
+  // Persist selections to sessionStorage on change
+  useEffect(() => {
+    sessionStorage.setItem('selectedCategories', JSON.stringify(selectedCategories))
+  }, [selectedCategories])
+
+  useEffect(() => {
+    sessionStorage.setItem('selectedVibeTagIds', JSON.stringify(Array.from(selectedVibeTagIds)))
+  }, [selectedVibeTagIds])
+
+  useEffect(() => {
+    sessionStorage.setItem('selectedJourneyCategories', JSON.stringify(selectedJourneyCategories))
+  }, [selectedJourneyCategories])
+
+  useEffect(() => {
+    sessionStorage.setItem('selectedEventCategories', JSON.stringify(selectedEventCategories))
+  }, [selectedEventCategories])
+
   const toggleCategory = (categoryId) => {
     if (categoryId === 'all') {
       const allSelected = Object.keys(selectedCategories).filter(k => k !== 'all').every(k => selectedCategories[k] === true)
@@ -477,7 +649,23 @@ export default function SpotsPage() {
     } else {
       setSelectedCategories(prev => ({ ...prev, [categoryId]: !prev[categoryId] }))
     }
+    setSelectedVibeTagIds(new Set())
   }
+
+  const toggleVibeTag = (tagId) => {
+    setSelectedVibeTagIds(prev => {
+      const next = new Set(prev)
+      if (next.has(tagId)) {
+        next.delete(tagId)
+      } else {
+        next.add(tagId)
+      }
+      return next
+    })
+    setPage(0)
+  }
+
+
 
   // Journey → spot type mappings (by category name)
   const JOURNEY_SPOT_TYPES = {
@@ -494,6 +682,7 @@ export default function SpotsPage() {
     journeyCategoriesList.forEach(c => { newState[c.id] = !allSelected })
     setSelectedJourneyCategories(newState)
     setAllJourneyCategoriesSelected(!allSelected)
+    setSelectedVibeTagIds(new Set())
   }
 
   const toggleJourneyCategory = (categoryId) => {
@@ -503,6 +692,7 @@ export default function SpotsPage() {
       setAllJourneyCategoriesSelected(allNowSelected)
       return next
     })
+    setSelectedVibeTagIds(new Set())
   }
 
   const toggleAllEventCategories = () => {
@@ -511,6 +701,7 @@ export default function SpotsPage() {
     eventCategoriesList.forEach(c => { newState[c.id] = !allSelected })
     setSelectedEventCategories(newState)
     setAllEventCategoriesSelected(!allSelected)
+    setSelectedVibeTagIds(new Set())
   }
 
   const toggleEventCategory = (categoryId) => {
@@ -520,9 +711,15 @@ export default function SpotsPage() {
       setAllEventCategoriesSelected(allNowSelected)
       return next
     })
+    setSelectedVibeTagIds(new Set())
   }
 
   const filteredJourneys = useMemo(() => {
+    // If event filtering is active (at least one event category checked), stop showing trails
+    const isFilteringByEvents = eventCategoriesList.some(c => selectedEventCategories[c.id])
+    if (isFilteringByEvents) return []
+    // If a specific map marker is selected, hide journeys
+    if (selectedMarkerSpot) return []
     // If a specific journey is searched, only show that one
     if (searchedJourney) return [searchedJourney]
     // If a specific spot is searched, don't show any journeys
@@ -532,48 +729,75 @@ export default function SpotsPage() {
     if (!anySelected) return []
     const selectedIds = new Set(journeyCategoriesList.filter(c => selectedJourneyCategories[c.id]).map(c => c.id))
     return journeys.filter(j => selectedIds.has(j.journeyCategoryId) && isJourneyInBounds(j, mapBounds))
-  }, [journeys, journeyCategoriesList, selectedJourneyCategories, mapBounds, searchedJourney, searchedSpot])
+  }, [journeys, journeyCategoriesList, selectedJourneyCategories, mapBounds, searchedJourney, searchedSpot, selectedMarkerSpot, eventCategoriesList, selectedEventCategories])
 
   const visibleMapSpots = useMemo(() => {
+    // If a marker is selected, only show that one
+    if (selectedMarkerSpot) return [selectedMarkerSpot]
     // If a specific spot is searched, only show that one
     if (searchedSpot) return [searchedSpot]
     // If a specific journey is searched, don't show any spots
     if (searchedJourney) return []
     const spotCategoriesActive = Object.keys(selectedCategories).some(k => k !== 'all' && selectedCategories[k])
     const journeyCategoriesActive = journeyCategoriesList.some(c => selectedJourneyCategories[c.id])
-    const eventCategoriesActive = eventCategoriesList.some(c => selectedEventCategories[c.id])
 
-    if (!spotCategoriesActive && !journeyCategoriesActive && !eventCategoriesActive) return []
+    const isFilteringByEvents = eventCategoriesList.some(c => selectedEventCategories[c.id])
+
+    if (!isFilteringByEvents && !spotCategoriesActive && !journeyCategoriesActive) return []
 
     let filtered = mapSpots.filter(spot => {
-      // 1. Match spot categories
-      if (spotCategoriesActive) {
-        const normalized = (spot.type || '').trim().toLowerCase().replace('é', 'e')
-        if (selectedCategories[normalized]) return true
+      // Vibe tag filtering (OR logic)
+      if (selectedVibeTagIds.size > 0) {
+        if (!spot.vibeTagIds || spot.vibeTagIds.length === 0) return false
+        let matchesAnyTag = false
+        for (const tagId of selectedVibeTagIds) {
+          if (spot.vibeTagIds.includes(tagId)) {
+            matchesAnyTag = true
+            break
+          }
+        }
+        if (!matchesAnyTag) return false
       }
 
-      // 2. Match journey categories
-      if (journeyCategoriesActive) {
-        const normalized = (spot.type || '').trim().toLowerCase().replace('é', 'e')
+
+      // If active event filtering is on, must match the selected event categories
+      if (isFilteringByEvents) {
+        if (!spot.hasActiveEvent || !spot.activeEventCategories) return false
+        const activeCats = spot.activeEventCategories.split(',').map(c => c.trim().toLowerCase())
+        let matchesEvent = false
+        for (const cat of eventCategoriesList) {
+          if (selectedEventCategories[cat.id]) {
+            if (activeCats.includes(cat.name.toLowerCase())) {
+              matchesEvent = true
+              break
+            }
+          }
+        }
+        return matchesEvent
+      }
+
+      // Must match spot type or journey spot type if active
+      let matchesSpotOrJourney = false;
+      
+      if (spotCategoriesActive) {
+        const normalized = mapSpotTypeToCategory(spot.type)
+        if (selectedCategories[normalized]) matchesSpotOrJourney = true
+      }
+
+      if (!matchesSpotOrJourney && journeyCategoriesActive) {
+        const normalized = mapSpotTypeToCategory(spot.type)
         for (const cat of journeyCategoriesList) {
           if (selectedJourneyCategories[cat.id]) {
             const types = JOURNEY_SPOT_TYPES[cat.name.toLowerCase()] || []
-            if (types.includes(normalized)) return true
+            if (types.includes(normalized)) {
+              matchesSpotOrJourney = true
+              break
+            }
           }
         }
       }
 
-      // 3. Match event categories
-      if (eventCategoriesActive && spot.hasActiveEvent && spot.activeEventCategories) {
-        const activeCats = spot.activeEventCategories.split(',').map(c => c.trim().toLowerCase())
-        for (const cat of eventCategoriesList) {
-          if (selectedEventCategories[cat.id]) {
-            if (activeCats.includes(cat.name.toLowerCase())) return true
-          }
-        }
-      }
-
-      return false
+      return matchesSpotOrJourney
     })
 
     // 2. Filter by distance/radius if searchMode is 'nearby'
@@ -603,7 +827,7 @@ export default function SpotsPage() {
     }
 
     return filtered
-  }, [mapSpots, selectedCategories, selectedJourneyCategories, journeyCategoriesList, selectedEventCategories, eventCategoriesList, searchMode, lat, lng, radius, sortBy, searchedSpot, searchedJourney])
+  }, [mapSpots, selectedCategories, selectedJourneyCategories, journeyCategoriesList, selectedEventCategories, eventCategoriesList, allEventCategoriesSelected, searchMode, lat, lng, radius, sortBy, searchedSpot, searchedJourney, selectedMarkerSpot, selectedVibeTagIds])
 
   // Pagination: 50 per page
   const pageSize = 50
@@ -614,6 +838,71 @@ export default function SpotsPage() {
     return visibleMapSpots.slice(start, start + pageSize)
   }, [visibleMapSpots, currentPage, pageSize])
 
+  const groupedVibes = useMemo(() => {
+    const groups = {
+      'Food & Drink': [],
+      'Vibe & Atmosphere': [],
+      'Activities & Outdoors': [],
+      'Others': []
+    }
+
+    const query = vibeSearchQuery.trim().toLowerCase()
+
+    allVibeDefinitions.forEach(def => {
+      if (query && !def.name.toLowerCase().includes(query) && !(def.category && def.category.toLowerCase().includes(query))) {
+        return
+      }
+
+      const cat = (def.category || '').toLowerCase()
+      if (cat.includes('food') || cat.includes('drink') || cat.includes('dining')) {
+        groups['Food & Drink'].push(def)
+      } else if (cat.includes('vibe') || cat.includes('atmosphere') || cat.includes('style')) {
+        groups['Vibe & Atmosphere'].push(def)
+      } else if (cat.includes('activity') || cat.includes('outdoor') || cat.includes('sport') || cat.includes('nature') || cat.includes('beach') || cat.includes('sea') || cat.includes('pool')) {
+        groups['Activities & Outdoors'].push(def)
+      } else {
+        groups['Others'].push(def)
+      }
+    })
+
+    Object.keys(groups).forEach(key => {
+      groups[key].sort((a, b) => a.name.localeCompare(b.name))
+    })
+
+    return groups
+  }, [allVibeDefinitions, vibeSearchQuery])
+
+  const displayedVibeChips = useMemo(() => {
+    const selectedChips = []
+    const unselectedChips = []
+    const defMap = new Map(allVibeDefinitions.map(d => [d.id, d]))
+
+    selectedVibeTagIds.forEach(id => {
+      const existing = vibeChips.find(c => c.id === id)
+      const def = defMap.get(id)
+      if (existing) {
+        selectedChips.push(existing)
+      } else if (def) {
+        selectedChips.push({
+          id: def.id,
+          name: def.name,
+          emoji: def.emoji,
+          category: def.category,
+          count: 0
+        })
+      }
+    })
+
+    vibeChips.forEach(chip => {
+      if (!selectedVibeTagIds.has(chip.id)) {
+        unselectedChips.push(chip)
+      }
+    })
+
+    return [...selectedChips, ...unselectedChips].slice(0, 8)
+  }, [vibeChips, selectedVibeTagIds, allVibeDefinitions])
+
+
   const getActiveMapType = useCallback(() => {
     // When journey categories are active, don't filter API by spot type
     // because journey types (e.g. "trail") are different spot types that need to be loaded too
@@ -623,6 +912,16 @@ export default function SpotsPage() {
     if (selected.length === 1) return selected[0]
     return null
   }, [selectedCategories, journeyCategoriesList, selectedJourneyCategories])
+
+  const getActiveCategoriesQuery = useCallback(() => {
+    const journeyActive = journeyCategoriesList.some(c => selectedJourneyCategories[c.id])
+    if (journeyActive) return 'all'
+    if (selectedCategories.all) return 'all'
+    const selected = Object.keys(selectedCategories).filter(k => k !== 'all' && selectedCategories[k])
+    if (selected.length === 0) return 'all'
+    return selected.join(',')
+  }, [selectedCategories, journeyCategoriesList, selectedJourneyCategories])
+
 
   const loadMapViewport = useCallback(async (map) => {
     if (!map || (viewingSingleSpot && searchMode !== 'nearby')) return
@@ -669,6 +968,38 @@ export default function SpotsPage() {
     }
   }, [apiFetch, viewingSingleSpot, searchMode, getActiveMapType, ratingMode])
 
+  useEffect(() => {
+    const activeType = getActiveCategoriesQuery()
+    if (!activeType) {
+      setVibeChips([])
+      setSelectedVibeTagIds(new Set())
+      return
+    }
+
+    let isMounted = true
+    apiFetch(`/api/v1/vibe/top-tags?type=${activeType}&limit=12`)
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to fetch top tags')
+        return res.json()
+      })
+      .then(data => {
+        if (isMounted) {
+          setVibeChips(data || [])
+        }
+      })
+      .catch(err => {
+        console.error('Error fetching top vibe tags:', err)
+        if (isMounted) {
+          setVibeChips([])
+        }
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [selectedCategories, getActiveCategoriesQuery, apiFetch])
+
+
   const isInitialCategoryLoad = useRef(true)
   useEffect(() => {
     if (isInitialCategoryLoad.current) { isInitialCategoryLoad.current = false; return }
@@ -695,6 +1026,18 @@ export default function SpotsPage() {
       .catch(() => setJourneys([]))
       .finally(() => setJourneysLoading(false))
   }, [apiFetch])
+
+  // Fetch all vibe definitions on mount
+  useEffect(() => {
+    apiFetch('/api/v1/vibe/definitions')
+      .then(res => {
+        if (res.ok) return res.json()
+        throw new Error('Failed to fetch vibe definitions')
+      })
+      .then(data => setAllVibeDefinitions(data || []))
+      .catch(err => console.error('Error fetching vibe definitions:', err))
+  }, [apiFetch])
+
 
   const handlePlaceInput = (q) => {
     setPlace(q)
@@ -946,11 +1289,112 @@ export default function SpotsPage() {
           )}
         </div>
 
+        {(displayedVibeChips.length > 0 || selectedVibeTagIds.size > 0) && (
+          <div className="vibe-chip-bar">
+            {displayedVibeChips.map(chip => {
+              const isActive = selectedVibeTagIds.has(chip.id)
+              return (
+                <button
+                  key={chip.id}
+                  type="button"
+                  className={`vibe-chip${isActive ? ' active' : ''}`}
+                  onClick={() => toggleVibeTag(chip.id)}
+                >
+                  {chip.emoji} {chip.name} {chip.count > 0 && <span className="vibe-chip-count">({chip.count})</span>}
+                </button>
+              )
+            })}
+            <button
+              type="button"
+              className={`vibe-chip vibe-more-chip${isMoreVibesOpen ? ' active' : ''}`}
+              onClick={() => setIsMoreVibesOpen(!isMoreVibesOpen)}
+              style={{
+                background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.12) 0%, rgba(99, 102, 241, 0.12) 100%)',
+                border: '1px solid rgba(139, 92, 246, 0.35)',
+                fontWeight: 700,
+                color: 'var(--text-primary)',
+              }}
+            >
+              ✨ More Tags
+            </button>
+          </div>
+        )}
+
+        {isMoreVibesOpen && (
+          <div className="vibe-drawer">
+            <div className="vibe-drawer-header">
+              <h3 className="vibe-drawer-title">✨ Explore Tags</h3>
+              <button className="vibe-drawer-close" onClick={() => setIsMoreVibesOpen(false)} aria-label="Close vibe drawer">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              </button>
+            </div>
+            
+            <div className="vibe-drawer-search">
+              <div className="vibe-search-wrapper">
+                <img src="/icons/fluent--search-16-regular.svg" alt="" className="vibe-search-icon" />
+                <input
+                  type="text"
+                  className="input vibe-search-input-el"
+                  placeholder="Search tags (e.g. cozy, rooftop...)"
+                  value={vibeSearchQuery}
+                  onChange={e => setVibeSearchQuery(e.target.value)}
+                />
+                {vibeSearchQuery && (
+                  <button className="vibe-search-clear-btn" onClick={() => setVibeSearchQuery('')} title="Clear search">×</button>
+                )}
+              </div>
+            </div>
+
+            <div className="vibe-drawer-content">
+              {Object.entries(groupedVibes).map(([category, definitions]) => {
+                if (definitions.length === 0) return null
+                return (
+                  <div key={category} className="vibe-drawer-section">
+                    <div className="vibe-drawer-section-title">{category}</div>
+                    <div className="vibe-drawer-grid">
+                      {definitions.map(def => {
+                        const isActive = selectedVibeTagIds.has(def.id)
+                        const countObj = vibeChips.find(c => c.id === def.id)
+                        const count = countObj ? countObj.count : 0
+                        return (
+                          <button
+                            key={def.id}
+                            type="button"
+                            className={`vibe-drawer-item${isActive ? ' active' : ''}`}
+                            onClick={() => toggleVibeTag(def.id)}
+                          >
+                            <span className="vibe-item-emoji">{def.emoji}</span>
+                            <span className="vibe-item-name">{def.name}</span>
+                            {count > 0 && (
+                              <span className="vibe-item-count">({count})</span>
+                            )}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
+              {Object.values(groupedVibes).every(list => list.length === 0) && (
+                <div className="vibe-drawer-empty">
+                  No vibes found matching "{vibeSearchQuery}"
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+
         <MapContainer center={[7.8804, 98.3923]} zoom={12} style={{ width: '100%', height: '100%' }} zoomControl={false}>
           <TileLayer url={`https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png?api_key=${import.meta.env.VITE_STADIA_API_KEY}`}
             attribution='Map tiles by <a href="https://stadiamaps.com/">Stadia Maps</a>, <a href="https://openmaptiles.org/">OpenMapTiles</a>, and <a href="http://openstreetmap.org">OpenStreetMap</a> contributors' />
           <MapViewportLoader onViewportChange={loadMapViewport} onMapReady={(map) => { mapInstanceRef.current = map }} />
-          <MarkerClusterGroup spots={visibleMapSpots} createIcon={createMarkerIcon} />
+          <MarkerClusterGroup
+            spots={visibleMapSpots}
+            createIcon={createMarkerIcon}
+            onSpotSelect={(spot) => { setSelectedMarkerSpot(spot); setPage(0) }}
+            selectedSpotId={selectedMarkerSpot?.id}
+          />
           {lat && lng && (
             <Marker position={[parseFloat(lat), parseFloat(lng)]} icon={targetIcon}>
               <Popup>
