@@ -30,14 +30,17 @@ public class FeedPost {
     @Column(columnDefinition = "text")
     private List<String> mediaUrls;
 
-    @Column
-    private Long spotId;
+    @Convert(converter = LongListConverter.class)
+    @Column(columnDefinition = "text")
+    private List<Long> spotIds;
 
-    @Column
-    private Long eventId;
+    @Convert(converter = LongListConverter.class)
+    @Column(columnDefinition = "text")
+    private List<Long> eventIds;
 
-    @Column
-    private Long journeyId;
+    @Convert(converter = LongListConverter.class)
+    @Column(columnDefinition = "text")
+    private List<Long> journeyIds;
 
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
@@ -61,14 +64,14 @@ public class FeedPost {
     public List<String> getMediaUrls() { return mediaUrls; }
     public void setMediaUrls(List<String> mediaUrls) { this.mediaUrls = mediaUrls; }
 
-    public Long getSpotId() { return spotId; }
-    public void setSpotId(Long spotId) { this.spotId = spotId; }
+    public List<Long> getSpotIds() { return spotIds; }
+    public void setSpotIds(List<Long> spotIds) { this.spotIds = spotIds; }
 
-    public Long getEventId() { return eventId; }
-    public void setEventId(Long eventId) { this.eventId = eventId; }
+    public List<Long> getEventIds() { return eventIds; }
+    public void setEventIds(List<Long> eventIds) { this.eventIds = eventIds; }
 
-    public Long getJourneyId() { return journeyId; }
-    public void setJourneyId(Long journeyId) { this.journeyId = journeyId; }
+    public List<Long> getJourneyIds() { return journeyIds; }
+    public void setJourneyIds(List<Long> journeyIds) { this.journeyIds = journeyIds; }
 
     public Instant getCreatedAt() { return createdAt; }
 }

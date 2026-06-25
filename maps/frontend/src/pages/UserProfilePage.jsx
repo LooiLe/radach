@@ -729,21 +729,21 @@ export default function UserProfilePage() {
                         ))}
                       </div>
                     )}
-                    {item.spotId && (
-                      <Link to={`/spot/${item.spotId}`} className="profile-feed-item-spot-link">
-                        📍 {item.spotName || 'Linked spot'}
+                    {(item.linkedSpots || (item.spotId ? [{id: item.spotId, name: item.spotName}] : [])).map(s => (
+                      <Link key={s.id} to={`/spot/${s.id}`} className="profile-feed-item-spot-link">
+                        📍 {s.name || 'Linked spot'}
                       </Link>
-                    )}
-                {item.eventId && (
-                  <Link to={`/event/${item.eventId}`} className="profile-feed-item-spot-link">
-                    📅 {item.eventName || 'Linked event'}
-                  </Link>
-                )}
-                {item.journeyId && (
-                  <Link to={`/journey/${item.journeyId}`} className="profile-feed-item-spot-link">
-                    🥾 {item.journeyName || 'Linked journey'}
-                  </Link>
-                )}
+                    ))}
+                    {(item.linkedEvents || (item.eventId ? [{id: item.eventId, title: item.eventName}] : [])).map(e => (
+                      <Link key={e.id} to={`/event/${e.id}`} className="profile-feed-item-spot-link">
+                        📅 {e.title || 'Linked event'}
+                      </Link>
+                    ))}
+                    {(item.linkedJourneys || (item.journeyId ? [{id: item.journeyId, name: item.journeyName}] : [])).map(j => (
+                      <Link key={j.id} to={`/journey/${j.id}`} className="profile-feed-item-spot-link">
+                        🥾 {j.name || 'Linked journey'}
+                      </Link>
+                    ))}
                 <div className="feed-item-footer">
                       <span
                         className={`feed-action-btn ${showPostLikes[item.postId] ? 'active' : ''}`}

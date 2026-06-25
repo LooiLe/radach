@@ -125,9 +125,9 @@ public class FeedService {
         Set<Long> allEventIds = new HashSet<>();
         Set<Long> allJourneyIds = new HashSet<>();
         for (FeedPost p : feedPosts) {
-            if (p.getSpotId() != null) allSpotIds.add(p.getSpotId());
-            if (p.getEventId() != null) allEventIds.add(p.getEventId());
-            if (p.getJourneyId() != null) allJourneyIds.add(p.getJourneyId());
+            if (p.getSpotIds() != null) allSpotIds.addAll(p.getSpotIds());
+            if (p.getEventIds() != null) allEventIds.addAll(p.getEventIds());
+            if (p.getJourneyIds() != null) allJourneyIds.addAll(p.getJourneyIds());
         }
 
         // Prefetch spots, events, and journeys
@@ -151,48 +151,36 @@ public class FeedService {
             User author = userMap.get(r.getAuthorId());
             boolean authorIsAdmin = author != null && (author.getRole() == Role.ADMIN || author.getRole() == Role.SUPER_ADMIN);
             items.add(new FeedItem(
-                    null, // Not a FeedPost
-                    r.getAuthorId(),
+                    null, r.getAuthorId(),
                     author != null ? author.getName() : "Unknown",
                     author != null ? author.getProfilePicture() : null,
-                    author != null && author.isExpert(),
-                    authorIsAdmin,
+                    author != null && author.isExpert(), authorIsAdmin,
                     "REVIEW",
-                    r.getSpotId(),
-                    spot != null ? spot.getName() : "Unknown spot",
-                    spot != null ? spot.getAddress() : null,
-                    null, null,
-                    null, null,  // journeyId, journeyName
-                    r.getBody(),
-                    r.getCreatedAt(),
-                    null, 0, false, List.of(), List.of()
+                    r.getSpotId(), spot != null ? spot.getName() : "Unknown spot", spot != null ? spot.getAddress() : null,
+                    null, null, null, null,
+                    r.getBody(), r.getCreatedAt(),
+                    null, 0, false, List.of(), List.of(),
+                    null, null, null
             ));
         }
 
         for (SpotEvent e : events) {
             if (e.getUserId() == null) continue;
-            // Skip VIEW events — viewed spots are private to each user
             if (e.getEventType() == SpotEvent.EventType.VIEW) continue;
             Spot spot = spotMap.get(e.getSpotId());
             User author = userMap.get(e.getUserId());
             boolean authorIsAdmin = author != null && (author.getRole() == Role.ADMIN || author.getRole() == Role.SUPER_ADMIN);
-            String action = "saved";
             items.add(new FeedItem(
-                    null,
-                    e.getUserId(),
+                    null, e.getUserId(),
                     author != null ? author.getName() : "Unknown",
                     author != null ? author.getProfilePicture() : null,
-                    author != null && author.isExpert(),
-                    authorIsAdmin,
+                    author != null && author.isExpert(), authorIsAdmin,
                     e.getEventType().name(),
-                    e.getSpotId(),
-                    spot != null ? spot.getName() : "Unknown spot",
-                    spot != null ? spot.getAddress() : null,
-                    null, null,
-                    null, null,  // journeyId, journeyName
-                    action,
-                    e.getCreatedAt(),
-                    null, 0, false, List.of(), List.of()
+                    e.getSpotId(), spot != null ? spot.getName() : "Unknown spot", spot != null ? spot.getAddress() : null,
+                    null, null, null, null,
+                    "saved", e.getCreatedAt(),
+                    null, 0, false, List.of(), List.of(),
+                    null, null, null
             ));
         }
 
@@ -202,40 +190,30 @@ public class FeedService {
             boolean authorIsAdmin = author != null && (author.getRole() == Role.ADMIN || author.getRole() == Role.SUPER_ADMIN);
             if (i.isLiked()) {
                 items.add(new FeedItem(
-                        null,
-                        i.getUserId(),
+                        null, i.getUserId(),
                         author != null ? author.getName() : "Unknown",
                         author != null ? author.getProfilePicture() : null,
-                        author != null && author.isExpert(),
-                        authorIsAdmin,
+                        author != null && author.isExpert(), authorIsAdmin,
                         "LIKE",
-                        i.getSpotId(),
-                        spot != null ? spot.getName() : "Unknown spot",
-                        spot != null ? spot.getAddress() : null,
-                        null, null,
-                        null, null,  // journeyId, journeyName
-                        "liked",
-                        i.getUpdatedAt(),
-                        null, 0, false, List.of(), List.of()
+                        i.getSpotId(), spot != null ? spot.getName() : "Unknown spot", spot != null ? spot.getAddress() : null,
+                        null, null, null, null,
+                        "liked", i.getUpdatedAt(),
+                        null, 0, false, List.of(), List.of(),
+                        null, null, null
                 ));
             }
             if (i.isSaved()) {
                 items.add(new FeedItem(
-                        null,
-                        i.getUserId(),
+                        null, i.getUserId(),
                         author != null ? author.getName() : "Unknown",
                         author != null ? author.getProfilePicture() : null,
-                        author != null && author.isExpert(),
-                        authorIsAdmin,
+                        author != null && author.isExpert(), authorIsAdmin,
                         "SAVE",
-                        i.getSpotId(),
-                        spot != null ? spot.getName() : "Unknown spot",
-                        spot != null ? spot.getAddress() : null,
-                        null, null,
-                        null, null,  // journeyId, journeyName
-                        "saved",
-                        i.getUpdatedAt(),
-                        null, 0, false, List.of(), List.of()
+                        i.getSpotId(), spot != null ? spot.getName() : "Unknown spot", spot != null ? spot.getAddress() : null,
+                        null, null, null, null,
+                        "saved", i.getUpdatedAt(),
+                        null, 0, false, List.of(), List.of(),
+                        null, null, null
                 ));
             }
         }
@@ -257,32 +235,54 @@ public class FeedService {
                     })
                     .toList();
 
-            Spot postSpot = p.getSpotId() != null ? spotMap.get(p.getSpotId()) : null;
-            Event postEvent = p.getEventId() != null ? eventMap.get(p.getEventId()) : null;
-            Journey postJourney = p.getJourneyId() != null ? journeyMap.get(p.getJourneyId()) : null;
+            // Build lists of linked items
+            List<LinkedSpot> linkedSpots = (p.getSpotIds() != null ? p.getSpotIds() : List.<Long>of()).stream()
+                    .map(id -> {
+                        Spot s = spotMap.get(id);
+                        return s != null ? new LinkedSpot(s.getId(), s.getName(), s.getAddress()) : null;
+                    })
+                    .filter(Objects::nonNull)
+                    .toList();
+
+            List<LinkedEvent> linkedEvents = (p.getEventIds() != null ? p.getEventIds() : List.<Long>of()).stream()
+                    .map(id -> {
+                        Event ev = eventMap.get(id);
+                        return ev != null ? new LinkedEvent(ev.getId(), ev.getTitle()) : null;
+                    })
+                    .filter(Objects::nonNull)
+                    .toList();
+
+            List<LinkedJourney> linkedJourneys = (p.getJourneyIds() != null ? p.getJourneyIds() : List.<Long>of()).stream()
+                    .map(id -> {
+                        Journey j = journeyMap.get(id);
+                        return j != null ? new LinkedJourney(j.getId(), j.getName()) : null;
+                    })
+                    .filter(Objects::nonNull)
+                    .toList();
+
+            // Keep first ID for backward compat
+            Long firstSpotId = linkedSpots.isEmpty() ? null : linkedSpots.get(0).id();
+            Long firstEventId = linkedEvents.isEmpty() ? null : linkedEvents.get(0).id();
+            Long firstJourneyId = linkedJourneys.isEmpty() ? null : linkedJourneys.get(0).id();
+
             boolean authorIsAdmin = author != null && (author.getRole() == Role.ADMIN || author.getRole() == Role.SUPER_ADMIN);
             items.add(new FeedItem(
-                    p.getId(),
-                    p.getAuthorId(),
+                    p.getId(), p.getAuthorId(),
                     author != null ? author.getName() : "Unknown",
                     author != null ? author.getProfilePicture() : null,
-                    author != null && author.isExpert(),
-                    authorIsAdmin,
+                    author != null && author.isExpert(), authorIsAdmin,
                     "POST",
-                    p.getSpotId(),
-                    postSpot != null ? postSpot.getName() : null,
-                    postSpot != null ? postSpot.getAddress() : null,
-                    p.getEventId(),
-                    postEvent != null ? postEvent.getTitle() : null,
-                    p.getJourneyId(),
-                    postJourney != null ? postJourney.getName() : null,
-                    p.getContent(),
-                    p.getCreatedAt(),
+                    firstSpotId,
+                    linkedSpots.isEmpty() ? null : linkedSpots.get(0).name(),
+                    linkedSpots.isEmpty() ? null : linkedSpots.get(0).address(),
+                    firstEventId,
+                    linkedEvents.isEmpty() ? null : linkedEvents.get(0).title(),
+                    firstJourneyId,
+                    linkedJourneys.isEmpty() ? null : linkedJourneys.get(0).name(),
+                    p.getContent(), p.getCreatedAt(),
                     p.getMediaUrls(),
-                    postLikes.size(),
-                    hasLiked,
-                    postComments,
-                    postLikers
+                    postLikes.size(), hasLiked, postComments, postLikers,
+                    linkedSpots, linkedEvents, linkedJourneys
             ));
         }
 
@@ -293,40 +293,23 @@ public class FeedService {
                 .toList();
     }
 
-    public record CommentRecord(
-            Long id,
-            Long authorId,
-            String authorName,
-            String content,
-            Instant createdAt
-    ) {}
-
-    public record LikeRecord(
-            Long userId,
-            String userName
-    ) {}
+    public record CommentRecord(Long id, Long authorId, String authorName, String content, Instant createdAt) {}
+    public record LikeRecord(Long userId, String userName) {}
+    public record LinkedSpot(Long id, String name, String address) {}
+    public record LinkedEvent(Long id, String title) {}
+    public record LinkedJourney(Long id, String name) {}
 
     public record FeedItem(
-            Long postId,
-            Long userId,
-            String userName,
-            String userProfilePicture,
-            boolean isExpert,
-            boolean isAdmin,
-            String activityType, // REVIEW, LIKE, SAVE, VIEW, POST
-            Long spotId,
-            String spotName,
-            String spotAddress,
-            Long eventId,
-            String eventName,
-            Long journeyId,
-            String journeyName,
-            String description,
-            Instant timestamp,
+            Long postId, Long userId, String userName, String userProfilePicture,
+            boolean isExpert, boolean isAdmin,
+            String activityType,
+            Long spotId, String spotName, String spotAddress,
+            Long eventId, String eventName,
+            Long journeyId, String journeyName,
+            String description, Instant timestamp,
             List<String> mediaUrls,
-            int likeCount,
-            boolean hasLiked,
-            List<CommentRecord> comments,
-            List<LikeRecord> likers
+            int likeCount, boolean hasLiked,
+            List<CommentRecord> comments, List<LikeRecord> likers,
+            List<LinkedSpot> linkedSpots, List<LinkedEvent> linkedEvents, List<LinkedJourney> linkedJourneys
     ) {}
 }

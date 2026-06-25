@@ -27,10 +27,10 @@ export default function FeedPage() {
   const [showLikes, setShowLikes] = useState({})
   const [newComment, setNewComment] = useState({})
 
-  // Spot/Event/Journey attachment state
-  const [attachedSpot, setAttachedSpot] = useState(null)
-  const [attachedEvent, setAttachedEvent] = useState(null)
-  const [attachedJourney, setAttachedJourney] = useState(null)
+  // Spot/Event/Journey attachment state (arrays for multiple)
+  const [attachedSpots, setAttachedSpots] = useState([])
+  const [attachedEvents, setAttachedEvents] = useState([])
+  const [attachedJourneys, setAttachedJourneys] = useState([])
   const [showSpotSearch, setShowSpotSearch] = useState(false)
   const [showEventSearch, setShowEventSearch] = useState(false)
   const [showJourneySearch, setShowJourneySearch] = useState(false)
@@ -138,16 +138,14 @@ export default function FeedPage() {
   }, [eventSearchQuery, apiFetch])
 
   const selectSpot = (spot) => {
-    setAttachedSpot(spot)
-    setAttachedEvent(null)
+    setAttachedSpots(prev => [...prev, spot])
     setShowSpotSearch(false)
     setSpotSearchQuery('')
     setSpotSearchResults([])
   }
 
   const selectEvent = (event) => {
-    setAttachedEvent(event)
-    setAttachedSpot(null)
+    setAttachedEvents(prev => [...prev, event])
     setShowEventSearch(false)
     setEventSearchQuery('')
     setEventSearchResults([])
@@ -175,9 +173,7 @@ export default function FeedPage() {
   }, [journeySearchQuery, apiFetch])
 
   const selectJourney = (journey) => {
-    setAttachedJourney(journey)
-    setAttachedSpot(null)
-    setAttachedEvent(null)
+    setAttachedJourneys(prev => [...prev, journey])
     setShowJourneySearch(false)
     setJourneySearchQuery('')
     setJourneySearchResults([])
@@ -188,11 +184,11 @@ export default function FeedPage() {
     try {
       const body = {
         content: postContent,
-        mediaUrls: mediaUrls.length > 0 ? mediaUrls : null
+        mediaUrls: mediaUrls.length > 0 ? mediaUrls : null,
+        spotIds: attachedSpots.length > 0 ? attachedSpots.map(s => s.id) : null,
+        eventIds: attachedEvents.length > 0 ? attachedEvents.map(e => e.id) : null,
+        journeyIds: attachedJourneys.length > 0 ? attachedJourneys.map(j => j.id) : null
       }
-      if (attachedSpot) body.spotId = attachedSpot.id
-      if (attachedEvent) body.eventId = attachedEvent.id
-      if (attachedJourney) body.journeyId = attachedJourney.id
 
       const res = await apiFetch('/api/v1/posts', {
         method: 'POST',
@@ -208,25 +204,30 @@ export default function FeedPage() {
           userProfilePicture: null,
           isExpert: false,
           activityType: 'POST',
-          spotId: attachedSpot?.id || null,
-          spotName: attachedSpot?.name || null,
-          spotAddress: attachedSpot?.address || null,
-          journeyId: attachedJourney?.id || null,
-          journeyName: attachedJourney?.name || null,
+          spotId: attachedSpots[0]?.id || null,
+          spotName: attachedSpots[0]?.name || null,
+          spotAddress: attachedSpots[0]?.address || null,
+          eventId: attachedEvents[0]?.id || null,
+          eventName: attachedEvents[0]?.title || null,
+          journeyId: attachedJourneys[0]?.id || null,
+          journeyName: attachedJourneys[0]?.name || null,
           description: postContent,
           timestamp: new Date().toISOString(),
           mediaUrls: mediaUrls,
           likeCount: 0,
           hasLiked: false,
-          comments: []
+          comments: [],
+          linkedSpots: attachedSpots.map(s => ({ id: s.id, name: s.name, address: s.address })),
+          linkedEvents: attachedEvents.map(e => ({ id: e.id, title: e.title })),
+          linkedJourneys: attachedJourneys.map(j => ({ id: j.id, name: j.name }))
         }
         setFeed(prev => [tempItem, ...prev])
 
         setPostContent('')
         setMediaUrls([])
-        setAttachedSpot(null)
-        setAttachedEvent(null)
-        setAttachedJourney(null)
+        setAttachedSpots([])
+        setAttachedEvents([])
+        setAttachedJourneys([])
       }
     } catch { toast.error('Failed to create post') }
   }
@@ -329,106 +330,101 @@ export default function FeedPage() {
           </div>
         )}
         
-        {/* Attached spot/event display */}
-        {attachedSpot && (
-          <div className="attached-reference">
-            <span>📍 {attachedSpot.name}</span>
-            <button className="remove-attachment-btn" onClick={() => setAttachedSpot(null)}>✕</button>
+        {/* Attached spots/events/journeys display */}
+        {attachedSpots.map(s => (
+          <div key={s.id} className="attached-reference">
+            <span>📍 {s.name}</span>
+            <button className="remove-attachment-btn" onClick={() => setAttachedSpots(prev => prev.filter(x => x.id !== s.id))}>✕</button>
           </div>
-        )}
-        {attachedEvent && (
-          <div className="attached-reference">
-            <span>📅 {attachedEvent.title}</span>
-            <button className="remove-attachment-btn" onClick={() => setAttachedEvent(null)}>✕</button>
+        ))}
+        {attachedEvents.map(e => (
+          <div key={e.id} className="attached-reference">
+            <span>📅 {e.title}</span>
+            <button className="remove-attachment-btn" onClick={() => setAttachedEvents(prev => prev.filter(x => x.id !== e.id))}>✕</button>
           </div>
-        )}
-        {attachedJourney && (
-          <div className="attached-reference">
-            <span>🥾 {attachedJourney.name}</span>
-            <button className="remove-attachment-btn" onClick={() => setAttachedJourney(null)}>✕</button>
+        ))}
+        {attachedJourneys.map(j => (
+          <div key={j.id} className="attached-reference">
+            <span>🥾 {j.name}</span>
+            <button className="remove-attachment-btn" onClick={() => setAttachedJourneys(prev => prev.filter(x => x.id !== j.id))}>✕</button>
           </div>
-        )}
+        ))}
 
-        <div className="create-post-actions">
+        <div className="create-post-actions" style={{ flexDirection: 'column', gap: '0.75rem' }}>
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
             <div className="image-upload-wrapper">
               <button className="btn btn-ghost">📷 Add Photo</button>
               <input type="file" accept="image/*" onChange={handleFileUpload} disabled={uploading} />
             </div>
-            <div className="attach-wrapper" style={{ position: 'relative' }}>
-              <button className="btn btn-ghost" onClick={() => { setShowSpotSearch(!showSpotSearch); setShowEventSearch(false) }}>📍 Spot</button>
-              {showSpotSearch && (
-                <div className="attach-dropdown" style={{ zIndex: 999 }}>
-                  <input
-                    type="text"
-                    placeholder="Search spots..."
-                    value={spotSearchQuery}
-                    onChange={e => setSpotSearchQuery(e.target.value)}
-                    autoFocus
-                  />
-                  {searchingSpot && <div className="attach-searching">Searching...</div>}
-                  {spotSearchResults.map(s => (
-                    <div key={s.id} className="attach-result" onClick={() => selectSpot(s)}>
-                      {s.name} {s.address ? `· ${s.address}` : ''}
-                    </div>
-                  ))}
-                  {spotSearchQuery.length >= 2 && !searchingSpot && spotSearchResults.length === 0 && (
-                    <div className="attach-no-results">No spots found</div>
-                  )}
-                </div>
-              )}
-            </div>
-            <div className="attach-wrapper" style={{ position: 'relative' }}>
-              <button className="btn btn-ghost" onClick={() => { setShowEventSearch(!showEventSearch); setShowSpotSearch(false); setShowJourneySearch(false) }}>📅 Event</button>
-              {showEventSearch && (
-                <div className="attach-dropdown" style={{ zIndex: 999 }}>
-                  <input
-                    type="text"
-                    placeholder="Search events..."
-                    value={eventSearchQuery}
-                    onChange={e => setEventSearchQuery(e.target.value)}
-                    autoFocus
-                  />
-                  {searchingEvent && <div className="attach-searching">Searching...</div>}
-                  {eventSearchResults.map(e => (
-                    <div key={e.id} className="attach-result" onClick={() => selectEvent(e)}>
-                      {e.title} {e.spotName ? `@ ${e.spotName}` : ''}
-                    </div>
-                  ))}
-                  {eventSearchQuery.length >= 2 && !searchingEvent && eventSearchResults.length === 0 && (
-                    <div className="attach-no-results">No events found</div>
-                  )}
-                </div>
-              )}
-            </div>
-            <div className="attach-wrapper" style={{ position: 'relative' }}>
-              <button className="btn btn-ghost" onClick={() => { setShowJourneySearch(!showJourneySearch); setShowSpotSearch(false); setShowEventSearch(false) }}>🥾 Journey</button>
-              {showJourneySearch && (
-                <div className="attach-dropdown" style={{ zIndex: 999 }}>
-                  <input
-                    type="text"
-                    placeholder="Search journeys..."
-                    value={journeySearchQuery}
-                    onChange={e => setJourneySearchQuery(e.target.value)}
-                    autoFocus
-                  />
-                  {searchingJourney && <div className="attach-searching">Searching...</div>}
-                  {journeySearchResults.map(j => (
-                    <div key={j.id} className="attach-result" onClick={() => selectJourney(j)}>
-                      {j.name}
-                    </div>
-                  ))}
-                  {journeySearchQuery.length >= 2 && !searchingJourney && journeySearchResults.length === 0 && (
-                    <div className="attach-no-results">No journeys found</div>
-                  )}
-                </div>
-              )}
-            </div>
+            <button className="btn btn-ghost" onClick={() => { setShowSpotSearch(!showSpotSearch); setShowEventSearch(false); setShowJourneySearch(false) }}>📍 Spot</button>
+            <button className="btn btn-ghost" onClick={() => { setShowEventSearch(!showEventSearch); setShowSpotSearch(false); setShowJourneySearch(false) }}>📅 Event</button>
+            <button className="btn btn-ghost" onClick={() => { setShowJourneySearch(!showJourneySearch); setShowSpotSearch(false); setShowEventSearch(false) }}>🥾 Journey</button>
           </div>
+          {showSpotSearch && (
+            <div className="attach-dropdown" style={{ width: '100%' }}>
+              <input
+                type="text"
+                placeholder="Search spots..."
+                value={spotSearchQuery}
+                onChange={e => setSpotSearchQuery(e.target.value)}
+                autoFocus
+              />
+              {searchingSpot && <div className="attach-searching">Searching...</div>}
+              {spotSearchResults.map(s => (
+                <div key={s.id} className="attach-result" onClick={() => selectSpot(s)}>
+                  {s.name} {s.address ? `· ${s.address}` : ''}
+                </div>
+              ))}
+              {spotSearchQuery.length >= 2 && !searchingSpot && spotSearchResults.length === 0 && (
+                <div className="attach-no-results">No spots found</div>
+              )}
+            </div>
+          )}
+          {showEventSearch && (
+            <div className="attach-dropdown" style={{ width: '100%' }}>
+              <input
+                type="text"
+                placeholder="Search events..."
+                value={eventSearchQuery}
+                onChange={e => setEventSearchQuery(e.target.value)}
+                autoFocus
+              />
+              {searchingEvent && <div className="attach-searching">Searching...</div>}
+              {eventSearchResults.map(e => (
+                <div key={e.id} className="attach-result" onClick={() => selectEvent(e)}>
+                  {e.title} {e.spotName ? `@ ${e.spotName}` : ''}
+                </div>
+              ))}
+              {eventSearchQuery.length >= 2 && !searchingEvent && eventSearchResults.length === 0 && (
+                <div className="attach-no-results">No events found</div>
+              )}
+            </div>
+          )}
+          {showJourneySearch && (
+            <div className="attach-dropdown" style={{ width: '100%' }}>
+              <input
+                type="text"
+                placeholder="Search journeys..."
+                value={journeySearchQuery}
+                onChange={e => setJourneySearchQuery(e.target.value)}
+                autoFocus
+              />
+              {searchingJourney && <div className="attach-searching">Searching...</div>}
+              {journeySearchResults.map(j => (
+                <div key={j.id} className="attach-result" onClick={() => selectJourney(j)}>
+                  {j.name}
+                </div>
+              ))}
+              {journeySearchQuery.length >= 2 && !searchingJourney && journeySearchResults.length === 0 && (
+                <div className="attach-no-results">No journeys found</div>
+              )}
+            </div>
+          )}
           <button 
             className="btn btn-primary" 
             onClick={submitPost} 
             disabled={uploading || (!postContent.trim() && mediaUrls.length === 0)}
+            style={{ width: '100%' }}
           >
             Post
           </button>
@@ -502,24 +498,24 @@ export default function FeedPage() {
                       ))}
                     </div>
                   )}
-                  {/* Show attached spot if post has a spotId */}
-                  {item.spotId && (
-                    <Link to={`/spot/${item.spotId}`} className="feed-item-spot-link">
-                      📍 {item.spotName || 'Linked spot'}
+                  {/* Show all attached spots */}
+                  {(item.linkedSpots || (item.spotId ? [{id: item.spotId, name: item.spotName, address: item.spotAddress}] : [])).map(s => (
+                    <Link key={s.id} to={`/spot/${s.id}`} className="feed-item-spot-link">
+                      📍 {s.name || 'Linked spot'}
                     </Link>
-                  )}
-                  {/* Show attached event if post has an eventId */}
-                  {item.eventId && (
-                    <Link to={`/event/${item.eventId}`} className="feed-item-spot-link">
-                      📅 {item.eventName || 'Linked event'}
+                  ))}
+                  {/* Show all attached events */}
+                  {(item.linkedEvents || (item.eventId ? [{id: item.eventId, title: item.eventName}] : [])).map(e => (
+                    <Link key={e.id} to={`/event/${e.id}`} className="feed-item-spot-link">
+                      📅 {e.title || 'Linked event'}
                     </Link>
-                  )}
-                  {/* Show attached journey if post has a journeyId */}
-                  {item.journeyId && (
-                    <Link to={`/journey/${item.journeyId}`} className="feed-item-spot-link">
-                      🥾 {item.journeyName || 'Linked journey'}
+                  ))}
+                  {/* Show all attached journeys */}
+                  {(item.linkedJourneys || (item.journeyId ? [{id: item.journeyId, name: item.journeyName}] : [])).map(j => (
+                    <Link key={j.id} to={`/journey/${j.id}`} className="feed-item-spot-link">
+                      🥾 {j.name || 'Linked journey'}
                     </Link>
-                  )}
+                  ))}
                   <div className="feed-item-footer">
                     <div className="feed-item-footer-left">
                       <button
