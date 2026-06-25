@@ -753,7 +753,7 @@ export default function SpotsPage() {
           )}
           <FitBounds bounds={bounds} />
           <ZoomControls className="desktop-only" />
-          <div className="map-credits-toggle" onClick={() => setMapCreditsOpen(!mapCreditsOpen)} title="Map credits">
+          <div className="map-credits-toggle mobile-only" onClick={() => setMapCreditsOpen(!mapCreditsOpen)} title="Map credits">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
           </div>
           {mapCreditsOpen && (
@@ -815,17 +815,17 @@ export default function SpotsPage() {
         {!searchedSpot && !searchedJourney && (
           <div className="spots-filter-bar">
             <div className="spots-filter-mode desktop-only">
-              {['global', 'trusted', 'experts'].map(m => (
-                <button key={m} className={`btn btn-sm ${ratingMode === m ? 'btn-primary' : 'btn-ghost'}`} onClick={() => {
+              {['trusted', 'global', 'experts'].map(m => (
+                <button key={m} className={`spots-filter-tab ${ratingMode === m ? 'active' : ''}`} onClick={() => {
                   setRatingMode(m)
                   if (mapInstanceRef.current && !place && !lat && !lng) {
                     setPage(0)
                     loadMapViewport(mapInstanceRef.current, m)
                   }
-                }} style={{ fontSize: '0.8rem', padding: '0.35rem 0.7rem' }}>{m.charAt(0).toUpperCase() + m.slice(1)}</button>
+                }}>{m.charAt(0).toUpperCase() + m.slice(1)}</button>
               ))}
               <select className="input select" value={sortBy} onChange={e => setSortBy(e.target.value)}
-                style={{ marginLeft: '0.5rem', fontSize: '0.8rem', padding: '0.3rem 0.6rem', width: 'auto' }}>
+                style={{ marginLeft: '0.75rem', fontSize: '0.8rem', padding: '0.3rem 0.6rem', width: 'auto' }}>
                 <option value="popularity"> Trending</option>
                 <option value="distance" disabled={!(lat && lng && radius)}> Distance</option>
               </select>
