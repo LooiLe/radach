@@ -323,8 +323,6 @@ export default function SpotsPage() {
     return new Set()
   })
   const [allVibeDefinitions, setAllVibeDefinitions] = useState([])
-  const [isMoreVibesOpen, setIsMoreVibesOpen] = useState(false)
-  const [vibeSearchQuery, setVibeSearchQuery] = useState('')
   const [selectedMarkerSpot, setSelectedMarkerSpot] = useState(null)
   const [mapTotal, setMapTotal] = useState(0)
   const [mapLimited, setMapLimited] = useState(false)
@@ -839,69 +837,22 @@ export default function SpotsPage() {
     return visibleMapSpots.slice(start, start + pageSize)
   }, [visibleMapSpots, currentPage, pageSize])
 
-  const groupedVibes = useMemo(() => {
-    const groups = {
-      'Food & Drink': [],
-      'Vibe & Atmosphere': [],
-      'Activities & Outdoors': [],
-      'Others': []
-    }
-
-    const query = vibeSearchQuery.trim().toLowerCase()
-
-    allVibeDefinitions.forEach(def => {
-      if (query && !def.name.toLowerCase().includes(query) && !(def.category && def.category.toLowerCase().includes(query))) {
-        return
+  const categoryVibesMap = useMemo(() => {
+    const map = {}
+    mapSpots.forEach(spot => {
+      if (!spot.vibeTagIds || spot.vibeTagIds.length === 0) return
+      const category = mapSpotTypeToCategory(spot.type)
+      if (!map[category]) {
+        map[category] = {}
       }
-
-      const cat = (def.category || '').toLowerCase()
-      if (cat.includes('food') || cat.includes('drink') || cat.includes('dining')) {
-        groups['Food & Drink'].push(def)
-      } else if (cat.includes('vibe') || cat.includes('atmosphere') || cat.includes('style')) {
-        groups['Vibe & Atmosphere'].push(def)
-      } else if (cat.includes('activity') || cat.includes('outdoor') || cat.includes('sport') || cat.includes('nature') || cat.includes('beach') || cat.includes('sea') || cat.includes('pool')) {
-        groups['Activities & Outdoors'].push(def)
-      } else {
-        groups['Others'].push(def)
-      }
+      spot.vibeTagIds.forEach(tagId => {
+        map[category][tagId] = (map[category][tagId] || 0) + 1
+      })
     })
+    return map
+  }, [mapSpots])
 
-    Object.keys(groups).forEach(key => {
-      groups[key].sort((a, b) => a.name.localeCompare(b.name))
-    })
 
-    return groups
-  }, [allVibeDefinitions, vibeSearchQuery])
-
-  const displayedVibeChips = useMemo(() => {
-    const selectedChips = []
-    const unselectedChips = []
-    const defMap = new Map(allVibeDefinitions.map(d => [d.id, d]))
-
-    selectedVibeTagIds.forEach(id => {
-      const existing = vibeChips.find(c => c.id === id)
-      const def = defMap.get(id)
-      if (existing) {
-        selectedChips.push(existing)
-      } else if (def) {
-        selectedChips.push({
-          id: def.id,
-          name: def.name,
-          emoji: def.emoji,
-          category: def.category,
-          count: 0
-        })
-      }
-    })
-
-    vibeChips.forEach(chip => {
-      if (!selectedVibeTagIds.has(chip.id)) {
-        unselectedChips.push(chip)
-      }
-    })
-
-    return [...selectedChips, ...unselectedChips].slice(0, 8)
-  }, [vibeChips, selectedVibeTagIds, allVibeDefinitions])
 
 
   const getActiveMapType = useCallback(() => {
@@ -1252,102 +1203,6 @@ export default function SpotsPage() {
           <button className="btn btn-primary discover-btn" onClick={() => setFilterDropdownOpen(!filterDropdownOpen)} style={{ whiteSpace: 'nowrap', padding: '0.5rem 1rem' }}>Discover</button>
         </div>
 
-        {(displayedVibeChips.length > 0 || selectedVibeTagIds.size > 0) && (
-          <div className="vibe-chip-bar">
-            {displayedVibeChips.map(chip => {
-              const isActive = selectedVibeTagIds.has(chip.id)
-              return (
-                <button
-                  key={chip.id}
-                  type="button"
-                  className={`vibe-chip${isActive ? ' active' : ''}`}
-                  onClick={() => toggleVibeTag(chip.id)}
-                >
-                  {chip.emoji} {chip.name} {chip.count > 0 && <span className="vibe-chip-count">({chip.count})</span>}
-                </button>
-              )
-            })}
-            <button
-              type="button"
-              className={`vibe-chip vibe-more-chip${isMoreVibesOpen ? ' active' : ''}`}
-              onClick={() => setIsMoreVibesOpen(!isMoreVibesOpen)}
-              style={{
-                background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.12) 0%, rgba(99, 102, 241, 0.12) 100%)',
-                border: '1px solid rgba(139, 92, 246, 0.35)',
-                fontWeight: 700,
-                color: 'var(--text-primary)',
-              }}
-            >
-              ✨ More Tags
-            </button>
-          </div>
-        )}
-
-        {isMoreVibesOpen && (
-          <div className="vibe-drawer">
-            <div className="vibe-drawer-header">
-              <h3 className="vibe-drawer-title">✨ Explore Tags</h3>
-              <button className="vibe-drawer-close" onClick={() => setIsMoreVibesOpen(false)} aria-label="Close vibe drawer">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-              </button>
-            </div>
-
-            <div className="vibe-drawer-search">
-              <div className="vibe-search-wrapper">
-                <img src="/icons/fluent--search-16-regular.svg" alt="" className="vibe-search-icon" />
-                <input
-                  type="text"
-                  className="input vibe-search-input-el"
-                  placeholder="Search tags (e.g. cozy, rooftop...)"
-                  value={vibeSearchQuery}
-                  onChange={e => setVibeSearchQuery(e.target.value)}
-                />
-                {vibeSearchQuery && (
-                  <button className="vibe-search-clear-btn" onClick={() => setVibeSearchQuery('')} title="Clear search">×</button>
-                )}
-              </div>
-            </div>
-
-            <div className="vibe-drawer-content">
-              {Object.entries(groupedVibes).map(([category, definitions]) => {
-                if (definitions.length === 0) return null
-                return (
-                  <div key={category} className="vibe-drawer-section">
-                    <div className="vibe-drawer-section-title">{category}</div>
-                    <div className="vibe-drawer-grid">
-                      {definitions.map(def => {
-                        const isActive = selectedVibeTagIds.has(def.id)
-                        const countObj = vibeChips.find(c => c.id === def.id)
-                        const count = countObj ? countObj.count : 0
-                        return (
-                          <button
-                            key={def.id}
-                            type="button"
-                            className={`vibe-drawer-item${isActive ? ' active' : ''}`}
-                            onClick={() => toggleVibeTag(def.id)}
-                          >
-                            <span className="vibe-item-emoji">{def.emoji}</span>
-                            <span className="vibe-item-name">{def.name}</span>
-                            {count > 0 && (
-                              <span className="vibe-item-count">({count})</span>
-                            )}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )
-              })}
-              {Object.values(groupedVibes).every(list => list.length === 0) && (
-                <div className="vibe-drawer-empty">
-                  No vibes found matching "{vibeSearchQuery}"
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-
         <MapContainer center={[7.8804, 98.3923]} zoom={12} style={{ width: '100%', height: '100%' }} zoomControl={false}>
           <TileLayer url={`https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png?api_key=${import.meta.env.VITE_STADIA_API_KEY}`}
             attribution='Map tiles by <a href="https://stadiamaps.com/">Stadia Maps</a>, <a href="https://openmaptiles.org/">OpenMapTiles</a>, and <a href="http://openstreetmap.org">OpenStreetMap</a> contributors' />
@@ -1404,24 +1259,48 @@ export default function SpotsPage() {
                 <label className="discover-all-label">
                   <input type="checkbox" checked={selectedCategories.all} onChange={() => toggleCategory('all')} /><span>All Spots</span>
                 </label>
-                <div className="discover-categories-grid">
+                <div className="discover-categories-list" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.25rem' }}>
                   {categoriesList.map(cat => {
                     const norm = cat.name.trim().toLowerCase().replace('é', 'e')
+                    const tagsForCat = Object.entries(categoryVibesMap[norm] || {}).map(([tagIdStr, count]) => {
+                      const tagId = Number(tagIdStr)
+                      const def = allVibeDefinitions.find(d => d.id === tagId)
+                      return def ? { ...def, count } : null
+                    }).filter(Boolean).sort((a, b) => a.name.localeCompare(b.name))
+
                     return (
-                      <label key={cat.id} className="discover-cat-label">
-                        <input type="checkbox" checked={!!selectedCategories[norm]} onChange={() => toggleCategory(norm)} />
-                        <img src={cat.iconUrl || '/icons/stash--pin-location-light.svg'} alt="" /><span>{cat.name}</span>
-                      </label>
+                      <div key={cat.id} className="discover-category-block" style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                        <label className="discover-cat-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontWeight: 600 }}>
+                          <input type="checkbox" checked={!!selectedCategories[norm]} onChange={() => toggleCategory(norm)} style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: 'var(--text-primary)' }} />
+                          <img src={cat.iconUrl || '/icons/stash--pin-location-light.svg'} alt="" style={{ width: 16, height: 16, objectFit: 'contain' }} />
+                          <span>{cat.name}</span>
+                        </label>
+                        {tagsForCat.length > 0 && (
+                          <div className="discover-nested-tags" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', paddingLeft: '1.5rem' }}>
+                            {tagsForCat.map(tag => {
+                              const isActive = selectedVibeTagIds.has(tag.id)
+                              return (
+                                <button key={tag.id} type="button" className={`vibe-drawer-item${isActive ? ' active' : ''}`} onClick={() => toggleVibeTag(tag.id)} style={{ padding: '0.25rem 0.5rem', fontSize: '0.7rem', height: 'auto', minHeight: 'unset' }}>
+                                  <span className="vibe-item-emoji">{tag.emoji}</span>
+                                  <span className="vibe-item-name">{tag.name}</span>
+                                  <span className="vibe-item-count">({tag.count})</span>
+                                </button>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
                     )
                   })}
                 </div>
               </div>
+
               <div className="discover-section">
                 <div className="discover-section-title">Journeys</div>
                 <label className="discover-all-label">
                   <input type="checkbox" checked={allJourneyCategoriesSelected} onChange={toggleAllJourneyCategories} /><span>All Journeys</span>
                 </label>
-                <div className="discover-categories-list">
+                <div className="discover-categories-list" style={{ marginBottom: '1.25rem' }}>
                   {journeyCategoriesList.map(cat => (
                     <label key={cat.id} className="discover-cat-label">
                       <input type="checkbox" checked={!!selectedJourneyCategories[cat.id]} onChange={() => toggleJourneyCategory(cat.id)} />
@@ -1430,6 +1309,7 @@ export default function SpotsPage() {
                   ))}
                 </div>
               </div>
+
               <div className="discover-section">
                 <div className="discover-section-title">Events</div>
                 <label className="discover-all-label">
