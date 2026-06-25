@@ -130,7 +130,8 @@ public class FeedPostService {
             String authorName = author != null ? author.getName() : "Unknown";
             String authorPic = author != null ? author.getProfilePicture() : null;
 
-            com.radach.maps.model.Spot spot = spotRepository.findById(post.getSpotId()).orElse(null);
+            Long firstSpotId = (post.getSpotIds() != null && !post.getSpotIds().isEmpty()) ? post.getSpotIds().get(0) : null;
+            com.radach.maps.model.Spot spot = firstSpotId != null ? spotRepository.findById(firstSpotId).orElse(null) : null;
             String spotName = spot != null ? spot.getName() : "Unknown Spot";
             double spotLat = spot != null ? spot.getLatitude() : 0.0;
             double spotLng = spot != null ? spot.getLongitude() : 0.0;
@@ -142,7 +143,7 @@ public class FeedPostService {
                 authorPic,
                 post.getContent(),
                 post.getMediaUrls(),
-                post.getSpotId(),
+                firstSpotId,
                 spotName,
                 spotLat,
                 spotLng,

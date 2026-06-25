@@ -75,7 +75,7 @@ function MarkerClusterGroup({ spots, createIcon, onSpotSelect, selectedSpotId })
     }
     const spotClusterGroup = spotClusterGroupRef.current
     map.addLayer(spotClusterGroup)
-    
+
     // Clicking the map background deselects
     const handleMapClick = () => { if (onSpotSelect) onSpotSelect(null) }
     map.on('click', handleMapClick)
@@ -102,7 +102,7 @@ function MarkerClusterGroup({ spots, createIcon, onSpotSelect, selectedSpotId })
     if (!spotClusterGroup) return
     spotClusterGroup.clearLayers()
     markerMapRef.current = {}
-    
+
     spots.forEach(s => {
       const isSelected = s.id === selectedSpotId
       const marker = L.marker([s.latitude, s.longitude], {
@@ -132,7 +132,7 @@ function MarkerClusterGroup({ spots, createIcon, onSpotSelect, selectedSpotId })
           clickingMarkerRef.current = false
         }, 50)
       })
-      
+
       markerMapRef.current[s.id] = marker
       spotClusterGroup.addLayer(marker)
     })
@@ -287,15 +287,15 @@ function ZoomControls({ className }) {
 // Haversine distance in meters
 function haversineDistance(lat1, lng1, lat2, lng2) {
   const R = 6371e3 // metres
-  const phi1 = lat1 * Math.PI/180
-  const phi2 = lat2 * Math.PI/180
-  const deltaPhi = (lat2-lat1) * Math.PI/180
-  const deltaLambda = (lng2-lng1) * Math.PI/180
+  const phi1 = lat1 * Math.PI / 180
+  const phi2 = lat2 * Math.PI / 180
+  const deltaPhi = (lat2 - lat1) * Math.PI / 180
+  const deltaLambda = (lng2 - lng1) * Math.PI / 180
 
-  const a = Math.sin(deltaPhi/2) * Math.sin(deltaPhi/2) +
-            Math.cos(phi1) * Math.cos(phi2) *
-            Math.sin(deltaLambda/2) * Math.sin(deltaLambda/2)
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+  const a = Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+    Math.cos(phi1) * Math.cos(phi2) *
+    Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 
   return R * c // in meters
 }
@@ -463,7 +463,7 @@ export default function SpotsPage() {
       if (geo.coordinates && geo.coordinates.length > 0) {
         const [lng, lat] = geo.coordinates[0]
         return lat >= bounds.southWest.lat && lat <= bounds.northEast.lat &&
-               lng >= bounds.southWest.lng && lng <= bounds.northEast.lng
+          lng >= bounds.southWest.lng && lng <= bounds.northEast.lng
       }
     } catch { /* ignore */ }
     return false
@@ -503,7 +503,7 @@ export default function SpotsPage() {
               selMap.all = allSelected
             }
           }
-          
+
           const savedCategories = sessionStorage.getItem('selectedCategories')
           if (savedCategories) {
             try {
@@ -595,7 +595,7 @@ export default function SpotsPage() {
           setEventCategoriesList(sorted)
           const next = {}
           sorted.forEach(cat => { next[cat.id] = false })
-          
+
           const savedEvent = sessionStorage.getItem('selectedEventCategories')
           if (savedEvent) {
             try {
@@ -779,7 +779,7 @@ export default function SpotsPage() {
 
       // Must match spot type or journey spot type if active
       let matchesSpotOrJourney = false;
-      
+
       if (spotCategoriesActive) {
         const normalized = mapSpotTypeToCategory(spot.type)
         if (selectedCategories[normalized]) matchesSpotOrJourney = true
@@ -924,7 +924,7 @@ export default function SpotsPage() {
   }, [selectedCategories, journeyCategoriesList, selectedJourneyCategories])
 
 
-  const loadMapViewport = useCallback(async (map) => {
+  const loadMapViewport = useCallback(async (map, modeOverride) => {
     if (!map || (viewingSingleSpot && searchMode !== 'nearby')) return
     const requestId = ++viewportRequestId.current
     const bounds = map.getBounds()
@@ -1048,54 +1048,54 @@ export default function SpotsPage() {
     if (q.length < 2) { setSuggestions([]); return }
     geocodeTimer.current = setTimeout(async () => {
       const controller = new AbortController(); suggestionsAbort.current = controller
+      try {
+        let combinedSuggestions = []
+        // 1. Backend spot search
         try {
-          let combinedSuggestions = []
-          // 1. Backend spot search
-          try {
-            const res = await apiFetch(`/api/v1/spots/search?q=${encodeURIComponent(q)}&limit=3`, { signal: controller.signal })
-            const data = await res.json()
-            if (res.ok && data?.length > 0) combinedSuggestions = [...data]
-          } catch (e) { if (e.name !== 'AbortError') console.error(e) }
-          // 2. Journey search (client-side from already loaded journeys)
-          try {
-            const qLower = q.toLowerCase()
-            const matchingJourneys = journeys.filter(j => j.name?.toLowerCase().includes(qLower)).slice(0, 3)
-            if (matchingJourneys.length > 0) {
-              const formatted = matchingJourneys.map(j => ({
-                name: j.name,
-                type: 'Journey',
-                address: j.journeyCategoryName || 'Journey',
-                latitude: null,
-                longitude: null,
-                isJourney: true,
-                journeyData: j,
-              }))
-              const existingNames = new Set(combinedSuggestions.map(s => s.name))
-              combinedSuggestions.push(...formatted.filter(f => !existingNames.has(f.name)))
-            }
-          } catch (e) { console.error(e) }
-          // 3. Nominatim city/place search
-          try {
-            const nomRes = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=3`, {
-              headers: { 'Accept-Language': 'en' },
-              signal: controller.signal
-            })
-            const nomData = await nomRes.json()
-            if (nomData?.length > 0) {
-              const formatted = nomData.map(item => ({
-                name: item.display_name.split(',')[0],
-                type: 'Place',
-                address: item.display_name,
-                latitude: parseFloat(item.lat),
-                longitude: parseFloat(item.lon),
-                isPlace: true,
-              }))
-              const existingNames = new Set(combinedSuggestions.map(s => s.name))
-              combinedSuggestions.push(...formatted.filter(f => !existingNames.has(f.name)))
-            }
-          } catch (e) { if (e.name !== 'AbortError') console.error(e) }
-          if (requestId === suggestionsRequestId.current && !controller.signal.aborted) setSuggestions(combinedSuggestions)
-        } catch (error) { if (error.name !== 'AbortError' && requestId === suggestionsRequestId.current) setSuggestions([]) }
+          const res = await apiFetch(`/api/v1/spots/search?q=${encodeURIComponent(q)}&limit=3`, { signal: controller.signal })
+          const data = await res.json()
+          if (res.ok && data?.length > 0) combinedSuggestions = [...data]
+        } catch (e) { if (e.name !== 'AbortError') console.error(e) }
+        // 2. Journey search (client-side from already loaded journeys)
+        try {
+          const qLower = q.toLowerCase()
+          const matchingJourneys = journeys.filter(j => j.name?.toLowerCase().includes(qLower)).slice(0, 3)
+          if (matchingJourneys.length > 0) {
+            const formatted = matchingJourneys.map(j => ({
+              name: j.name,
+              type: 'Journey',
+              address: j.journeyCategoryName || 'Journey',
+              latitude: null,
+              longitude: null,
+              isJourney: true,
+              journeyData: j,
+            }))
+            const existingNames = new Set(combinedSuggestions.map(s => s.name))
+            combinedSuggestions.push(...formatted.filter(f => !existingNames.has(f.name)))
+          }
+        } catch (e) { console.error(e) }
+        // 3. Nominatim city/place search
+        try {
+          const nomRes = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=3`, {
+            headers: { 'Accept-Language': 'en' },
+            signal: controller.signal
+          })
+          const nomData = await nomRes.json()
+          if (nomData?.length > 0) {
+            const formatted = nomData.map(item => ({
+              name: item.display_name.split(',')[0],
+              type: 'Place',
+              address: item.display_name,
+              latitude: parseFloat(item.lat),
+              longitude: parseFloat(item.lon),
+              isPlace: true,
+            }))
+            const existingNames = new Set(combinedSuggestions.map(s => s.name))
+            combinedSuggestions.push(...formatted.filter(f => !existingNames.has(f.name)))
+          }
+        } catch (e) { if (e.name !== 'AbortError') console.error(e) }
+        if (requestId === suggestionsRequestId.current && !controller.signal.aborted) setSuggestions(combinedSuggestions)
+      } catch (error) { if (error.name !== 'AbortError' && requestId === suggestionsRequestId.current) setSuggestions([]) }
     }, 250)
   }
 
@@ -1248,51 +1248,8 @@ export default function SpotsPage() {
           )}
         </div>
 
-        <div className="map-filter-container" style={{ position: 'absolute', top: '1rem', right: '1rem', zIndex: 500 }}>
-          <button className="btn btn-primary" onClick={() => setFilterDropdownOpen(!filterDropdownOpen)} style={{ whiteSpace: 'nowrap', padding: '0.5rem 1rem' }}>Discover</button>
-          {filterDropdownOpen && (
-            <div className="map-filter-dropdown" style={{ position: 'absolute', top: '100%', right: 0, marginTop: '0.5rem', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '1rem', minWidth: '200px', zIndex: 1000 }}>
-              <div style={{ fontWeight: 600, fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem', paddingBottom: '0.25rem', borderBottom: '1px solid var(--border)' }}>Spots</div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500', marginBottom: '0.5rem', paddingBottom: '0.5rem', borderBottom: '1px solid var(--border)' }}>
-                <input type="checkbox" checked={selectedCategories.all} onChange={() => toggleCategory('all')} style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: 'var(--text-primary)' }} /><span>All Spots</span>
-              </label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', maxHeight: '300px', overflowY: 'auto', marginBottom: '0.75rem' }}>
-                {categoriesList.map(cat => {
-                  const norm = cat.name.trim().toLowerCase().replace('é', 'e')
-                  return (
-                    <label key={cat.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500' }}>
-                      <input type="checkbox" checked={!!selectedCategories[norm]} onChange={() => toggleCategory(norm)} style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: 'var(--text-primary)' }} />
-                      <img src={cat.iconUrl || '/icons/stash--pin-location-light.svg'} alt="" style={{ width: 16, height: 16, objectFit: 'contain' }} /><span>{cat.name}</span>
-                    </label>
-                  )
-                })}
-              </div>
-              <div style={{ fontWeight: 600, fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem', paddingBottom: '0.25rem', borderBottom: '1px solid var(--border)', marginTop: '0.5rem' }}>Experiences</div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500', marginBottom: '0.5rem', paddingBottom: '0.5rem', borderBottom: '1px solid var(--border)' }}>
-                <input type="checkbox" checked={allJourneyCategoriesSelected} onChange={toggleAllJourneyCategories} style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: 'var(--text-primary)' }} /><span>All Experiences</span>
-              </label>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                {journeyCategoriesList.map(cat => (
-                  <label key={cat.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500' }}>
-                    <input type="checkbox" checked={!!selectedJourneyCategories[cat.id]} onChange={() => toggleJourneyCategory(cat.id)} style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: 'var(--text-primary)' }} />
-                    <img src={cat.iconUrl || '/icons/stash--pin-location-light.svg'} alt="" style={{ width: 16, height: 16, objectFit: 'contain' }} /><span>{cat.name}</span>
-                  </label>
-                ))}
-              </div>
-              <div style={{ fontWeight: 600, fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem', paddingBottom: '0.25rem', borderBottom: '1px solid var(--border)', marginTop: '0.5rem' }}>Events</div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500', marginBottom: '0.5rem', paddingBottom: '0.5rem', borderBottom: '1px solid var(--border)' }}>
-                <input type="checkbox" checked={allEventCategoriesSelected} onChange={toggleAllEventCategories} style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: 'var(--text-primary)' }} /><span>All Events</span>
-              </label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', maxHeight: '200px', overflowY: 'auto' }}>
-                {eventCategoriesList.map(cat => (
-                  <label key={cat.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500' }}>
-                    <input type="checkbox" checked={!!selectedEventCategories[cat.id]} onChange={() => toggleEventCategory(cat.id)} style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: 'var(--text-primary)' }} />
-                    <img src={cat.iconUrl || '/icons/stash--pin-location-light.svg'} alt="" style={{ width: 16, height: 16, objectFit: 'contain' }} /><span>{cat.name}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
+        <div className="map-filter-container">
+          <button className="btn btn-primary discover-btn" onClick={() => setFilterDropdownOpen(!filterDropdownOpen)} style={{ whiteSpace: 'nowrap', padding: '0.5rem 1rem' }}>Discover</button>
         </div>
 
         {(displayedVibeChips.length > 0 || selectedVibeTagIds.size > 0) && (
@@ -1334,7 +1291,7 @@ export default function SpotsPage() {
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
               </button>
             </div>
-            
+
             <div className="vibe-drawer-search">
               <div className="vibe-search-wrapper">
                 <img src="/icons/fluent--search-16-regular.svg" alt="" className="vibe-search-icon" />
@@ -1419,27 +1376,9 @@ export default function SpotsPage() {
               pathOptions={{ color: 'var(--border-color)', fillColor: 'var(--border-color)', fillOpacity: 0.08, weight: 2 }} />
           )}
           <FitBounds bounds={bounds} />
-          <ZoomControls />
-        </MapContainer>
-      </div>
-        <div className="map-filter-container">
-          <button className="btn btn-primary discover-btn" onClick={() => setFilterDropdownOpen(!filterDropdownOpen)} style={{ whiteSpace: 'nowrap', padding: '0.5rem 1rem' }}>Discover</button>
-        </div>
-
-        <MapContainer center={[7.8804, 98.3923]} zoom={12} style={{ width: '100%', height: '100%' }} zoomControl={false}>
-          <TileLayer url={`https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png?api_key=${import.meta.env.VITE_STADIA_API_KEY}`}
-            attribution='Map tiles by <a href="https://stadiamaps.com/">Stadia Maps</a>, <a href="https://openmaptiles.org/">OpenMapTiles</a>, and <a href="http://openstreetmap.org">OpenStreetMap</a> contributors' />
-          <MapViewportLoader onViewportChange={loadMapViewport} onMapReady={(map) => { mapInstanceRef.current = map }} />
-          <MarkerClusterGroup spots={visibleMapSpots} createIcon={createMarkerIcon} />
-          <JourneyMarkerLayer journeys={filteredJourneys} />
-          {lat && lng && radius && (
-            <Circle center={[parseFloat(lat), parseFloat(lng)]} radius={parseFloat(radius) * 1000}
-              pathOptions={{ color: 'var(--border-color)', fillColor: 'var(--border-color)', fillOpacity: 0.08, weight: 2 }} />
-          )}
-          <FitBounds bounds={bounds} />
           <ZoomControls className="desktop-only" />
           <div className="map-credits-toggle mobile-only" onClick={() => setMapCreditsOpen(!mapCreditsOpen)} title="Map credits">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>
           </div>
           {mapCreditsOpen && (
             <div className="map-credits-popup">
@@ -1491,27 +1430,26 @@ export default function SpotsPage() {
                   ))}
                 </div>
               </div>
+              <div className="discover-section">
+                <div className="discover-section-title">Events</div>
+                <label className="discover-all-label">
+                  <input type="checkbox" checked={allEventCategoriesSelected} onChange={toggleAllEventCategories} /><span>All Events</span>
+                </label>
+                <div className="discover-categories-grid">
+                  {eventCategoriesList.map(cat => (
+                    <label key={cat.id} className="discover-cat-label">
+                      <input type="checkbox" checked={!!selectedEventCategories[cat.id]} onChange={() => toggleEventCategory(cat.id)} />
+                      <img src={cat.iconUrl || '/icons/stash--pin-location-light.svg'} alt="" /><span>{cat.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </>
       )}
 
       <div className="spots-sidebar">
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '0.75rem', alignItems: 'center', marginTop: '0.25rem', marginBottom: '0.5rem' }}>
-          <RatingModeSelector mode={ratingMode} onChange={(m) => {
-            setRatingMode(m)
-            setPage(0)
-            if (mapInstanceRef.current && !viewingSingleSpot) {
-              loadMapViewport(mapInstanceRef.current)
-            }
-          }} />
-          <select className="input select" style={{ width: 'auto', padding: '0.4rem 2.5rem 0.4rem 1rem' }}
-            value={sortBy} onChange={e => { setSortBy(e.target.value) }}>
-            <option value="popularity"> Trending</option>
-            <option value="distance" disabled={!(lat && lng && radius)}> Distance</option>
-          </select>
-        </div>
-        <p className="spots-status" style={{ textAlign: 'center', marginBottom: '0.25rem' }}>{statusText}</p>
         {!searchedSpot && !searchedJourney && (
           <div className="spots-filter-bar">
             <div className="spots-filter-mode desktop-only">
@@ -1593,19 +1531,19 @@ export default function SpotsPage() {
             pagedSpots.map(s => <SpotCard key={s.id} spot={s} />)
           )}
           {totalPages > 1 && (
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '0.2rem', padding: '0.4rem 0', whiteSpace: 'nowrap', overflowX: 'visible', alignItems: 'center' }}>
-            <button className="btn btn-ghost" onClick={() => setPage(0)} disabled={currentPage === 0} style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem', flexShrink: 0 }}>«</button>
-            <button className="btn btn-ghost" onClick={() => setPage(Math.max(0, pageNumbers.groupStart - 5))} disabled={pageNumbers.groupStart === 0} style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem', flexShrink: 0 }}>‹</button>
-            {pageNumbers.pages.map(p => (
-              <button key={p}
-                className={`btn ${p === currentPage ? 'btn-primary' : 'btn-ghost'}`}
-                onClick={() => setPage(p)}
-                style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem', minWidth: '24px', flexShrink: 0 }}
-              >{p + 1}</button>
-            ))}
-            <button className="btn btn-ghost" onClick={() => setPage(Math.min(totalPages - 1, pageNumbers.groupEnd))} disabled={pageNumbers.groupEnd >= totalPages - 1} style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem', flexShrink: 0 }}>›</button>
-            <button className="btn btn-ghost" onClick={() => setPage(totalPages - 1)} disabled={currentPage >= totalPages - 1} style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem', flexShrink: 0 }}>»</button>
-          </div>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '0.2rem', padding: '0.4rem 0', whiteSpace: 'nowrap', overflowX: 'visible', alignItems: 'center' }}>
+              <button className="btn btn-ghost" onClick={() => setPage(0)} disabled={currentPage === 0} style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem', flexShrink: 0 }}>«</button>
+              <button className="btn btn-ghost" onClick={() => setPage(Math.max(0, pageNumbers.groupStart - 5))} disabled={pageNumbers.groupStart === 0} style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem', flexShrink: 0 }}>‹</button>
+              {pageNumbers.pages.map(p => (
+                <button key={p}
+                  className={`btn ${p === currentPage ? 'btn-primary' : 'btn-ghost'}`}
+                  onClick={() => setPage(p)}
+                  style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem', minWidth: '24px', flexShrink: 0 }}
+                >{p + 1}</button>
+              ))}
+              <button className="btn btn-ghost" onClick={() => setPage(Math.min(totalPages - 1, pageNumbers.groupEnd))} disabled={pageNumbers.groupEnd >= totalPages - 1} style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem', flexShrink: 0 }}>›</button>
+              <button className="btn btn-ghost" onClick={() => setPage(totalPages - 1)} disabled={currentPage >= totalPages - 1} style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem', flexShrink: 0 }}>»</button>
+            </div>
           )}
         </div>
       </div>
