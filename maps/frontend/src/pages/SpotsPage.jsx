@@ -5,7 +5,6 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { useApi } from '../hooks/useApi'
 import SpotCard from '../components/SpotCard'
-import RatingModeSelector from '../components/RatingModeSelector'
 import './SpotsPage.css'
 
 let dynamicIconMap = {
@@ -273,12 +272,12 @@ function FitBounds({ bounds }) {
   return null
 }
 
-function ZoomControls() {
+function ZoomControls({ className }) {
   const map = useMap()
   const handleZoomIn = (e) => { e.preventDefault(); map.zoomIn() }
   const handleZoomOut = (e) => { e.preventDefault(); map.zoomOut() }
   return (
-    <div className="leaflet-control-zoom" style={{ position: 'absolute', bottom: '20px', left: '20px', zIndex: 1000, display: 'flex', flexDirection: 'column', gap: '5px' }}>
+    <div className={`leaflet-control-zoom ${className || ''}`} style={{ position: 'absolute', bottom: '20px', left: '20px', zIndex: 1000, display: 'flex', flexDirection: 'column', gap: '5px' }}>
       <button type="button" className="leaflet-control-zoom-in" title="Zoom in" onClick={handleZoomIn}>+</button>
       <button type="button" className="leaflet-control-zoom-out" title="Zoom out" onClick={handleZoomOut}>–</button>
     </div>
@@ -413,6 +412,8 @@ export default function SpotsPage() {
     return {}
   })
   const [allEventCategoriesSelected, setAllEventCategoriesSelected] = useState(true)
+  const [sidebarFilterOpen, setSidebarFilterOpen] = useState(false)
+  const [mapCreditsOpen, setMapCreditsOpen] = useState(false)
   const [searchModeDropdownOpen, setSearchModeDropdownOpen] = useState(false)
   const [journeys, setJourneys] = useState([])
   const [journeysLoading, setJourneysLoading] = useState(false)
@@ -940,7 +941,7 @@ export default function SpotsPage() {
     })
     const activeType = getActiveMapType()
     if (activeType) params.set('type', activeType)
-    params.set('mode', ratingMode)
+    params.set('mode', modeOverride || ratingMode)
 
     setStatus('Loading map spots...')
     try {
@@ -1200,6 +1201,11 @@ export default function SpotsPage() {
     <div className="spots-page">
       <div className="spots-map">
         <div className="map-search-container">
+          <button className="hamburger mobile-only" onClick={() => window.dispatchEvent(new CustomEvent('toggleMobileMenu'))} aria-label="Menu">
+            <span className="hamburger-icon">
+              <span /><span /><span />
+            </span>
+          </button>
           <div className="map-search-bar-wrapper">
             <input className="input map-search-input" value={place} onChange={e => handlePlaceInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') handleSearch() }} placeholder="Search spots, experiences or cities..." autoComplete="off" />
             <button type="button" className={`map-search-icon-btn clear-btn${(place || lat || lng) ? ' active' : ''}`} onClick={handleClearSearch} title="Clear search & location" aria-label="Clear search">
@@ -1227,7 +1233,7 @@ export default function SpotsPage() {
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="3"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line></svg>
           </button>
           {searchModeDropdownOpen && (
-            <div style={{ position: 'absolute', top: '0', left: '100%', marginLeft: '0.5rem', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', zIndex: 1001, minWidth: '180px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+            <div id="search-mode-dropdown" style={{ position: 'absolute', top: '0', left: '100%', marginLeft: '0.5rem', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', zIndex: 1001, minWidth: '180px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.35rem 0.75rem', cursor: 'pointer', fontSize: '0.75rem' }}>
                 <input type="radio" checked={searchMode === 'place'} onChange={() => { handleSetSearchMode('place'); setSearchModeDropdownOpen(false) }} style={{ width: '14px', height: '14px', accentColor: 'var(--text-primary)' }} /><span>Place</span>
               </label>
@@ -1416,6 +1422,79 @@ export default function SpotsPage() {
           <ZoomControls />
         </MapContainer>
       </div>
+        <div className="map-filter-container">
+          <button className="btn btn-primary discover-btn" onClick={() => setFilterDropdownOpen(!filterDropdownOpen)} style={{ whiteSpace: 'nowrap', padding: '0.5rem 1rem' }}>Discover</button>
+        </div>
+
+        <MapContainer center={[7.8804, 98.3923]} zoom={12} style={{ width: '100%', height: '100%' }} zoomControl={false}>
+          <TileLayer url={`https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png?api_key=${import.meta.env.VITE_STADIA_API_KEY}`}
+            attribution='Map tiles by <a href="https://stadiamaps.com/">Stadia Maps</a>, <a href="https://openmaptiles.org/">OpenMapTiles</a>, and <a href="http://openstreetmap.org">OpenStreetMap</a> contributors' />
+          <MapViewportLoader onViewportChange={loadMapViewport} onMapReady={(map) => { mapInstanceRef.current = map }} />
+          <MarkerClusterGroup spots={visibleMapSpots} createIcon={createMarkerIcon} />
+          <JourneyMarkerLayer journeys={filteredJourneys} />
+          {lat && lng && radius && (
+            <Circle center={[parseFloat(lat), parseFloat(lng)]} radius={parseFloat(radius) * 1000}
+              pathOptions={{ color: 'var(--border-color)', fillColor: 'var(--border-color)', fillOpacity: 0.08, weight: 2 }} />
+          )}
+          <FitBounds bounds={bounds} />
+          <ZoomControls className="desktop-only" />
+          <div className="map-credits-toggle mobile-only" onClick={() => setMapCreditsOpen(!mapCreditsOpen)} title="Map credits">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+          </div>
+          {mapCreditsOpen && (
+            <div className="map-credits-popup">
+              <span>© <a href="https://stadiamaps.com/">Stadia Maps</a> · <a href="https://openmaptiles.org/">OpenMapTiles</a> · <a href="http://openstreetmap.org">OpenStreetMap</a></span>
+            </div>
+          )}
+        </MapContainer>
+      </div>
+
+      {filterDropdownOpen && (
+        <>
+          <div className="discover-backdrop" onClick={() => setFilterDropdownOpen(false)} />
+          <div className="discover-overlay">
+            <div className="discover-overlay-header">
+              <h2>Discover</h2>
+              <button className="btn discover-close-btn" onClick={() => setFilterDropdownOpen(false)} aria-label="Close" style={{ background: '#e5e7eb', borderRadius: '50%', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, border: 'none' }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              </button>
+            </div>
+            <div className="discover-overlay-body">
+              <div className="discover-section">
+                <div className="discover-section-title">Spots</div>
+                <label className="discover-all-label">
+                  <input type="checkbox" checked={selectedCategories.all} onChange={() => toggleCategory('all')} /><span>All Spots</span>
+                </label>
+                <div className="discover-categories-grid">
+                  {categoriesList.map(cat => {
+                    const norm = cat.name.trim().toLowerCase().replace('é', 'e')
+                    return (
+                      <label key={cat.id} className="discover-cat-label">
+                        <input type="checkbox" checked={!!selectedCategories[norm]} onChange={() => toggleCategory(norm)} />
+                        <img src={cat.iconUrl || '/icons/stash--pin-location-light.svg'} alt="" /><span>{cat.name}</span>
+                      </label>
+                    )
+                  })}
+                </div>
+              </div>
+              <div className="discover-section">
+                <div className="discover-section-title">Journeys</div>
+                <label className="discover-all-label">
+                  <input type="checkbox" checked={allJourneyCategoriesSelected} onChange={toggleAllJourneyCategories} /><span>All Journeys</span>
+                </label>
+                <div className="discover-categories-list">
+                  {journeyCategoriesList.map(cat => (
+                    <label key={cat.id} className="discover-cat-label">
+                      <input type="checkbox" checked={!!selectedJourneyCategories[cat.id]} onChange={() => toggleJourneyCategory(cat.id)} />
+                      <img src={cat.iconUrl || '/icons/stash--pin-location-light.svg'} alt="" /><span>{cat.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
       <div className="spots-sidebar">
         <div style={{ display: 'flex', justifyContent: 'center', gap: '0.75rem', alignItems: 'center', marginTop: '0.25rem', marginBottom: '0.5rem' }}>
@@ -1433,6 +1512,57 @@ export default function SpotsPage() {
           </select>
         </div>
         <p className="spots-status" style={{ textAlign: 'center', marginBottom: '0.25rem' }}>{statusText}</p>
+        {!searchedSpot && !searchedJourney && (
+          <div className="spots-filter-bar">
+            <div className="spots-filter-mode desktop-only">
+              {['trusted', 'global', 'experts'].map(m => (
+                <button key={m} className={`spots-filter-tab ${ratingMode === m ? 'active' : ''}`} onClick={() => {
+                  setRatingMode(m)
+                  if (mapInstanceRef.current && !place && !lat && !lng) {
+                    setPage(0)
+                    loadMapViewport(mapInstanceRef.current, m)
+                  }
+                }}>{m.charAt(0).toUpperCase() + m.slice(1)}</button>
+              ))}
+              <select className="input select" value={sortBy} onChange={e => setSortBy(e.target.value)}
+                style={{ marginLeft: '0.75rem', fontSize: '0.8rem', padding: '0.3rem 0.6rem', width: 'auto' }}>
+                <option value="popularity"> Trending</option>
+                <option value="distance" disabled={!(lat && lng && radius)}> Distance</option>
+              </select>
+            </div>
+            <div className="spots-sidebar-header-center">
+              <p className="spots-status">{statusText}</p>
+              <div className="sidebar-filter-wrapper mobile-only">
+                <button className="btn btn-ghost sidebar-filter-btn" onClick={() => setSidebarFilterOpen(!sidebarFilterOpen)} title="Filter options" aria-label="Filter options">
+                  <img src="/icons/lets-icons--filter.svg" alt="Filter" className="sidebar-filter-icon" />
+                </button>
+                {sidebarFilterOpen && (
+                  <div className="sidebar-filter-dropdown">
+                    <div className="sidebar-filter-section">
+                      <div className="sidebar-filter-label">Rating Mode</div>
+                      <div className="sidebar-filter-rating">
+                        {['global', 'trusted', 'experts'].map(m => (
+                          <button key={m} className={`btn btn-sm ${ratingMode === m ? 'btn-primary' : 'btn-ghost'}`} onClick={() => {
+                            setRatingMode(m)
+                            if (mapInstanceRef.current && !place && !lat && !lng) { setPage(0); loadMapViewport(mapInstanceRef.current, m) }
+                            setSidebarFilterOpen(false)
+                          }}>{m.charAt(0).toUpperCase() + m.slice(1)}</button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="sidebar-filter-section">
+                      <div className="sidebar-filter-label">Sort By</div>
+                      <select className="input select sidebar-filter-select" value={sortBy} onChange={e => { setSortBy(e.target.value); setSidebarFilterOpen(false) }}>
+                        <option value="popularity"> Trending</option>
+                        <option value="distance" disabled={!(lat && lng && radius)}> Distance</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
         <div className="spots-list">
           {journeysLoading && (
             <div style={{ textAlign: 'center', padding: '1rem', color: 'var(--text-muted)', fontSize: '0.9rem' }}>Loading journeys...</div>
@@ -1464,11 +1594,8 @@ export default function SpotsPage() {
           )}
           {totalPages > 1 && (
           <div style={{ display: 'flex', justifyContent: 'center', gap: '0.2rem', padding: '0.4rem 0', whiteSpace: 'nowrap', overflowX: 'visible', alignItems: 'center' }}>
-            {/* First page */}
             <button className="btn btn-ghost" onClick={() => setPage(0)} disabled={currentPage === 0} style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem', flexShrink: 0 }}>«</button>
-            {/* Previous group (shift 5 back) */}
             <button className="btn btn-ghost" onClick={() => setPage(Math.max(0, pageNumbers.groupStart - 5))} disabled={pageNumbers.groupStart === 0} style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem', flexShrink: 0 }}>‹</button>
-            {/* Page numbers in current group */}
             {pageNumbers.pages.map(p => (
               <button key={p}
                 className={`btn ${p === currentPage ? 'btn-primary' : 'btn-ghost'}`}
@@ -1476,9 +1603,7 @@ export default function SpotsPage() {
                 style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem', minWidth: '24px', flexShrink: 0 }}
               >{p + 1}</button>
             ))}
-            {/* Next group (shift 5 forward) */}
             <button className="btn btn-ghost" onClick={() => setPage(Math.min(totalPages - 1, pageNumbers.groupEnd))} disabled={pageNumbers.groupEnd >= totalPages - 1} style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem', flexShrink: 0 }}>›</button>
-            {/* Last page */}
             <button className="btn btn-ghost" onClick={() => setPage(totalPages - 1)} disabled={currentPage >= totalPages - 1} style={{ padding: '0.15rem 0.4rem', fontSize: '0.7rem', flexShrink: 0 }}>»</button>
           </div>
           )}

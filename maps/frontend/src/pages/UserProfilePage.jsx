@@ -6,6 +6,7 @@ import { useToast } from '../components/ToastProvider'
 import StarRating, { formatRating } from '../components/StarRating'
 import '../components/ReportModal.css'
 import './UserProfilePage.css'
+import './OnboardingPage.css'
 
 export default function UserProfilePage() {
   const { id } = useParams()
@@ -40,6 +41,21 @@ export default function UserProfilePage() {
   const [submittedLoading, setSubmittedLoading] = useState(false)
   const [isFollowing, setIsFollowing] = useState(false)
   const [followerCount, setFollowerCount] = useState(0)
+
+  const INTERESTS = [
+    { label: 'Coffee', emoji: '☕', value: 'coffee' },
+    { label: 'Photography', emoji: '📷', value: 'photography' },
+    { label: 'Food', emoji: '🍽️', value: 'food' },
+    { label: 'Alcohol', emoji: '🍷', value: 'alcohol' },
+    { label: 'Exquisite Food', emoji: '🥘', value: 'exquisite food' },
+    { label: 'Travelling', emoji: '✈️', value: 'travelling' },
+    { label: 'Hiking', emoji: '🏔️', value: 'hiking' },
+    { label: 'Beach', emoji: '🏖️', value: 'beach' },
+    { label: 'Museum', emoji: '🏛️', value: 'museum' },
+    { label: 'Nightlife', emoji: '🌃', value: 'nightlife' },
+    { label: 'Shopping', emoji: '🛍️', value: 'shopping' },
+    { label: 'Fitness', emoji: '🏋️', value: 'fitness' },
+  ]
 
   // Expert application form
   const [showApplyForm, setShowApplyForm] = useState(false)
@@ -95,6 +111,9 @@ export default function UserProfilePage() {
   const [showPostComments, setShowPostComments] = useState({})
 
   const [showEditForm, setShowEditForm] = useState(false)
+  const [showInterestsForm, setShowInterestsForm] = useState(false)
+  const [selectedInterests, setSelectedInterests] = useState([])
+  const [savingInterests, setSavingInterests] = useState(false)
   const [editForm, setEditForm] = useState({
     bio: '', privateAccount: false, professionalTitle: '', organization: '', yearsExperience: '', specializations: '', portfolioUrl: '', profilePicture: ''
   })
@@ -138,6 +157,9 @@ export default function UserProfilePage() {
       }
       const userData = await userRes.json()
       setUser(userData)
+
+      // Pre-fill interests
+      setSelectedInterests(userData.interests || [])
 
       // Pre-fill edit form
       setEditForm({
@@ -539,6 +561,58 @@ export default function UserProfilePage() {
                 </div>
               )}
 
+          {/* Edit Interests */}
+          {!showInterestsForm ? (
+            <button className="btn btn-primary" style={{ marginLeft: '0.5rem' }} onClick={() => setShowInterestsForm(true)}>Edit Interests</button>
+          ) : (
+            <div className="glass" style={{ padding: '1.5rem', marginTop: '1rem' }}>
+              <h3 style={{ marginBottom: '1rem' }}>Edit Your Interests</h3>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
+                Your interests personalize the Discover page. Select what you love!
+              </p>
+              <div className="interests-grid" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem' }}>
+                {INTERESTS.map(interest => (
+                  <button
+                    key={interest.value}
+                    className={`interest-chip ${selectedInterests.includes(interest.value) ? 'selected' : ''}`}
+                    onClick={() => {
+                      setSelectedInterests(prev =>
+                        prev.includes(interest.value) ? prev.filter(i => i !== interest.value) : [...prev, interest.value]
+                      )
+                    }}
+                  >
+                    {interest.emoji} {interest.label}
+                  </button>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button className="btn btn-primary" disabled={savingInterests} onClick={async () => {
+                  setSavingInterests(true)
+                  try {
+                    const res = await apiFetch('/api/v1/users/me/interests', {
+                      method: 'PUT',
+                      body: JSON.stringify({ interests: selectedInterests })
+                    })
+                    if (res.ok) {
+                      localStorage.setItem('interests', selectedInterests.join(','))
+                      toast.success('Interests updated!')
+                      setShowInterestsForm(false)
+                    } else {
+                      toast.error('Failed to update interests.')
+                    }
+                  } catch { toast.error('Server error.') }
+                  finally { setSavingInterests(false) }
+                }}>
+                  {savingInterests ? 'Saving...' : 'Save Interests'}
+                </button>
+                <button className="btn btn-ghost" onClick={() => {
+                  setSelectedInterests(user?.interests || [])
+                  setShowInterestsForm(false)
+                }}>Cancel</button>
+              </div>
+            </div>
+          )}
+
           {/* Non-expert: Apply to become expert */}
           {!user?.isExpert && (
             <>
@@ -609,7 +683,7 @@ export default function UserProfilePage() {
             className={`profile-feed-tab ${feedTab === tab ? 'active' : ''}`}
             onClick={() => changeFeedTab(tab)}
           >
-            {tab === 'spots' ? 'My Spots' : tab === 'events' ? 'Events' : tab === 'journeys' ? 'Journeys' : tab.charAt(0).toUpperCase() + tab.slice(1)}
+            {tab === 'spots' ? 'My Spots' : tab === 'events' ? 'My Events' : tab === 'journeys' ? 'My Journeys' : tab.charAt(0).toUpperCase() + tab.slice(1)}
           </div>
         ))}
       </div>
@@ -655,21 +729,21 @@ export default function UserProfilePage() {
                         ))}
                       </div>
                     )}
-                    {item.spotId && (
-                      <Link to={`/spot/${item.spotId}`} className="profile-feed-item-spot-link">
-                        📍 {item.spotName || 'Linked spot'}
+                    {(item.linkedSpots || (item.spotId ? [{id: item.spotId, name: item.spotName}] : [])).map(s => (
+                      <Link key={s.id} to={`/spot/${s.id}`} className="profile-feed-item-spot-link">
+                        📍 {s.name || 'Linked spot'}
                       </Link>
-                    )}
-                {item.eventId && (
-                  <Link to={`/event/${item.eventId}`} className="profile-feed-item-spot-link">
-                    📅 {item.eventName || 'Linked event'}
-                  </Link>
-                )}
-                {item.journeyId && (
-                  <Link to={`/journey/${item.journeyId}`} className="profile-feed-item-spot-link">
-                    🥾 {item.journeyName || 'Linked journey'}
-                  </Link>
-                )}
+                    ))}
+                    {(item.linkedEvents || (item.eventId ? [{id: item.eventId, title: item.eventName}] : [])).map(e => (
+                      <Link key={e.id} to={`/event/${e.id}`} className="profile-feed-item-spot-link">
+                        📅 {e.title || 'Linked event'}
+                      </Link>
+                    ))}
+                    {(item.linkedJourneys || (item.journeyId ? [{id: item.journeyId, name: item.journeyName}] : [])).map(j => (
+                      <Link key={j.id} to={`/journey/${j.id}`} className="profile-feed-item-spot-link">
+                        🥾 {j.name || 'Linked journey'}
+                      </Link>
+                    ))}
                 <div className="feed-item-footer">
                       <span
                         className={`feed-action-btn ${showPostLikes[item.postId] ? 'active' : ''}`}

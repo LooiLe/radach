@@ -164,3 +164,15 @@
   background: var(--border);
   margin: 0.4rem 1rem;
 }
+
+/* Mobile: on discover page, hide navbar entirely (hamburger is in the map) */
+@media (max-width: 960px) {
+  .navbar.discover-page {
+    display: none;
+  }
+  .menu-drawer {
+    width: 100%;
+    border-radius: 0;
+    border-right: none;
+  }
+}

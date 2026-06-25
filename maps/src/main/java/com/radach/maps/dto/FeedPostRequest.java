@@ -5,7 +5,7 @@ import java.util.List;
 public record FeedPostRequest(
         String content,
         List<String> mediaUrls,
-        Long spotId,
-        Long eventId,
-        Long journeyId
+        List<Long> spotIds,
+        List<Long> eventIds,
+        List<Long> journeyIds
 ) {}
