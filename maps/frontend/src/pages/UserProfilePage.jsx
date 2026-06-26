@@ -807,9 +807,7 @@ export default function UserProfilePage() {
           <div className="profile-submitted-list">
             {submittedLoading ? (
               <div className="feed-loading"><div className="spinner" /><p>Loading spots...</p></div>
-            ) : submittedSpots.length === 0 ? (
-              <div className="empty-state">No spots submitted yet.</div>
-            ) : (
+            ) : submittedSpots.length > 0 && (
               submittedSpots.map(spot => (
                 <Link key={spot.id} to={`/spot/${spot.id}`} className="profile-submitted-item glass">
                   <div className="profile-submitted-item-info">
@@ -827,9 +825,7 @@ export default function UserProfilePage() {
           <div className="profile-submitted-list">
             {submittedLoading ? (
               <div className="feed-loading"><div className="spinner" /><p>Loading events...</p></div>
-            ) : submittedEvents.length === 0 ? (
-              <div className="empty-state">No events submitted yet.</div>
-            ) : (
+            ) : submittedEvents.length > 0 && (
               submittedEvents.map(evt => (
                 <Link key={evt.id} to={`/event/${evt.id}`} className="profile-submitted-item glass">
                   <div className="profile-submitted-item-info">
@@ -846,9 +842,7 @@ export default function UserProfilePage() {
           <div className="profile-submitted-list">
             {submittedLoading ? (
               <div className="feed-loading"><div className="spinner" /><p>Loading journeys...</p></div>
-            ) : submittedJourneys.length === 0 ? (
-              <div className="empty-state">No journeys submitted yet.</div>
-            ) : (
+            ) : submittedJourneys.length > 0 && (
               submittedJourneys.map(journey => (
                 <Link key={journey.id} to={`/journey/${journey.id}`} className="profile-submitted-item glass">
                   <div className="profile-submitted-item-info">

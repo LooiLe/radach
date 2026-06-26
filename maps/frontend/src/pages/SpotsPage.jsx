@@ -429,8 +429,8 @@ export default function SpotsPage() {
     food: ['restaurant', 'food hall'],
     alcohol: ['bar'],
     'exquisite food': ['restaurant', 'food hall'],
-    travelling: [],
-    hiking: [],
+    travelling: ['stay'],
+    hiking: ['viewpoint'],
     beach: ['beach'],
     museum: [],
     nightlife: ['bar'],
@@ -502,23 +502,29 @@ export default function SpotsPage() {
             }
           }
 
-          const savedCategories = sessionStorage.getItem('selectedCategories')
-          if (savedCategories) {
-            try {
-              const parsed = JSON.parse(savedCategories)
-              const merged = { ...parsed }
-              sorted.forEach(c => {
-                const norm = c.name.trim().toLowerCase().replace('é', 'e')
-                if (merged[norm] === undefined) {
-                  merged[norm] = merged.all !== undefined ? merged.all : true
-                }
-              })
-              setSelectedCategories(merged)
-            } catch (e) {
+          // Always prefer interest-based selection when interests exist
+          const storedInterests = localStorage.getItem('interests')
+          if (storedInterests && storedInterests.split(',').filter(Boolean).length > 0) {
+            setSelectedCategories(selMap)
+          } else {
+            const savedCategories = sessionStorage.getItem('selectedCategories')
+            if (savedCategories) {
+              try {
+                const parsed = JSON.parse(savedCategories)
+                const merged = { ...parsed }
+                sorted.forEach(c => {
+                  const norm = c.name.trim().toLowerCase().replace('é', 'e')
+                  if (merged[norm] === undefined) {
+                    merged[norm] = merged.all !== undefined ? merged.all : true
+                  }
+                })
+                setSelectedCategories(merged)
+              } catch (e) {
+                setSelectedCategories(selMap)
+              }
+            } else {
               setSelectedCategories(selMap)
             }
-          } else {
-            setSelectedCategories(selMap)
           }
           // Check if both are loaded
           if (initialCatLoadRef.current.journeyCategories) setCategoriesReady(true)
@@ -558,23 +564,30 @@ export default function SpotsPage() {
             sorted.forEach(cat => { next[cat.id] = true })
           }
 
-          const savedJourney = sessionStorage.getItem('selectedJourneyCategories')
-          if (savedJourney) {
-            try {
-              const parsed = JSON.parse(savedJourney)
-              const merged = { ...parsed }
-              sorted.forEach(cat => {
-                if (merged[cat.id] === undefined) merged[cat.id] = false
-              })
-              setSelectedJourneyCategories(merged)
-              setAllJourneyCategoriesSelected(sorted.every(c => merged[c.id]))
-            } catch (e) {
+          // Always prefer interest-based selection when interests exist
+          const storedInterests = localStorage.getItem('interests')
+          if (storedInterests && storedInterests.split(',').filter(Boolean).length > 0) {
+            setSelectedJourneyCategories(next)
+            setAllJourneyCategoriesSelected(sorted.every(c => next[c.id]))
+          } else {
+            const savedJourney = sessionStorage.getItem('selectedJourneyCategories')
+            if (savedJourney) {
+              try {
+                const parsed = JSON.parse(savedJourney)
+                const merged = { ...parsed }
+                sorted.forEach(cat => {
+                  if (merged[cat.id] === undefined) merged[cat.id] = false
+                })
+                setSelectedJourneyCategories(merged)
+                setAllJourneyCategoriesSelected(sorted.every(c => merged[c.id]))
+              } catch (e) {
+                setSelectedJourneyCategories(next)
+                setAllJourneyCategoriesSelected(sorted.every(c => next[c.id]))
+              }
+            } else {
               setSelectedJourneyCategories(next)
               setAllJourneyCategoriesSelected(sorted.every(c => next[c.id]))
             }
-          } else {
-            setSelectedJourneyCategories(next)
-            setAllJourneyCategoriesSelected(sorted.every(c => next[c.id]))
           }
           // Check if both are loaded
           if (initialCatLoadRef.current.categories) setCategoriesReady(true)
@@ -721,6 +734,8 @@ export default function SpotsPage() {
     if (selectedMarkerSpot) return []
     // If a specific journey is searched, only show that one
     if (searchedJourney) return [searchedJourney]
+    // If viewing a single spot from search, don't show any journeys
+    if (viewingSingleSpot) return []
     // If a specific spot is searched, don't show any journeys
     if (searchedSpot) return []
     if (!journeyCategoriesList.length) return journeys
@@ -728,9 +743,11 @@ export default function SpotsPage() {
     if (!anySelected) return []
     const selectedIds = new Set(journeyCategoriesList.filter(c => selectedJourneyCategories[c.id]).map(c => c.id))
     return journeys.filter(j => selectedIds.has(j.journeyCategoryId) && isJourneyInBounds(j, mapBounds))
-  }, [journeys, journeyCategoriesList, selectedJourneyCategories, mapBounds, searchedJourney, searchedSpot, selectedMarkerSpot, eventCategoriesList, selectedEventCategories])
+  }, [journeys, journeyCategoriesList, selectedJourneyCategories, mapBounds, searchedJourney, searchedSpot, selectedMarkerSpot, viewingSingleSpot, eventCategoriesList, selectedEventCategories])
 
   const visibleMapSpots = useMemo(() => {
+    // If viewing a single spot (from search), only show that one
+    if (viewingSingleSpot) return mapSpots
     // If a marker is selected, only show that one
     if (selectedMarkerSpot) return [selectedMarkerSpot]
     // If a specific spot is searched, only show that one
@@ -892,7 +909,10 @@ export default function SpotsPage() {
     })
     const activeType = getActiveMapType()
     if (activeType) params.set('type', activeType)
-    params.set('mode', modeOverride || ratingMode)
+    // Normalize mode: frontend uses 'experts' (plural) but backend expects 'expert' (singular)
+    const rawMode = modeOverride || ratingMode
+    const normalizedMode = rawMode === 'experts' ? 'expert' : rawMode
+    params.set('mode', normalizedMode)
 
     setStatus('Loading map spots...')
     try {
@@ -1336,7 +1356,7 @@ export default function SpotsPage() {
               {['trusted', 'global', 'experts'].map(m => (
                 <button key={m} className={`spots-filter-tab ${ratingMode === m ? 'active' : ''}`} onClick={() => {
                   setRatingMode(m)
-                  if (mapInstanceRef.current && !place && !lat && !lng) {
+                  if (mapInstanceRef.current) {
                     setPage(0)
                     loadMapViewport(mapInstanceRef.current, m)
                   }
@@ -1362,7 +1382,7 @@ export default function SpotsPage() {
                         {['global', 'trusted', 'experts'].map(m => (
                           <button key={m} className={`btn btn-sm ${ratingMode === m ? 'btn-primary' : 'btn-ghost'}`} onClick={() => {
                             setRatingMode(m)
-                            if (mapInstanceRef.current && !place && !lat && !lng) { setPage(0); loadMapViewport(mapInstanceRef.current, m) }
+                            if (mapInstanceRef.current) { setPage(0); loadMapViewport(mapInstanceRef.current, m) }
                             setSidebarFilterOpen(false)
                           }}>{m.charAt(0).toUpperCase() + m.slice(1)}</button>
                         ))}

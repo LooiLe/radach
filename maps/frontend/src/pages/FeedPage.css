@@ -450,6 +450,14 @@
   color: var(--text-primary);
 }
 
+@media (min-width: 768px) {
+  .attach-dropdown {
+    position: static;
+    max-width: 100%;
+    width: 100%;
+  }
+}
+
 @media (max-width: 600px) {
   .feed-page { padding: 1rem 1rem 4rem; }
   .feed-item { padding: 1rem; }

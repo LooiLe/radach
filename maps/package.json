@@ -1,5 +1,6 @@
 {
   "dependencies": {
-    "leaflet.markercluster": "^1.5.3"
+    "leaflet.markercluster": "^1.5.3",
+    "qrcode": "^1.5.4"
   }
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { useApi } from '../hooks/useApi'
 import { useAuth } from '../context/AuthContext'
@@ -16,6 +16,7 @@ export default function FeedPage() {
   const initialTab = feedTabs.includes(searchParams.get('tab')) ? searchParams.get('tab') : 'global'
   const [activeTab, setActiveTab] = useState(initialTab)
   const navigate = useNavigate()
+  const createPostRef = useRef(null)
 
   // Create post state
   const [postContent, setPostContent] = useState('')
@@ -150,6 +151,19 @@ export default function FeedPage() {
     setEventSearchQuery('')
     setEventSearchResults([])
   }
+
+  // Close search dropdowns when clicking outside the create-post card
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (createPostRef.current && !createPostRef.current.contains(e.target)) {
+        setShowSpotSearch(false)
+        setShowEventSearch(false)
+        setShowJourneySearch(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   // Journey search with debounce
   useEffect(() => {
@@ -312,7 +326,7 @@ export default function FeedPage() {
         ))}
       </div>
 
-      <div className="create-post-card glass">
+      <div className="create-post-card glass" ref={createPostRef}>
         <textarea 
           className="create-post-textarea"
           placeholder="Share your thoughts or vibe..."

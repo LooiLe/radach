@@ -701,20 +701,20 @@ export default function SpotDetailPage() {
               </div>
             )}
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem' }}>
-              <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+            <div className="detail-actions">
+              <div className="detail-actions-primary">
                 <button className="btn btn-primary" onClick={() => { trackEvent('view'); navigate(`/spots?mode=nearby&lat=${spot.latitude}&lng=${spot.longitude}&radiusKm=0.1`) }}>
                   View on map
                 </button>
                 <button className="btn btn-ghost" style={{ border: '1px solid var(--border-color)' }} onClick={() => navigate(`/directions/${spot.id}`)}>
                   Directions
                 </button>
-                <button className="btn btn-ghost" style={{ border: '1px solid var(--border-color)' }} onClick={() => navigate(`/ar/spot/${spot.id}`)}>
-                  Explore in AR
-                </button>
               </div>
-              <div className="spot-card-actions">
-                <button className={`action-btn ${(spot.isLiked || spot.liked) ? 'active' : ''}`} onClick={async () => {
+              <button className="btn btn-ar-spot" onClick={() => navigate(`/ar/spot/${spot.id}`)}>
+                Explore in AR
+              </button>
+              <div className="detail-actions-tertiary">
+                <button className={`btn btn-ghost detail-action-btn ${(spot.isLiked || spot.liked) ? 'active' : ''}`} onClick={async () => {
                   if (!isAuthenticated) return navigate('/login')
                   const newLiked = !(spot.isLiked || spot.liked)
                   setSpot({ ...spot, isLiked: newLiked, liked: newLiked })
@@ -728,12 +728,13 @@ export default function SpotDetailPage() {
                     }
                   }
                   catch { setSpot({ ...spot, isLiked: !newLiked, liked: !newLiked }) }
-                }} aria-label="Like spot">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill={(spot.isLiked || spot.liked) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                }} aria-label="Like spot" style={{ border: '1px solid var(--border-color)', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill={(spot.isLiked || spot.liked) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
                   </svg>
+                  Like
                 </button>
-                <button className={`action-btn ${(spot.isSaved || spot.saved) ? 'active' : ''}`} onClick={async () => {
+                <button className={`btn btn-ghost detail-action-btn ${(spot.isSaved || spot.saved) ? 'active' : ''}`} onClick={async () => {
                   if (!isAuthenticated) return navigate('/login')
                   const newSaved = !(spot.isSaved || spot.saved)
                   setSpot({ ...spot, isSaved: newSaved, saved: newSaved })
@@ -742,16 +743,18 @@ export default function SpotDetailPage() {
                     const data = await res.json()
                   }
                   catch { setSpot({ ...spot, isSaved: !newSaved, saved: !newSaved }) }
-                }} aria-label="Save spot">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill={(spot.isSaved || spot.saved) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                }} aria-label="Save spot" style={{ border: '1px solid var(--border-color)', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill={(spot.isSaved || spot.saved) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"></path>
                   </svg>
+                  Save
                 </button>
-                <button className="action-btn report-btn" onClick={() => handleReportClick('SPOT', spot.id)} aria-label="Report spot" title="Report spot" style={{ color: 'var(--text-secondary)' }}>
+                <button className="btn btn-ghost detail-action-btn" onClick={() => handleReportClick('SPOT', spot.id)} aria-label="Report spot" title="Report spot" style={{ border: '1px solid var(--border-color)', display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: 'var(--text-secondary)' }}>
                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
                     <line x1="4" y1="22" x2="4" y2="15"></line>
                   </svg>
+                  Flag
                 </button>
               </div>
             </div>
