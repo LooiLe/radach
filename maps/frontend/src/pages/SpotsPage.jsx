@@ -314,7 +314,6 @@ function mapSpotTypeToCategory(type) {
 export default function SpotsPage() {
   const { apiFetch } = useApi()
   const [mapSpots, setMapSpots] = useState([])
-  const [vibeChips, setVibeChips] = useState([])
   const [selectedVibeTagIds, setSelectedVibeTagIds] = useState(() => {
     try {
       const saved = sessionStorage.getItem('selectedVibeTagIds')
@@ -421,6 +420,7 @@ export default function SpotsPage() {
   const initialCatLoadRef = useRef({ categories: false, journeyCategories: false })
   const [searchedSpot, setSearchedSpot] = useState(null)
   const [searchedJourney, setSearchedJourney] = useState(null)
+  const singleSpotIdRef = useRef(null)
 
   // Interest → spot category mapping
   const INTEREST_SPOT_MAP = {
@@ -602,7 +602,13 @@ export default function SpotsPage() {
         const res = await apiFetch('/api/v1/event-categories')
         const data = await res.json()
         if (res.ok && data.length > 0) {
-          const sorted = data.sort((a, b) => a.name.localeCompare(b.name))
+          const sorted = data.sort((a, b) => {
+            const aIsOther = a.name.toLowerCase() === 'other';
+            const bIsOther = b.name.toLowerCase() === 'other';
+            if (aIsOther && !bIsOther) return 1;
+            if (!aIsOther && bIsOther) return -1;
+            return a.name.localeCompare(b.name);
+          })
           setEventCategoriesList(sorted)
           const next = {}
           sorted.forEach(cat => { next[cat.id] = false })
@@ -893,7 +899,33 @@ export default function SpotsPage() {
 
 
   const loadMapViewport = useCallback(async (map, modeOverride) => {
-    if (!map || (viewingSingleSpot && searchMode !== 'nearby')) return
+    if (!map) return
+    // If viewing a single searched spot and a modeOverride is provided, fetch it directly
+    if (viewingSingleSpot && searchMode !== 'nearby') {
+      if (modeOverride) {
+        const rawMode = modeOverride === 'experts' ? 'expert' : modeOverride
+        const spotId = singleSpotIdRef.current
+        if (spotId) {
+          try {
+            const res = await apiFetch(`/api/v1/spots/${spotId}?mode=${rawMode}`)
+            if (res.ok) {
+              const data = await res.json()
+              // Extract vibeTagIds from vibeTags array (SpotResponse has vibeTags, not vibeTagIds)
+              const vibeTagIds = (data.vibeTags || []).map(vt => vt.id)
+              setMapSpots([{
+                ...data,
+                address: '',
+                averageRating: data.averageRating || 0,
+                status: 'ACTIVE',
+                tags: [],
+                vibeTagIds,
+              }])
+            }
+          } catch { /* ignore */ }
+        }
+      }
+      return
+    }
     const requestId = ++viewportRequestId.current
     const bounds = map.getBounds()
     setMapBounds({
@@ -939,38 +971,6 @@ export default function SpotsPage() {
       if (requestId === viewportRequestId.current) setStatus(e.message)
     }
   }, [apiFetch, viewingSingleSpot, searchMode, getActiveMapType, ratingMode])
-
-  useEffect(() => {
-    const activeType = getActiveCategoriesQuery()
-    if (!activeType) {
-      setVibeChips([])
-      setSelectedVibeTagIds(new Set())
-      return
-    }
-
-    let isMounted = true
-    apiFetch(`/api/v1/vibe/top-tags?type=${activeType}&limit=12`)
-      .then(res => {
-        if (!res.ok) throw new Error('Failed to fetch top tags')
-        return res.json()
-      })
-      .then(data => {
-        if (isMounted) {
-          setVibeChips(data || [])
-        }
-      })
-      .catch(err => {
-        console.error('Error fetching top vibe tags:', err)
-        if (isMounted) {
-          setVibeChips([])
-        }
-      })
-
-    return () => {
-      isMounted = false
-    }
-  }, [selectedCategories, getActiveCategoriesQuery, apiFetch])
-
 
   const isInitialCategoryLoad = useRef(true)
   useEffect(() => {
@@ -1113,9 +1113,12 @@ export default function SpotsPage() {
       // keep radius
     } else {
       setViewingSingleSpot(true)
+      singleSpotIdRef.current = spot.id
       setRadius('')
       setStatus('1 spot found.')
-      setMapSpots([spot])
+      // Extract vibeTagIds from vibeTags (SpotResponse has vibeTags, not vibeTagIds)
+      const vibeTagIds = (spot.vibeTags || []).map(vt => vt.id)
+      setMapSpots([{ ...spot, vibeTagIds }])
       setMapTotal(1)
       setBounds([[spot.latitude, spot.longitude]])
     }
@@ -1279,7 +1282,7 @@ export default function SpotsPage() {
                 <label className="discover-all-label">
                   <input type="checkbox" checked={selectedCategories.all} onChange={() => toggleCategory('all')} /><span>All Spots</span>
                 </label>
-                <div className="discover-categories-list" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.25rem' }}>
+                <div className="discover-categories-list">
                   {categoriesList.map(cat => {
                     const norm = cat.name.trim().toLowerCase().replace('é', 'e')
                     const tagsForCat = Object.entries(categoryVibesMap[norm] || {}).map(([tagIdStr, count]) => {
@@ -1320,7 +1323,7 @@ export default function SpotsPage() {
                 <label className="discover-all-label">
                   <input type="checkbox" checked={allJourneyCategoriesSelected} onChange={toggleAllJourneyCategories} /><span>All Journeys</span>
                 </label>
-                <div className="discover-categories-list" style={{ marginBottom: '1.25rem' }}>
+                <div className="discover-categories-list">
                   {journeyCategoriesList.map(cat => (
                     <label key={cat.id} className="discover-cat-label">
                       <input type="checkbox" checked={!!selectedJourneyCategories[cat.id]} onChange={() => toggleJourneyCategory(cat.id)} />
@@ -1335,7 +1338,7 @@ export default function SpotsPage() {
                 <label className="discover-all-label">
                   <input type="checkbox" checked={allEventCategoriesSelected} onChange={toggleAllEventCategories} /><span>All Events</span>
                 </label>
-                <div className="discover-categories-grid">
+                <div className="discover-categories-list">
                   {eventCategoriesList.map(cat => (
                     <label key={cat.id} className="discover-cat-label">
                       <input type="checkbox" checked={!!selectedEventCategories[cat.id]} onChange={() => toggleEventCategory(cat.id)} />
